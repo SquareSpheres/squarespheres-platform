@@ -14,7 +14,8 @@ function App() {
   useEffect(() => {
     const loadWasm = async () => {
       try {
-        const wasmModule = await import('./wasm/wasm_app.js')
+        // Load WASM module from public directory
+        const wasmModule = await import('/wasm/wasm_app.js')
         await wasmModule.default()
         setWasmModule(wasmModule)
         console.log('WASM module loaded successfully')

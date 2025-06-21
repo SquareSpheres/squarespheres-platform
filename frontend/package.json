@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "cp src/wasm/*.js src/wasm/*.wasm public/wasm/ 2>/dev/null || true",
     "build": "vite build",
     "lint": "eslint . --ext js,jsx,ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"

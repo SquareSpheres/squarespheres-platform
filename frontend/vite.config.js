@@ -10,6 +10,9 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      external: ['/wasm/wasm_app.js', '/wasm/wasm_app_bg.wasm']
+    }
   },
   publicDir: 'public',
 })
