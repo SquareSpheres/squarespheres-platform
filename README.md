@@ -6,7 +6,7 @@ A full-stack web application with WebAssembly support and WebRTC signaling.
 
 - **Frontend**: React + Vite application (`frontend/`)
 - **WASM App**: Rust-based WebAssembly module (`wasm-app/`)
-- **Signaling Server**: Rust WebRTC signaling server (`signaling-server/`)
+- **Signaling Server**: Go WebRTC signaling server (`signaling-server/`)
 
 ## Quick Start
 
@@ -27,6 +27,7 @@ make wasm
 
 - Node.js 18+
 - Rust 1.70+
+- Go 1.23+
 - wasm-pack
 - Docker & Docker Compose
 
@@ -34,8 +35,8 @@ make wasm
 
 1. Install dependencies:
    ```bash
-   # Install Rust dependencies
-   cargo build
+   # Install Go dependencies
+   cd signaling-server && go mod download
 
    # Install Node.js dependencies
    cd frontend && npm install
@@ -59,9 +60,10 @@ make wasm
 ## Project Structure
 
 ```
-├── Cargo.toml              # Rust workspace
-├── docker-compose.yml      # Development environment
+├── docker-compose.yml      # Production environment
+├── docker-compose.dev.yml  # Development overrides
 ├── Makefile               # Build commands
+├── Dockerfile.wasm        # WASM build container
 ├── frontend/              # React frontend
 │   ├── Dockerfile
 │   ├── package.json
@@ -69,9 +71,10 @@ make wasm
 ├── wasm-app/              # WebAssembly module
 │   ├── Cargo.toml
 │   └── src/
-├── signaling-server/      # WebRTC signaling
-│   ├── Cargo.toml
+├── signaling-server/      # WebRTC signaling (Go)
 │   ├── Dockerfile
-│   └── src/
-└── Dockerfile.wasm        # WASM build container
+│   ├── go.mod
+│   └── main.go
+└── scripts/               # Setup scripts
+    └── setup-dev.sh
 ```

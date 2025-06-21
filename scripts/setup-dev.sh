@@ -66,6 +66,15 @@ else
     echo "✅ wasm-pack installed successfully"
 fi
 
+# Check Go
+if command_exists go; then
+    echo "✅ Go found: $(go version)"
+else
+    echo "❌ Go not found. Please install Go 1.23+."
+    echo "   Download from: https://golang.org/dl/"
+    exit 1
+fi
+
 # Check Node.js
 if command_exists node; then
     NODE_VERSION=$(node --version)
@@ -93,14 +102,16 @@ fi
 echo ""
 echo "📦 Installing project dependencies..."
 
-# Install Rust dependencies
-echo "Installing Rust dependencies..."
-if cargo build; then
-    echo "✅ Rust dependencies installed"
+# Install Go dependencies
+echo "Installing Go dependencies..."
+cd signaling-server
+if go mod download; then
+    echo "✅ Go dependencies installed"
 else
-    echo "❌ Failed to install Rust dependencies"
+    echo "❌ Failed to install Go dependencies"
     exit 1
 fi
+cd ..
 
 # Install Node.js dependencies
 echo "Installing Node.js dependencies..."

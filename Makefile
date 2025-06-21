@@ -127,6 +127,7 @@ setup: ## Initial project setup
 	@command -v docker-compose >/dev/null 2>&1 || { echo "❌ Docker Compose is required but not installed."; exit 1; }
 	@command -v cargo >/dev/null 2>&1 || { echo "❌ Rust/Cargo is required but not installed."; exit 1; }
 	@command -v wasm-pack >/dev/null 2>&1 || { echo "❌ wasm-pack is required. Install with: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh"; exit 1; }
+	@command -v go >/dev/null 2>&1 || { echo "❌ Go is required but not installed."; exit 1; }
 	@command -v node >/dev/null 2>&1 || { echo "❌ Node.js is required but not installed."; exit 1; }
 	@echo "✅ All prerequisites found!"
 	$(MAKE) install
