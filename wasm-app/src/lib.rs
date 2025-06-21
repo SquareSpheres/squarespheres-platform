@@ -29,16 +29,11 @@ pub struct ProcessingResult {
 #[wasm_bindgen]
 pub fn greet(name: &str) -> String {
     console_log!("Hello from WASM! Greeting {}", name);
-    console_log!("I AM A GREAT FISHCAKE");
-    console_log!("I AM A GREAT FISHCAKE");
-    console_log!("I AM A GREAT FISHCAKE");
-    console_log!("I AM A GREAT FISHCAKE");
     format!("Hello, {}! This message comes from WebAssembly.", name)
 }
 
 #[wasm_bindgen]
 pub fn add(a: i32, b: i32) -> i32 {
-    console_log!("I AM A GREAT FISHCAKE");
     console_log!("Adding {} + {} in WASM", a, b);
     a + b
 }
@@ -46,12 +41,14 @@ pub fn add(a: i32, b: i32) -> i32 {
 #[wasm_bindgen]
 pub fn fibonacci(n: u32) -> u32 {
     console_log!("Computing fibonacci({}) in WASM", n);
-    console_log!("I AM A GREAT FISHCAKE");
-    match n {
-        0 => 0,
-        1 => 1,
-        _ => fibonacci(n - 1) + fibonacci(n - 2),
+    let mut a = 0;
+    let mut b = 1;
+    for _ in 0..n {
+        let temp = a;
+        a = b;
+        b = temp + b;
     }
+    a
 }
 
 #[wasm_bindgen]

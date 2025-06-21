@@ -64,13 +64,17 @@ clean: ## Clean build artifacts and Docker containers
 	docker-compose down -v --remove-orphans
 	docker system prune -f
 	cd frontend && rm -rf node_modules dist
-	rm -rf target/
-	rm -rf wasm-app/pkg/
-	rm -rf frontend/public/wasm/*
+	rm -rf wasm-app/target/
+	rm -rf frontend/src/wasm/*
 
-test: ## Run tests
-	@echo "🧪 Running tests..."
+test: test-signaling test-frontend ## Run tests
+
+test-signaling: ## Run signaling server tests
+	@echo "🧪 Running signaling server tests..."
 	cd signaling-server && go test -v ./...
+
+test-frontend: ## Run frontend linting as tests
+	@echo "🧪 Running frontend linter..."
 	cd frontend && npm run lint
 
 lint: ## Run linting

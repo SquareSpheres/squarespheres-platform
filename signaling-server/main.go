@@ -27,6 +27,7 @@ type Client struct {
 	Conn *websocket.Conn
 	Room *Room
 	Send chan Message
+	done chan struct{}
 }
 
 // Room manages multiple clients
@@ -51,6 +52,8 @@ var (
 	hub = &Hub{
 		Rooms: make(map[string]*Room),
 	}
+	clientIDCounter = 0
+	clientIDMutex   = &sync.Mutex{}
 )
 
 // NewRoom creates a new room
@@ -70,15 +73,17 @@ func (r *Room) AddClient(client *Client) {
 	log.Printf("Client %s joined room %s", client.ID, r.ID)
 }
 
-// RemoveClient removes a client from the room
-func (r *Room) RemoveClient(clientID string) {
+// RemoveClient removes a client from the room and returns the number of remaining clients.
+func (r *Room) RemoveClient(clientID string) int {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if client, exists := r.Clients[clientID]; exists {
 		delete(r.Clients, clientID)
-		close(client.Send)
+		// Closing the done channel signals the writePump to exit.
+		close(client.done)
 		log.Printf("Client %s left room %s", clientID, r.ID)
 	}
+	return len(r.Clients)
 }
 
 // Broadcast sends a message to all clients in the room except the sender
@@ -86,14 +91,13 @@ func (r *Room) Broadcast(message Message, senderID string) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	for clientID, client := range r.Clients {
-		if clientID != senderID {
+	for _, client := range r.Clients {
+		if client.ID != senderID {
 			select {
 			case client.Send <- message:
 			default:
 				// Client's send channel is full, remove them
-				close(client.Send)
-				delete(r.Clients, clientID)
+				go r.RemoveClient(client.ID)
 			}
 		}
 	}
@@ -114,20 +118,24 @@ func (h *Hub) GetOrCreateRoom(roomID string) *Room {
 	return room
 }
 
-// RemoveEmptyRoom removes a room if it has no clients
+// RemoveEmptyRoom removes a room if it is empty.
 func (h *Hub) RemoveEmptyRoom(roomID string) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
-	if room, exists := h.Rooms[roomID]; exists {
-		room.mutex.RLock()
-		clientCount := len(room.Clients)
-		room.mutex.RUnlock()
+	room, exists := h.Rooms[roomID]
+	if !exists {
+		return
+	}
+	// The room's mutex should be locked before calling this.
+	// To be safe against race conditions, we double-check.
+	room.mutex.RLock()
+	clientCount := len(room.Clients)
+	room.mutex.RUnlock()
 
-		if clientCount == 0 {
-			delete(h.Rooms, roomID)
-			log.Printf("Removed empty room: %s", roomID)
-		}
+	if clientCount == 0 {
+		delete(h.Rooms, roomID)
+		log.Printf("Removed empty room: %s", roomID)
 	}
 }
 
@@ -135,8 +143,6 @@ func (h *Hub) RemoveEmptyRoom(roomID string) {
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade failed: %v", err)
-		log.Printf("WebSocket upgrade failed: %v", err)
 		log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
@@ -152,8 +158,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Generate a simple client ID
-	clientID := fmt.Sprintf("client_%d", len(hub.Rooms)+1)
+	// Generate a unique client ID
+	clientIDMutex.Lock()
+	clientIDCounter++
+	clientID := fmt.Sprintf("client_%d", clientIDCounter)
+	clientIDMutex.Unlock()
 
 	// Get or create room
 	room := hub.GetOrCreateRoom(roomID)
@@ -163,6 +172,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		ID:   clientID,
 		Conn: conn,
 		Send: make(chan Message, 256),
+		done: make(chan struct{}),
 	}
 
 	// Add client to room
@@ -186,8 +196,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 func (c *Client) readPump() {
 	defer func() {
 		if c.Room != nil {
-			c.Room.RemoveClient(c.ID)
-			hub.RemoveEmptyRoom(c.Room.ID)
+			remainingClients := c.Room.RemoveClient(c.ID)
+			if remainingClients == 0 {
+				hub.RemoveEmptyRoom(c.Room.ID)
+			}
 		}
 		c.Conn.Close()
 	}()
@@ -215,8 +227,11 @@ func (c *Client) readPump() {
 			// Client wants to join a specific room
 			if message.RoomID != "" && message.RoomID != c.Room.ID {
 				// Remove from current room
-				c.Room.RemoveClient(c.ID)
-				hub.RemoveEmptyRoom(c.Room.ID)
+				if c.Room != nil {
+					if remaining := c.Room.RemoveClient(c.ID); remaining == 0 {
+						hub.RemoveEmptyRoom(c.Room.ID)
+					}
+				}
 
 				// Join new room
 				newRoom := hub.GetOrCreateRoom(message.RoomID)
@@ -249,8 +264,9 @@ func (c *Client) readPump() {
 
 // writePump handles outgoing messages to the client
 func (c *Client) writePump() {
-	defer c.Conn.Close()
-
+	defer func() {
+		c.Conn.Close()
+	}()
 	for {
 		select {
 		case message, ok := <-c.Send:
@@ -258,11 +274,13 @@ func (c *Client) writePump() {
 				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-
-			if err := c.Conn.WriteJSON(message); err != nil {
-				log.Printf("Error writing message: %v", err)
+			err := c.Conn.WriteJSON(message)
+			if err != nil {
+				log.Printf("Failed to write message: %v", err)
 				return
 			}
+		case <-c.done:
+			return
 		}
 	}
 }

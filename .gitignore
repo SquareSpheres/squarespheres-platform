@@ -1,15 +1,4 @@
-# Rust
-/target/
-**/*.rs.bk
-Cargo.lock
-
-# WASM
-/wasm-app/pkg/
-/frontend/public/wasm/*.js
-/frontend/public/wasm/*.wasm
-/frontend/public/wasm/*.ts
-
-# Node.js
+# Dependencies
 node_modules/
 npm-debug.log*
 yarn-debug.log*
@@ -17,21 +6,59 @@ yarn-error.log*
 .npm
 .yarn-integrity
 
-# Frontend build
+# Build outputs
+dist/
+build/
+*.tgz
+*.tar.gz
+
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# WASM
+*.wasm
+pkg/
+/frontend/public/wasm/*.js
+/frontend/public/wasm/*.wasm
+/frontend/public/wasm/*.ts
+
+# Frontend specific
 /frontend/dist/
 /frontend/.vite/
 
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Environment
+# Logs
+logs/
+*.log
+
+# Environment variables
 .env
 .env.local
 .env.development.local
@@ -39,22 +66,21 @@ Thumbs.db
 .env.production.local
 
 # Docker
+.dockerignore
 .docker/
 
-# Logs
-logs
-*.log
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Coverage
+coverage/
+*.lcov
 
 # Runtime data
 pids
 *.pid
 *.seed
 *.pid.lock
-
-# Coverage directory used by tools like istanbul
-coverage/
-*.lcov
-
-# Temporary folders
-tmp/
-temp/

@@ -30,7 +30,8 @@ function App() {
   // WebSocket connection
   useEffect(() => {
     const connectWebSocket = () => {
-      const wsUrl = `ws://localhost:8080/ws/${roomId}`
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}/ws/${roomId}`;
       ws.current = new WebSocket(wsUrl)
 
       ws.current.onopen = () => {
@@ -55,7 +56,9 @@ function App() {
       }
     }
 
-    connectWebSocket()
+    if (roomId) {
+      connectWebSocket();
+    }
 
     return () => {
       if (ws.current) {
@@ -101,6 +104,13 @@ function App() {
       ws.current.send(JSON.stringify(message))
     }
   }
+
+  const changeRoom = (newRoomId) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.close();
+    }
+    setRoomId(newRoomId);
+  };
 
   const joinRoom = () => {
     sendWebSocketMessage('join')
@@ -160,6 +170,9 @@ function App() {
               onChange={(e) => setRoomId(e.target.value)}
               placeholder="Room ID"
             />
+            <button onClick={() => changeRoom(roomId)} disabled={!roomId}>
+              Connect to Room
+            </button>
             <button onClick={joinRoom} disabled={wsStatus !== 'Connected'}>
               Join Room
             </button>
