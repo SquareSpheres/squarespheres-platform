@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+    <meta charset="UTF-8">
+    <title>Signaling Server WebSocket API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+
+        h1, h2 {
+            color: #2c3e50;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 1em;
+            border-radius: 6px;
+            overflow: auto;
+        }
+
+        .box {
+            border: 1px solid #ddd;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 6px;
+            background: #fcfcfc;
+        }
+    </style>
+</head>
+<body>
+<h1>📡 Signaling Server - WebSocket API</h1>
+
+<p>This WebSocket server facilitates peer-to-peer signaling between a single host and multiple clients.</p>
+
+<h2>🌐 WebSocket Connection</h2>
+<div class="box">
+    <p><strong>URL:</strong> <code>{{wsUrl}}</code></p>
+</div>
+
+<h2>📨 Message Format</h2>
+<pre>{
+  "type": "string",
+  "hostId": "string",
+  "clientId": "string",
+  "payload": "string"
+}</pre>
+
+<h2>🔁 Message Types</h2>
+
+<div class="box">
+    <h3><code>host</code></h3>
+    <p>Registers a new host.</p>
+    <pre>{
+  "type": "host"
+}</pre>
+    <pre>{
+  "type": "host",
+  "hostId": "abc123"
+}</pre>
+</div>
+
+<div class="box">
+    <h3><code>join-host</code></h3>
+    <p>Client joins a host by hostId.</p>
+    <pre>{
+  "type": "join-host",
+  "hostId": "abc123"
+}</pre>
+    <pre>{
+  "type": "join-host",
+  "hostId": "abc123",
+  "clientId": "xyz456"
+}</pre>
+</div>
+
+<div class="box">
+    <h3><code>msg-to-host</code></h3>
+    <p>Client sends a message to its host.</p>
+    <pre>{
+  "type": "msg-to-host",
+  "payload": "message data"
+}</pre>
+</div>
+
+<div class="box">
+    <h3><code>msg-to-client</code></h3>
+    <p>Host sends a message to a specific client.</p>
+    <pre>{
+  "type": "msg-to-client",
+  "clientId": "xyz456",
+  "payload": "message data"
+}</pre>
+</div>
+
+<h2>❌ Error Messages</h2>
+<p>If a problem occurs, the server responds with:</p>
+<pre>{
+  "type": "error",
+  "message": "description of the error"
+}</pre>
+</body>
+</html>

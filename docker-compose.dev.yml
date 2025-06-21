@@ -1,0 +1,47 @@
+# Development overrides for docker-compose.yml
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  # Development frontend with hot reload
+  frontend-dev:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      - NODE_ENV=development
+      - VITE_SIGNALING_SERVER_URL=ws://localhost:8080
+    depends_on:
+      - wasm-builder
+      - signaling-server
+    profiles:
+      - dev
+
+  # Override signaling server for development
+  signaling-server:
+    volumes:
+      - ./signaling-server/src:/app/src:ro
+    environment:
+      - RUST_LOG=debug
+      - RUST_BACKTRACE=1
+
+  # Development database (if needed in the future)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_DB: squarespheres_platform
+  #     POSTGRES_USER: dev
+  #     POSTGRES_PASSWORD: devpass
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   profiles:
+  #     - dev
+
+# volumes:
+#   postgres_data:

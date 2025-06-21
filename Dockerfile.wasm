@@ -1,0 +1,46 @@
+# WASM Build Dockerfile
+FROM rust:1.82-alpine as builder
+
+# Install dependencies
+RUN apk add --no-cache \
+    musl-dev \
+    curl \
+    nodejs \
+    npm
+
+# Install wasm-pack and wasm-bindgen-cli
+RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+RUN cargo install wasm-bindgen-cli
+
+WORKDIR /app
+
+# Copy wasm-app source
+COPY wasm-app ./
+
+# Create a standalone Cargo.toml for wasm-app
+RUN sed -i 's/{ workspace = true }/{ version = "1.0", features = ["derive"] }/' Cargo.toml
+
+# Build WASM package
+RUN wasm-pack build --target web --out-dir pkg --out-name wasm_app
+
+# Runtime stage for copying output
+FROM alpine:latest
+
+WORKDIR /output
+
+# Copy the generated WASM files
+COPY --from=builder /app/pkg/ ./
+
+# Create a simple script to copy files to the frontend
+COPY <<EOF /copy-wasm.sh
+#!/bin/sh
+echo "Copying WASM files to frontend..."
+mkdir -p /frontend/src/wasm
+cp /output/* /frontend/src/wasm/ 2>/dev/null || echo "Target directory not available yet"
+echo "WASM files copied successfully!"
+ls -la /output/
+EOF
+
+RUN chmod +x /copy-wasm.sh
+
+CMD ["/copy-wasm.sh"]

@@ -1,0 +1,23 @@
+{
+  "rewrites": [
+    {
+      "source": "/ws/:path*",
+      "destination": "https://your-signaling-server.vercel.app/ws/:path*"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/wasm/:path*",
+      "headers": [
+        {
+          "key": "Cross-Origin-Embedder-Policy",
+          "value": "require-corp"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
+        }
+      ]
+    }
+  ]
+} 
