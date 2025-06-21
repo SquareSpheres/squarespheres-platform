@@ -85,7 +85,7 @@ func (r *Room) RemoveClient(clientID string) {
 func (r *Room) Broadcast(message Message, senderID string) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
-	
+
 	for clientID, client := range r.Clients {
 		if clientID != senderID {
 			select {
@@ -103,11 +103,11 @@ func (r *Room) Broadcast(message Message, senderID string) {
 func (h *Hub) GetOrCreateRoom(roomID string) *Room {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
-	
+
 	if room, exists := h.Rooms[roomID]; exists {
 		return room
 	}
-	
+
 	room := NewRoom(roomID)
 	h.Rooms[roomID] = room
 	log.Printf("Created new room: %s", roomID)
@@ -118,12 +118,12 @@ func (h *Hub) GetOrCreateRoom(roomID string) *Room {
 func (h *Hub) RemoveEmptyRoom(roomID string) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
-	
+
 	if room, exists := h.Rooms[roomID]; exists {
 		room.mutex.RLock()
 		clientCount := len(room.Clients)
 		room.mutex.RUnlock()
-		
+
 		if clientCount == 0 {
 			delete(h.Rooms, roomID)
 			log.Printf("Removed empty room: %s", roomID)
@@ -135,6 +135,8 @@ func (h *Hub) RemoveEmptyRoom(roomID string) {
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		log.Printf("WebSocket upgrade failed: %v", err)
+		log.Printf("WebSocket upgrade failed: %v", err)
 		log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
@@ -215,18 +217,18 @@ func (c *Client) readPump() {
 				// Remove from current room
 				c.Room.RemoveClient(c.ID)
 				hub.RemoveEmptyRoom(c.Room.ID)
-				
+
 				// Join new room
 				newRoom := hub.GetOrCreateRoom(message.RoomID)
 				newRoom.AddClient(c)
 			}
-			
+
 		case "offer", "answer", "ice-candidate":
 			// Relay WebRTC signaling messages
 			if c.Room != nil {
 				c.Room.Broadcast(message, c.ID)
 			}
-			
+
 		case "ping":
 			// Respond to ping with pong
 			pongMsg := Message{
@@ -235,7 +237,7 @@ func (c *Client) readPump() {
 				RoomID:   c.Room.ID,
 			}
 			c.Send <- pongMsg
-			
+
 		default:
 			// Broadcast unknown messages to all clients in room
 			if c.Room != nil {
@@ -333,12 +335,12 @@ func main() {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-			
+
 			if r.Method == "OPTIONS" {
 				w.WriteHeader(http.StatusOK)
 				return
 			}
-			
+
 			next.ServeHTTP(w, r)
 		})
 	})
