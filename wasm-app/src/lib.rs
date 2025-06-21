@@ -30,6 +30,9 @@ pub struct ProcessingResult {
 pub fn greet(name: &str) -> String {
     console_log!("Hello from WASM! Greeting {}", name);
     console_log!("I AM A GREAT FISHCAKE");
+    console_log!("I AM A GREAT FISHCAKE");
+    console_log!("I AM A GREAT FISHCAKE");
+    console_log!("I AM A GREAT FISHCAKE");
     format!("Hello, {}! This message comes from WebAssembly.", name)
 }
 
