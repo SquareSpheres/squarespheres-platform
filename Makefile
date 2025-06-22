@@ -16,7 +16,8 @@ build: ## Build all components
 
 build-wasm: ## Build WASM module only
 	@echo "🦀 Building WASM module..."
-	cd wasm-app && wasm-pack build --target web --out-dir ../frontend/src/wasm --out-name wasm_app
+	@rm -rf frontend/public/wasm
+	cd wasm-app && wasm-pack build --target web --out-dir ../frontend/wasm-module --out-name wasm_app --no-pack
 
 build-frontend: ## Build frontend only
 	@echo "⚛️  Building frontend..."
@@ -63,9 +64,10 @@ clean: ## Clean build artifacts and Docker containers
 	@echo "🧹 Cleaning up..."
 	docker-compose down -v --remove-orphans
 	docker system prune -f
-	cd frontend && rm -rf node_modules dist
+	cd frontend && rm -rf node_modules dist .next
 	rm -rf wasm-app/target/
-	rm -rf frontend/src/wasm/*
+	rm -rf frontend/public/wasm
+	rm -rf frontend/wasm-module
 
 test: test-signaling test-frontend ## Run tests
 

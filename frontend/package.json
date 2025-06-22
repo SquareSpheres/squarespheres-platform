@@ -2,26 +2,33 @@
   "name": "@yngvenot-platform/frontend",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
   "scripts": {
-    "dev": "vite",
-    "prebuild": "cp src/wasm/*.js src/wasm/*.wasm public/wasm/ 2>/dev/null || true",
-    "build": "vite build",
-    "lint": "eslint . --ext js,jsx,ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "postbuild": "echo 'Build complete.'",
+    "prebuild": "echo 'WASM assets should be built directly into /public/wasm. Run `make build-wasm` and then `npm run wasm:lint-fix` if needed.'",
+    "wasm:lint-fix": "echo '/* eslint-disable */' | cat - public/wasm/wasm_app.js > temp && mv temp public/wasm/wasm_app.js"
   },
   "dependencies": {
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "next": "^14.0.0",
+    "qrcode": "^1.5.3",
+    "lucide-react": "^0.303.0",
+    "framer-motion": "^10.16.16"
   },
   "devDependencies": {
+    "@types/node": "^20.0.0",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
-    "@vitejs/plugin-react": "^4.2.1",
+    "@types/qrcode": "^1.5.5",
+    "typescript": "^5.0.0",
+    "tailwindcss": "^3.3.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
     "eslint": "^8.55.0",
-    "eslint-plugin-react": "^7.33.2",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "eslint-plugin-react-refresh": "^0.4.5",
-    "vite": "^5.0.8"
+    "eslint-config-next": "^14.0.0"
   }
 }
