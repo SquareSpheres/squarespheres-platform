@@ -8,6 +8,9 @@ services:
       - wasm-output:/output
       - ./frontend/src/wasm:/frontend/src/wasm
     command: /copy-wasm.sh
+    restart: "no"
+    profiles:
+      - build
 
   # Signaling server
   signaling-server:
@@ -34,8 +37,10 @@ services:
     volumes:
       - wasm-output:/usr/share/nginx/html/wasm:ro
     depends_on:
-      - wasm-builder
-      - signaling-server
+      wasm-builder:
+        condition: service_completed_successfully
+      signaling-server:
+        condition: service_healthy
     restart: unless-stopped
 
   # Development services (commented out by default)

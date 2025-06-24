@@ -8,8 +8,8 @@
     "build": "npm run build:wasm && next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "curl https://sh.rustup.rs -sSf | sh -s -- -y && export PATH=\"$HOME/.cargo/bin:$PATH\" && cargo install wasm-pack || true",
-    "vercel-build": "curl https://sh.rustup.rs -sSf | sh -s -- -y && export PATH=\"$HOME/.cargo/bin:/root/.cargo/bin:$PATH\" && curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && npm run build"
+    "postinstall": "sh ../scripts/install-rust-wasm.sh || true",
+    "vercel-build": "sh ../scripts/install-rust-wasm.sh && npm run build"
   },
   "dependencies": {
     "react": "^18.2.0",

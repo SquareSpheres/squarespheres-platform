@@ -6,15 +6,13 @@ WORKDIR /app
 # Install build dependencies
 RUN apk add --no-cache python3 make g++
 
-# Copy package files
+# Copy package files first (for better layer caching)
 COPY package*.json ./
 
-# Clear npm cache and install dependencies
-RUN npm cache clean --force && \
-    rm -rf node_modules package-lock.json && \
-    npm install
+# Use npm ci for faster, more reliable installs
+RUN npm ci --only=production
 
-# Copy source code
+# Copy source code (separate layer)
 COPY . .
 
 # Build the application
