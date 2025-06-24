@@ -27,6 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.className} ${poppins.variable} bg-gray-900 text-white relative`}>
+        <Analytics />
         <div className="fixed inset-0 z-0 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900">
           <StaticBackground />
         </div>
@@ -58,7 +59,6 @@ export default function RootLayout({
           </header>
           <main className="flex-grow flex items-center justify-center mt-4 md:mt-8">
             {children}
-            <Analytics />
           </main>
         </div>
       </body>
