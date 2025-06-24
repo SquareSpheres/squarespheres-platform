@@ -1,5 +1,7 @@
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use hex;
 
 // Import the `console.log` function from the Web API
 #[wasm_bindgen]
@@ -14,78 +16,86 @@ macro_rules! console_log {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Point {
-    pub x: f64,
-    pub y: f64,
+pub struct FileMetadata {
+    pub name: String,
+    pub size: usize,
+    pub file_type: String,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct ProcessingResult {
-    pub message: String,
-    pub value: f64,
-    pub processed_at: f64,
+pub struct ChunkInfo {
+    pub index: usize,
+    pub offset: usize,
+    pub length: usize,
+    pub hash: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ProcessedFileResult {
+    pub hash: String,
+    pub metadata: FileMetadata,
+    pub chunk_size: usize,
+    pub chunks: Vec<ChunkInfo>,
 }
 
 #[wasm_bindgen]
-pub fn greet(name: &str) -> String {
-    console_log!("Hello from WASM! Greeting {}", name);
-    format!("Hello, {}! This message comes from WebAssembly.", name)
-}
+pub fn process_file(
+    file_bytes: &[u8],
+    name: &str,
+    file_type: &str,
+    chunk_size: usize,
+) -> Result<JsValue, JsValue> {
+    console_log!("Processing file in WASM: {} ({} bytes)", name, file_bytes.len());
 
-#[wasm_bindgen]
-pub fn add(a: i32, b: i32) -> i32 {
-    console_log!("Adding {} + {} in WASM", a, b);
-    a + b
-}
+    // Hash the whole file
+    let mut hasher = Sha256::new();
+    hasher.update(file_bytes);
+    let hash = hex::encode(hasher.finalize());
 
-#[wasm_bindgen]
-pub fn fibonacci(n: u32) -> u32 {
-    console_log!("Computing fibonacci({}) in WASM", n);
-    let mut a = 0;
-    let mut b = 1;
-    for _ in 0..n {
-        let temp = a;
-        a = b;
-        b = temp + b;
-    }
-    a
-}
-
-#[wasm_bindgen]
-pub fn process_data(data: &JsValue) -> Result<JsValue, JsValue> {
-    console_log!("Processing data in WASM");
-    
-    // Parse the input data
-    let point: Point = serde_wasm_bindgen::from_value(data.clone())?;
-    
-    // Simulate some processing
-    let distance = (point.x * point.x + point.y * point.y).sqrt();
-    
-    let result = ProcessingResult {
-        message: format!("Processed point ({}, {})", point.x, point.y),
-        value: distance,
-        processed_at: js_sys::Date::now(),
+    // Metadata
+    let metadata = FileMetadata {
+        name: name.to_string(),
+        size: file_bytes.len(),
+        file_type: file_type.to_string(),
     };
-    
-    // Return the result as a JavaScript value
+
+    // Chunking
+    let mut chunks = Vec::new();
+    let mut offset = 0;
+    let mut index = 0;
+    while offset < file_bytes.len() {
+        let end = usize::min(offset + chunk_size, file_bytes.len());
+        let chunk = &file_bytes[offset..end];
+        // Hash each chunk
+        let mut chunk_hasher = Sha256::new();
+        chunk_hasher.update(chunk);
+        let chunk_hash = hex::encode(chunk_hasher.finalize());
+        chunks.push(ChunkInfo {
+            index,
+            offset,
+            length: chunk.len(),
+            hash: chunk_hash,
+        });
+        offset = end;
+        index += 1;
+    }
+
+    let result = ProcessedFileResult {
+        hash,
+        metadata,
+        chunk_size,
+        chunks,
+    };
+
     Ok(serde_wasm_bindgen::to_value(&result)?)
 }
 
+/// Skeleton for future compression. Currently returns the input chunk unchanged.
 #[wasm_bindgen]
-pub fn matrix_multiply(a: &[f64], b: &[f64], size: usize) -> Vec<f64> {
-    console_log!("Matrix multiplication in WASM: {}x{}", size, size);
-    
-    let mut result = vec![0.0; size * size];
-    
-    for i in 0..size {
-        for j in 0..size {
-            for k in 0..size {
-                result[i * size + j] += a[i * size + k] * b[k * size + j];
-            }
-        }
-    }
-    
-    result
+pub fn compress_chunk(chunk: &[u8]) -> Vec<u8> {
+    // TODO: Implement compression (e.g., flate2, lz4)
+    console_log!("compress_chunk called (skeleton, no compression yet)");
+    chunk.to_vec()
 }
 
 // Called when the WASM module is instantiated

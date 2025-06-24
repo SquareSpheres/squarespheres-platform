@@ -6,7 +6,7 @@ import FileDropAnimation from './FileDropAnimation'
 import { useFileHandler } from './hooks/useFileHandler'
 
 export default function SendPage() {
-  const { files, code, qrCodeUrl, handleFileSelect } = useFileHandler()
+  const { files, code, qrCodeUrl, fileAnalyses, handleFileSelect } = useFileHandler()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragCounter = useRef(0);
   const isDraggingRef = useRef(false);

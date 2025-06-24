@@ -7,9 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postbuild": "echo 'Build complete.'",
-    "prebuild": "echo 'WASM assets should be built directly into /public/wasm. Run `make build-wasm` and then `npm run wasm:lint-fix` if needed.'",
-    "wasm:lint-fix": "echo '/* eslint-disable */' | cat - public/wasm/wasm_app.js > temp && mv temp public/wasm/wasm_app.js"
+    "postbuild": "echo 'Build complete.'"
   },
   "dependencies": {
     "react": "^18.2.0",

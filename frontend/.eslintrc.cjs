@@ -5,5 +5,4 @@ module.exports = {
   rules: {
     "no-unused-vars": "warn",
   },
-  ignorePatterns: ["public/wasm/**/*.js"],
 };

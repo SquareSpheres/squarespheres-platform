@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "app/page.tsx": {
-      "maxDuration": 30
-    }
-  },
   "rewrites": [
     {
       "source": "/ws/:path*",

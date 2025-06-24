@@ -30,9 +30,9 @@ go.work
 # WASM
 *.wasm
 pkg/
-/frontend/public/wasm/*.js
-/frontend/public/wasm/*.wasm
-/frontend/public/wasm/*.ts
+/frontend/wasm-module/*.js
+/frontend/wasm-module/*.wasm
+/frontend/wasm-module/*.ts
 
 # Frontend specific
 /frontend/dist/

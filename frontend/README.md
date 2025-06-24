@@ -24,10 +24,11 @@ This is the Next.js frontend for the SquareSpheres Platform, featuring WebAssemb
    npm install
    ```
 
-2. Copy WASM files to public directory:
+2. Build the WASM files (output will be in `frontend/wasm-module/`):
    ```bash
-   npm run prebuild
+   make build-wasm
    ```
+   > Note: The `wasm-module/` directory is created and populated by the build step. No files are copied to `public/wasm`.
 
 3. Start development server:
    ```bash
@@ -74,7 +75,7 @@ npm start
 
 ### Important Notes
 
-- **WASM Files**: Make sure your WASM files are in the `public/wasm/` directory before deployment
+- **WASM Files**: The WASM files are built to `frontend/wasm-module/`. Ensure you have run `make build-wasm` before deploying. No files are required in `public/wasm`.
 - **Signaling Server**: The frontend expects a WebSocket signaling server. Update the `vercel.json` configuration to point to your deployed signaling server
 - **CORS Headers**: The configuration includes necessary CORS headers for WASM functionality
 
@@ -92,8 +93,8 @@ frontend/
 │   ├── globals.css        # Global styles with Tailwind
 │   ├── layout.tsx         # Root layout
 │   └── page.tsx           # Main page component
+├── wasm-module/           # WebAssembly files (output from build)
 ├── public/                # Static assets
-│   └── wasm/              # WebAssembly files
 ├── next.config.js         # Next.js configuration
 ├── tailwind.config.js     # Tailwind CSS configuration
 ├── tsconfig.json          # TypeScript configuration
@@ -103,7 +104,7 @@ frontend/
 
 ## Features
 
-- **WebAssembly Integration**: Load and interact with Rust-compiled WASM modules
+- **WebAssembly Integration**: Load and interact with Rust-compiled WASM modules (from `wasm-module/`)
 - **WebRTC Signaling**: Real-time WebSocket communication for WebRTC peer connections
 - **Modern UI**: Responsive design with Tailwind CSS
 - **TypeScript**: Full type safety throughout the application
@@ -113,7 +114,7 @@ frontend/
 
 ### WASM Loading Issues
 
-- Ensure WASM files are in `public/wasm/` directory
+- Ensure you have run `make build-wasm` to generate the `wasm-module/` directory and files
 - Check browser console for CORS errors
 - Verify the WASM module is properly compiled for web target
 
