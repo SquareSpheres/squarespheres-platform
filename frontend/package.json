@@ -10,7 +10,7 @@
     "lint": "next lint",
     "postbuild": "echo 'Build complete.'",
     "postinstall": "curl https://sh.rustup.rs -sSf | sh -s -- -y && export PATH=\"$HOME/.cargo/bin:$PATH\" && cargo install wasm-pack || true",
-    "vercel-build": "curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && export PATH=\"$HOME/.cargo/bin:$PATH\" && npm run build"
+    "vercel-build": "curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && export PATH=\"$HOME/.cargo/bin:/root/.cargo/bin:$PATH\" && npm run build"
   },
   "dependencies": {
     "react": "^18.2.0",
