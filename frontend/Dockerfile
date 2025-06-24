@@ -3,17 +3,26 @@ FROM node:18-alpine as builder
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
+# Install build dependencies including Rust and wasm-pack
+RUN apk add --no-cache python3 make g++ curl bash
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install wasm-pack and wasm-bindgen-cli
+RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+RUN cargo install wasm-bindgen-cli
 
 # Copy package files first (for better layer caching)
-COPY package*.json ./
+COPY frontend/package*.json ./
 
 # Use npm ci for faster, more reliable installs
 RUN npm ci --only=production
 
 # Copy source code (separate layer)
-COPY . .
+COPY frontend/ .
+COPY wasm-app/ ../wasm-app/
 
 # Build the application
 RUN npm run build
@@ -54,7 +63,7 @@ server {
 EOF
 
 # Copy built application
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/out /usr/share/nginx/html
 
 # Expose port
 EXPOSE 80

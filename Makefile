@@ -12,7 +12,7 @@ help: ## Show this help message
 # Build commands
 build: ## Build all components
 	@echo "🔨 Building all components..."
-	docker-compose build
+	docker-compose --profile build build
 
 build-wasm: ## Build WASM module only
 	@echo "🦀 Building WASM module..."

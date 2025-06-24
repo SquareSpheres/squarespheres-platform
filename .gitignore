@@ -29,10 +29,9 @@ go.work
 
 # WASM
 *.wasm
+# But allow WASM files in frontend/wasm-module for Vercel deployment
+!frontend/wasm-module/*.wasm
 pkg/
-/frontend/wasm-module/*.js
-/frontend/wasm-module/*.wasm
-/frontend/wasm-module/*.ts
 
 # Frontend specific
 /frontend/dist/
