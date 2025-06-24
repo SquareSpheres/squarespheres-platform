@@ -1,40 +1,23 @@
 'use client'
 
-import { useState, useRef, DragEvent, ChangeEvent } from 'react'
+import { useRef, useState, DragEvent, ChangeEvent } from 'react'
 import { File, CheckCircle } from 'lucide-react'
-import QRCode from 'qrcode'
 import FileDropAnimation from './FileDropAnimation'
+import { useFileHandler } from './hooks/useFileHandler'
 
 export default function SendPage() {
-  const [file, setFile] = useState<File | null>(null)
-  const [code, setCode] = useState<string>('')
-  const [qrCodeUrl, setQrCodeUrl] = useState<string>('')
-  const [isDragging, setIsDragging] = useState<boolean>(false)
+  const { files, code, qrCodeUrl, handleFileSelect } = useFileHandler()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragCounter = useRef(0);
+  const isDraggingRef = useRef(false);
+  const [, forceUpdate] = useState({}); // for re-rendering on drag state
 
-  const handleFileSelect = (selectedFile: File) => {
-    setFile(selectedFile)
-
-    // TODO: Analyze the file (e.g., calculate hash)
-    
-    // Placeholder for code generation
-    const newCode = Math.random().toString().substring(2, 8)
-    setCode(newCode)
-    
-    // Generate QR Code
-    const receiveUrl = `${window.location.origin}/receive?code=${newCode}`
-    QRCode.toDataURL(receiveUrl)
-      .then(url => {
-        setQrCodeUrl(url)
-      })
-      .catch(err => {
-        console.error('Failed to generate QR code:', err)
-      })
-
-    // TODO: Implement WebRTC setup
-    // TODO: Connect to signaling server via WebSocket
+  // Local state for drag UI only
+  const setIsDragging = (val: boolean) => {
+    isDraggingRef.current = val;
+    forceUpdate({});
   }
+  const isDragging = isDraggingRef.current;
 
   const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -64,8 +47,8 @@ export default function SendPage() {
     e.stopPropagation()
     setIsDragging(false)
     dragCounter.current = 0;
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileSelect(e.dataTransfer.files[0])
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileSelect(e.dataTransfer.files)
     }
   }
   
@@ -74,14 +57,14 @@ export default function SendPage() {
   }
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelect(e.target.files[0])
+    if (e.target.files && e.target.files.length > 0) {
+      handleFileSelect(e.target.files)
     }
   }
 
   return (
     <div className="w-full max-w-lg text-center">
-      {!file ? (
+      {files.length === 0 ? (
         <div 
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
@@ -89,9 +72,9 @@ export default function SendPage() {
           onDrop={handleDrop}
           className={`border-4 border-dashed rounded-xl p-8 sm:p-16 transition-colors duration-300 bg-gray-900 ${isDragging ? 'border-blue-500 bg-gray-800' : 'border-gray-600 hover:border-gray-500'}`}
         >
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
           <FileDropAnimation isDragging={isDragging} />
-          <h2 className="text-xl sm:text-2xl font-bold mb-2">Drop your file here</h2>
+          <h2 className="text-xl sm:text-2xl font-bold mb-2">Drop your files here</h2>
           <p className="text-gray-400 mb-6">or</p>
           <button onClick={handleBrowseClick} className="btn btn-primary bg-blue-600 hover:bg-blue-700 px-6 py-2 text-base sm:text-lg">Browse Files</button>
         </div>
@@ -101,13 +84,17 @@ export default function SendPage() {
           <h2 className="text-xl sm:text-2xl font-bold mb-6">Ready to Send!</h2>
 
           <div className="bg-gray-700 rounded-lg p-4 w-full mb-6">
-            <div className="flex items-center">
-              <File className="h-6 w-6 sm:h-8 sm:w-8 text-blue-400 mr-4" />
-              <div>
-                <p className="font-semibold text-sm sm:text-base break-all">{file.name}</p>
-                <p className="text-xs sm:text-sm text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-              </div>
-            </div>
+            <ul>
+              {files.map((file, idx) => (
+                <li key={file.name + file.size + idx} className="flex items-center mb-2 last:mb-0">
+                  <File className="h-6 w-6 sm:h-8 sm:w-8 text-blue-400 mr-4" />
+                  <div>
+                    <p className="font-semibold text-sm sm:text-base break-all">{file.name}</p>
+                    <p className="text-xs sm:text-sm text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
 
           <p className="text-gray-400 mb-4 text-center">Share this code or QR with your recipient:</p>
