@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter, Poppins } from 'next/font/google'
+import { Analytics } from "@vercel/analytics/next"
 import './globals.css'
 import Link from 'next/link'
 import React from 'react'
@@ -57,6 +58,7 @@ export default function RootLayout({
           </header>
           <main className="flex-grow flex items-center justify-center mt-4 md:mt-8">
             {children}
+            <Analytics />
           </main>
         </div>
       </body>
