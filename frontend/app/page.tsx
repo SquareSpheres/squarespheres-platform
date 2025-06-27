@@ -3,10 +3,10 @@
 import { useRef, useState, DragEvent, ChangeEvent } from 'react'
 import { File, CheckCircle } from 'lucide-react'
 import FileDropAnimation from './FileDropAnimation'
-import { useFileHandler } from './hooks/useFileHandler'
+import { useSenderFileHandler, FileTransferState } from './hooks/useSenderFileHandler'
 
 export default function SendPage() {
-  const { files, code, qrCodeUrl, fileAnalyses, handleFileSelect } = useFileHandler()
+  const { transferState, handleFileSelect, wasmReady, connectionState } = useSenderFileHandler()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragCounter = useRef(0);
   const isDraggingRef = useRef(false);
@@ -62,9 +62,14 @@ export default function SendPage() {
     }
   }
 
+  // Helper for progress
+  const progress = transferState && transferState.fileSize > 0
+    ? (transferState.bytesSent / transferState.fileSize) * 100
+    : 0
+
   return (
     <div className="w-full max-w-lg text-center">
-      {files.length === 0 ? (
+      {!transferState ? (
         <div 
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
@@ -85,40 +90,29 @@ export default function SendPage() {
 
           <div className="bg-gray-700 rounded-lg p-4 w-full mb-6">
             <ul>
-              {files.map((file, idx) => (
-                <li key={file.name + file.size + idx} className="flex items-center mb-2 last:mb-0">
-                  <File className="h-6 w-6 sm:h-8 sm:w-8 text-blue-400 mr-4" />
-                  <div>
-                    <p className="font-semibold text-sm sm:text-base break-all">{file.name}</p>
-                    <p className="text-xs sm:text-sm text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                  </div>
-                </li>
-              ))}
+              <li className="flex items-center mb-2 last:mb-0">
+                <File className="h-6 w-6 sm:h-8 sm:w-8 text-blue-400 mr-4" />
+                <div>
+                  <p className="font-semibold text-sm sm:text-base break-all">{transferState.file.name}</p>
+                  <p className="text-xs sm:text-sm text-gray-400">{(transferState.file.size / 1024 / 1024).toFixed(2)} MB</p>
+                </div>
+              </li>
             </ul>
           </div>
 
-          <p className="text-gray-400 mb-4 text-center">Share this code or QR with your recipient:</p>
-
-          <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 w-full">
-            <div className="flex flex-col items-center">
-              <p className="text-base sm:text-lg font-semibold mb-2">Your Code</p>
-              <div className="bg-gray-900 px-6 py-3 sm:px-8 sm:py-4 rounded-lg">
-                <p className="text-2xl sm:text-4xl font-mono tracking-widest">{code}</p>
-              </div>
+          <div className="w-full mb-4">
+            <div className="h-4 bg-gray-600 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
             </div>
-            
-            {qrCodeUrl && (
-              <div className="flex flex-col items-center">
-                <p className="text-base sm:text-lg font-semibold mb-2">Scan QR</p>
-                <div className="bg-white p-2 rounded-lg">
-                  <img src={qrCodeUrl} alt="QR Code" className="h-24 w-24 sm:h-32 sm:w-32" />
-                </div>
-              </div>
-            )}
+            <p className="text-xs text-gray-400 mt-1">{progress.toFixed(1)}% sent</p>
+            <p className="text-xs text-gray-400 mt-1">Compressed: {(transferState.compressedBytesSent / 1024 / 1024).toFixed(2)} MB</p>
           </div>
-          
+
           <div className="mt-8 text-center text-yellow-400 bg-yellow-900 bg-opacity-50 p-3 rounded-lg w-full">
-            <p className="text-sm sm:text-base">Waiting for recipient to connect...</p>
+            <p className="text-sm sm:text-base">Connection state: {connectionState}</p>
             <p className="text-xs sm:text-sm">(This is where WebRTC magic will happen)</p>
           </div>
         </div>

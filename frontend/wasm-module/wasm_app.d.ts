@@ -1,23 +1,20 @@
 /* tslint:disable */
 /* eslint-disable */
-export function process_file(file_bytes: Uint8Array, name: string, file_type: string, chunk_size: number): any;
-/**
- * Skeleton for future compression. Currently returns the input chunk unchanged.
- */
 export function compress_chunk(chunk: Uint8Array): Uint8Array;
+export function decompress_chunk(chunk: Uint8Array): Uint8Array;
+export function hash_chunk(_chunk: Uint8Array): string;
 export function main(): void;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly process_file: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
   readonly compress_chunk: (a: number, b: number) => [number, number];
+  readonly hash_chunk: (a: number, b: number) => [number, number];
   readonly main: () => void;
+  readonly decompress_chunk: (a: number, b: number) => [number, number];
   readonly __wbindgen_export_0: WebAssembly.Table;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
-  readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
-  readonly __externref_table_dealloc: (a: number) => void;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_start: () => void;
 }
