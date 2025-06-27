@@ -71,7 +71,7 @@ export default function WebRTCTestPage() {
     if (channel) {
       console.log('WebRTC channel connection state:', channel.connectionState)
     }
-  }, [channel?.connectionState])
+  }, [channel, channel?.connectionState])
 
   const handleCreateOffer = async () => {
     setError(null)

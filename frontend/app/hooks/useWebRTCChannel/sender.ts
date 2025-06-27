@@ -109,7 +109,7 @@ export function useWebRTCSender(): WebRTCChannel {
     }
     dc.onerror = (e) => {
       setConnectionState('error')
-      console.error('[WebRTC] DataChannel error', e)
+      console.error('[WebRTC] DataChannel error:', e)
     }
     dc.onmessage = (event) => {
       console.log('[WebRTC] DataChannel message received', event.data)

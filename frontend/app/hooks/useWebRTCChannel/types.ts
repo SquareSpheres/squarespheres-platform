@@ -3,10 +3,10 @@ export interface WebRTCChannel {
   createOfferNoTrickle?: () => Promise<RTCSessionDescriptionInit>
   createAnswer: () => Promise<RTCSessionDescriptionInit>
   createAnswerNoTrickle?: () => Promise<RTCSessionDescriptionInit>
-  setRemoteDescription: (desc: RTCSessionDescriptionInit) => Promise<void>
+  setRemoteDescription: (description: RTCSessionDescriptionInit) => Promise<void>
   addIceCandidate: (candidate: RTCIceCandidateInit) => Promise<void>
-  sendChunk: (chunk: Uint8Array) => void
-  onChunkReceived: (callback: (chunk: Uint8Array) => void) => void
+  sendChunk: (data: Uint8Array) => void
+  onChunkReceived: (callback: (data: Uint8Array) => void) => void
   onConnectionEstablished?: (callback: () => void) => void
   connectionState: string
   localIceCandidates: RTCIceCandidateInit[]

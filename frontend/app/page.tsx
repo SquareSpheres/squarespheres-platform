@@ -3,10 +3,10 @@
 import { useRef, useState, DragEvent, ChangeEvent } from 'react'
 import { File, CheckCircle } from 'lucide-react'
 import FileDropAnimation from './FileDropAnimation'
-import { useSenderFileHandler, FileTransferState } from './hooks/useSenderFileHandler'
+import { useSenderFileHandler } from './hooks/useSenderFileHandler'
 
 export default function SendPage() {
-  const { transferState, handleFileSelect, wasmReady, connectionState } = useSenderFileHandler()
+  const { transferState, handleFileSelect, connectionState } = useSenderFileHandler()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragCounter = useRef(0);
   const isDraggingRef = useRef(false);

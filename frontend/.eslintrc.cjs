@@ -4,5 +4,8 @@ module.exports = {
   plugins: [],
   rules: {
     "no-unused-vars": "warn",
+    "no-undef": "warn",
+    "no-constant-condition": "warn",
+    // Add more rules here as needed to make them warnings
   },
 };
