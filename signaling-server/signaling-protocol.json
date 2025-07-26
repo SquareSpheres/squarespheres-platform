@@ -1,0 +1,190 @@
+{
+  "signaling_protocol": {
+    "version": "1.0",
+    "description": "JSON-based signaling protocol for WebRTC peer-to-peer connections",
+    "message_format": {
+      "structure": {
+        "type": "<string>",
+        "payload": "<object>"
+      },
+      "description": "All messages share the same base structure with a type field and payload object"
+    },
+    "message_types": {
+      "create": {
+        "direction": "host → server",
+        "description": "Request to create a new signaling session",
+        "payload": {
+          "description": "Host-specific connection parameters",
+          "type": "object",
+          "properties": "opaque to server"
+        },
+        "example": {
+          "type": "create",
+          "payload": {
+            "sessionName": "my-session",
+            "maxPeers": 4
+          }
+        }
+      },
+      "created": {
+        "direction": "server → host",
+        "description": "Response with unique session identifier",
+        "payload": {
+          "uid": "<string>",
+          "description": "Unique session identifier for clients to join"
+        },
+        "example": {
+          "type": "created",
+          "payload": {
+            "uid": "sess_abc123def456"
+          }
+        }
+      },
+      "join": {
+        "direction": "client → server",
+        "description": "Request to join an existing session",
+        "payload": {
+          "uid": "<string>",
+          "description": "Session identifier from created message"
+        },
+        "example": {
+          "type": "join",
+          "payload": {
+            "uid": "sess_abc123def456"
+          }
+        }
+      },
+      "accept": {
+        "direction": "server → client",
+        "description": "Response to join request",
+        "payload": {
+          "status": "OK | error",
+          "message": "<string>",
+          "description": "Success confirmation or error details"
+        },
+        "examples": {
+          "success": {
+            "type": "accept",
+            "payload": {
+              "status": "OK",
+              "message": "Successfully joined session"
+            }
+          },
+          "error": {
+            "type": "accept",
+            "payload": {
+              "status": "error",
+              "message": "Session not found"
+            }
+          }
+        }
+      },
+      "offer": {
+        "direction": "client ↔ host",
+        "description": "WebRTC offer message passed through server",
+        "payload": {
+          "description": "WebRTC offer data - opaque to server",
+          "type": "object",
+          "properties": "opaque bytes"
+        },
+        "routing": {
+          "server_adds": ["from", "to"],
+          "description": "Server adds routing information when forwarding"
+        },
+        "example": {
+          "type": "offer",
+          "payload": {
+            "sdp": "v=0\r\no=- 123456789 2 IN IP4 127.0.0.1\r\n...",
+            "type": "offer"
+          }
+        }
+      },
+      "answer": {
+        "direction": "client ↔ host",
+        "description": "WebRTC answer message passed through server",
+        "payload": {
+          "description": "WebRTC answer data - opaque to server",
+          "type": "object",
+          "properties": "opaque bytes"
+        },
+        "routing": {
+          "server_adds": ["from", "to"],
+          "description": "Server adds routing information when forwarding"
+        },
+        "example": {
+          "type": "answer",
+          "payload": {
+            "sdp": "v=0\r\no=- 987654321 2 IN IP4 127.0.0.1\r\n...",
+            "type": "answer"
+          }
+        }
+      },
+      "ice": {
+        "direction": "client ↔ host",
+        "description": "ICE candidate message passed through server",
+        "payload": {
+          "description": "ICE candidate data - opaque to server",
+          "type": "object",
+          "properties": "opaque bytes"
+        },
+        "routing": {
+          "server_adds": ["from", "to"],
+          "description": "Server adds routing information when forwarding"
+        },
+        "example": {
+          "type": "ice",
+          "payload": {
+            "candidate": "candidate:1 1 UDP 2130706431 192.168.1.100 54400 typ host",
+            "sdpMLineIndex": 0,
+            "sdpMid": "0"
+          }
+        }
+      }
+    },
+    "server_behavior": {
+      "payload_handling": {
+        "description": "Server treats all payload content as opaque bytes",
+        "rules": [
+          "Server does not inspect or modify payload content",
+          "Server only adds routing metadata (from/to) when forwarding messages",
+          "Payload structure is defined by client/host implementations"
+        ]
+      },
+      "routing": {
+        "description": "For pass-through messages (offer, answer, ice)",
+        "added_fields": {
+          "from": "Identifier of the message sender",
+          "to": "Identifier of the message recipient"
+        },
+        "example_routing": {
+          "original_message": {
+            "type": "offer",
+            "payload": {
+              "sdp": "...",
+              "type": "offer"
+            }
+          },
+          "routed_message": {
+            "type": "offer",
+            "payload": {
+              "sdp": "...",
+              "type": "offer"
+            },
+            "from": "client_id_123",
+            "to": "host_id_456"
+          }
+        }
+      }
+    },
+    "connection_flow": {
+      "steps": [
+        "1. Host sends 'create' message to server",
+        "2. Server responds with 'created' message containing UID",
+        "3. Client sends 'join' message with UID to server",
+        "4. Server responds with 'accept' message (OK or error)",
+        "5. WebRTC negotiation begins with 'offer', 'answer', 'ice' messages",
+        "6. Server routes WebRTC messages between client and host"
+      ]
+    }
+  }
+}
