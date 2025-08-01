@@ -66,12 +66,21 @@ else
     echo "✅ wasm-pack installed successfully"
 fi
 
-# Check Go
-if command_exists go; then
-    echo "✅ Go found: $(go version)"
+# Check .NET
+if command_exists dotnet; then
+    DOTNET_VERSION=$(dotnet --version 2>/dev/null | head -1)
+    echo "✅ .NET found: $DOTNET_VERSION"
+    
+    # Check if version is >= 9.0
+    DOTNET_MAJOR=$(echo $DOTNET_VERSION | cut -d'.' -f1)
+    if [ "$DOTNET_MAJOR" -lt 9 ]; then
+        echo "❌ .NET version $DOTNET_VERSION detected. Version 9.0+ is required."
+        echo "   Download from: https://dotnet.microsoft.com/download"
+        exit 1
+    fi
 else
-    echo "❌ Go not found. Please install Go 1.23+."
-    echo "   Download from: https://golang.org/dl/"
+    echo "❌ .NET not found. Please install .NET 9.0+."
+    echo "   Download from: https://dotnet.microsoft.com/download"
     exit 1
 fi
 
@@ -102,13 +111,13 @@ fi
 echo ""
 echo "📦 Installing project dependencies..."
 
-# Install Go dependencies
-echo "Installing Go dependencies..."
+# Install .NET dependencies
+echo "Installing .NET dependencies..."
 cd signaling-server
-if go mod download; then
-    echo "✅ Go dependencies installed"
+if dotnet restore; then
+    echo "✅ .NET dependencies installed"
 else
-    echo "❌ Failed to install Go dependencies"
+    echo "❌ Failed to install .NET dependencies"
     exit 1
 fi
 cd ..

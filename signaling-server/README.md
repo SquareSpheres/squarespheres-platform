@@ -26,13 +26,13 @@ This server provides a lightweight HTTP service with:
 
 ```bash
 # Run the server
-dotnet run
+dotnet run --project Source/SignalingServer.csproj
 
 # Build the application
-dotnet build
+dotnet build Source/SignalingServer.csproj
 
 # Publish for deployment
-dotnet publish -c Release -o out
+dotnet publish Source/SignalingServer.csproj -c Release -o out
 
 # Run the published application
 dotnet out/SignalingServer.dll

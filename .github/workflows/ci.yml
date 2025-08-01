@@ -93,17 +93,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup Go
-      uses: actions/setup-go@v5
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
       with:
-        go-version: '1.21'
-        cache-dependency-path: signaling-server/go.sum
+        dotnet-version: '9.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore Source/SignalingServer.csproj
     
     - name: Build signaling server
-      run: go build -v ./...
+      run: dotnet build Source/SignalingServer.csproj --no-restore
     
     - name: Run tests
-      run: go test -v ./...
+      run: dotnet test Tests/SignalingServer.Tests.csproj --no-build --verbosity normal
 
   build-docker-images:
     runs-on: ubuntu-latest

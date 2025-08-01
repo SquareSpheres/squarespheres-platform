@@ -1,6 +1,6 @@
 # SquareSpheres Platform Makefile
 
-.PHONY: help build build-wasm build-frontend build-signaling up down dev clean install test lint
+.PHONY: help build build-wasm build-frontend build-signaling up down dev clean install test lint prereqs
 
 # Default target
 help: ## Show this help message
@@ -43,20 +43,24 @@ dev: ## Start development environment
 	@echo "Starting services..."
 	docker-compose up --build
 
-dev-local: ## Start local development (requires local Go/Node.js/Rust for WASM)
+dev-local: ## Start local development (requires local .NET/Node.js/Rust for WASM)
 	@echo "🔧 Starting local development..."
 	@echo "Building WASM module..."
 	$(MAKE) build-wasm
 	@echo "Starting signaling server..."
-	cd signaling-server && go run . &
+	dotnet run --project signaling-server/Source/SignalingServer.csproj &
 	@echo "Starting frontend dev server..."
 	cd frontend && npm install && npm run dev
 
 # Utility commands
+dependency-restore: ## Restore dependencies for signaling server
+	@echo "📦 Restoring signaling server dependencies..."
+	dotnet restore signaling-server/Source/SignalingServer.csproj
+
 install: ## Install dependencies
 	@echo "📦 Installing dependencies..."
-	@echo "Installing Go dependencies..."
-	cd signaling-server && go mod download
+	@echo "Restoring .NET dependencies..."
+	cd signaling-server && dotnet restore
 	@echo "Installing Node.js dependencies..."
 	cd frontend && npm install
 
@@ -65,6 +69,7 @@ clean: ## Clean build artifacts and Docker containers
 	docker-compose down -v --remove-orphans
 	docker system prune -f
 	cd frontend && rm -rf node_modules dist .next
+	cd signaling-server && dotnet clean
 	rm -rf wasm-app/target/
 	rm -rf frontend/public/wasm
 	rm -rf frontend/wasm-module
@@ -73,7 +78,7 @@ test: test-signaling test-frontend ## Run tests
 
 test-signaling: ## Run signaling server tests
 	@echo "🧪 Running signaling server tests..."
-	cd signaling-server && go test -v ./...
+	dotnet test signaling-server/Tests/SignalingServer.Tests.csproj
 
 test-frontend: ## Run frontend linting as tests
 	@echo "🧪 Running frontend linter..."
@@ -81,8 +86,7 @@ test-frontend: ## Run frontend linting as tests
 
 lint: ## Run linting
 	@echo "🔍 Running linters..."
-	cd signaling-server && go vet ./...
-	cd frontend && npm run lint
+	cd frontend  npm run lint
 
 # Advanced commands
 wasm: build-wasm ## Alias for build-wasm
@@ -121,17 +125,30 @@ docker-build: ## Build Docker images without starting
 docker-pull: ## Pull latest base images
 	docker-compose pull
 
-# Setup commands
-setup: ## Initial project setup
-	@echo "🎯 Setting up project..."
-	@echo "Checking prerequisites..."
+# Prerequisites check
+prereqs: ## Check prerequisites
+	@echo "🔍 Checking prerequisites..."
 	@command -v docker >/dev/null 2>&1 || { echo "❌ Docker is required but not installed."; exit 1; }
 	@command -v docker-compose >/dev/null 2>&1 || { echo "❌ Docker Compose is required but not installed."; exit 1; }
 	@command -v cargo >/dev/null 2>&1 || { echo "❌ Rust/Cargo is required but not installed."; exit 1; }
 	@command -v wasm-pack >/dev/null 2>&1 || { echo "❌ wasm-pack is required. Install with: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh"; exit 1; }
-	@command -v go >/dev/null 2>&1 || { echo "❌ Go is required but not installed."; exit 1; }
+	@command -v dotnet >/dev/null 2>&1 || { echo "❌ .NET is required but not installed."; exit 1; }
+	@DOTNET_VERSION=$$(dotnet --version 2>/dev/null | head -1); \
+	if [ -z "$$DOTNET_VERSION" ]; then \
+		echo "❌ .NET is not installed or not accessible."; exit 1; \
+	fi; \
+	DOTNET_MAJOR=$$(echo $$DOTNET_VERSION | cut -d'.' -f1); \
+	if [ "$$DOTNET_MAJOR" -lt 9 ]; then \
+		echo "❌ .NET version $$DOTNET_VERSION found. Version 9.0 or higher is required."; exit 1; \
+	else \
+		echo "✅ .NET $$DOTNET_VERSION found"; \
+	fi
 	@command -v node >/dev/null 2>&1 || { echo "❌ Node.js is required but not installed."; exit 1; }
-	@echo "✅ All prerequisites found!"
+	@echo "✅ All prerequisites satisfied!"
+
+# Setup commands
+setup: prereqs ## Initial project setup
+	@echo "🎯 Setting up project..."
 	$(MAKE) install
 	@echo "🎉 Setup complete! Run 'make dev' to start development."
 
