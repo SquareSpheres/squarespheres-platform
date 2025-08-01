@@ -8,7 +8,7 @@ namespace SignalingServer.Services;
 
 public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandler> logger) : IMessageHandler
 {
-     public async Task HandleMessage(WebSocket socket, string raw)
+    public async Task HandleMessage(WebSocket socket, string raw)
     {
         SignalMessage? msg;
 
@@ -17,23 +17,27 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
             msg = JsonSerializer.Deserialize<SignalMessage>(raw);
             if (msg == null)
             {
-                await socket.SendErrorAsync("Invalid message format", logger);
+                logger.LogWarning("Invalid message format");
+                await socket.SendErrorAsync("Invalid message format");
                 return;
             }
-            
+
             var validator = new SignalMessageValidator();
             var validationResult = await validator.ValidateAsync(msg);
 
             if (!validationResult.IsValid)
             {
-                logger.LogWarning("Validation failed: {Errors}", string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage)));
-                await socket.SendErrorAsync("Validation failed: " + string.Join(", ", validationResult.Errors.Select(e => e.ErrorMessage)), logger);
+                logger.LogWarning("Validation failed: {Errors}",
+                    string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage)));
+                await socket.SendErrorAsync("Validation failed: " +
+                                            string.Join(", ", validationResult.Errors.Select(e => e.ErrorMessage)));
                 return;
             }
         }
-        catch (JsonException)
+        catch (JsonException je)
         {
-            await socket.SendErrorAsync("Malformed JSON or unknown message type", logger);
+            logger.LogWarning(je, "Malformed JSON or unknown message type");
+            await socket.SendErrorAsync("Malformed JSON or unknown message type");
             return;
         }
 
@@ -61,7 +65,8 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
             case SignalMessageTypes.JoinHost:
                 if (string.IsNullOrWhiteSpace(msg.HostId))
                 {
-                    await socket.SendErrorAsync("Missing hostId", logger);
+                    logger.LogWarning("Tried to join a host without a valid id");
+                    await socket.SendErrorAsync("Missing hostId");
                     return;
                 }
 
@@ -80,7 +85,8 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                 }
                 else
                 {
-                    await socket.SendErrorAsync($"Host {msg.HostId} not found", logger);
+                    logger.LogWarning("Host for {hostId} not found", msg.HostId);
+                    await socket.SendErrorAsync($"Host {msg.HostId} not found");
                 }
 
                 break;
@@ -105,7 +111,7 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                 }
                 else
                 {
-                    await socket.SendErrorAsync("Not connected to a host or unregistered client", logger);
+                    await socket.SendErrorAsync("Not connected to a host or unregistered client");
                 }
 
                 break;
@@ -129,21 +135,22 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                     }
                     else
                     {
-                        await socket.SendErrorAsync($"Client {msg.ClientId} not found", logger);
+                        logger.LogWarning("Client {ClientId} not found", msg.ClientId);
+                        await socket.SendErrorAsync($"Client {msg.ClientId} not found");
                     }
                 }
                 else
                 {
-                    await socket.SendErrorAsync("Not registered as host or missing clientId", logger);
+                    logger.LogWarning("Not registered as host or missing clientId");
+                    await socket.SendErrorAsync("Not registered as host or missing clientId");
                 }
 
                 break;
 
             default:
                 logger.LogWarning("Received unknown message type: {Type}", msg.Type);
-                await socket.SendErrorAsync("Unknown message type", logger);
+                await socket.SendErrorAsync("Unknown message type");
                 break;
         }
     }
-
 }

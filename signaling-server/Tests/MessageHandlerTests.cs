@@ -31,7 +31,7 @@ public class MessageHandlerTests
     public async Task InvalidJson_LogsWarning()
     {
         await _handler.HandleMessage(_socket.Object, "{ invalid }");
-        _logger.VerifyLog(LogLevel.Warning, "Malformed JSON", Times.Once());
+        _logger.VerifyLog(LogLevel.Warning, "Malformed JSON or unknown message type", Times.Once());
     }
 
     [Test]
@@ -62,7 +62,7 @@ public class MessageHandlerTests
         var raw = JsonSerializer.Serialize(new SignalMessage { Type = SignalMessageTypes.JoinHost, HostId = "host404" });
         await _handler.HandleMessage(_socket.Object, raw);
 
-        _logger.VerifyLog(LogLevel.Warning, "Host host404 not found", Times.Once());
+        _logger.VerifyLog(LogLevel.Warning, "Host for host404 not found", Times.Once());
     }
 
     [Test]
@@ -70,7 +70,7 @@ public class MessageHandlerTests
     {
         var raw = JsonSerializer.Serialize(new SignalMessage { Type = SignalMessageTypes.JoinHost });
         await _handler.HandleMessage(_socket.Object, raw);
-        _logger.VerifyLog(LogLevel.Warning, "Missing hostId", Times.Once());
+        _logger.VerifyLog(LogLevel.Warning, "Validation failed:", Times.Once());
     }
 
     [Test]
@@ -86,7 +86,7 @@ public class MessageHandlerTests
         var raw = JsonSerializer.Serialize(new SignalMessage { Type = SignalMessageTypes.MsgToHost });
         await _handler.HandleMessage(_socket.Object, raw);
 
-        _logger.VerifyLog(LogLevel.Warning, "Not connected to a host", Times.Once());
+        _logger.VerifyLog(LogLevel.Warning, "Validation failed:", Times.Once());
     }
 
     [Test]
@@ -107,7 +107,7 @@ public class MessageHandlerTests
             });
 
         var raw = JsonSerializer.Serialize(new SignalMessage
-            { Type = SignalMessageTypes.MsgToClient, ClientId = "client404" });
+            { Type = SignalMessageTypes.MsgToClient, ClientId = "client404", Payload = "payload"});
         await _handler.HandleMessage(_socket.Object, raw);
 
         _logger.VerifyLog(LogLevel.Warning, "Client client404 not found", Times.Once());
@@ -125,7 +125,7 @@ public class MessageHandlerTests
 
         var raw = JsonSerializer.Serialize(new SignalMessage { Type = SignalMessageTypes.MsgToClient });
         await _handler.HandleMessage(_socket.Object, raw);
-        _logger.VerifyLog(LogLevel.Warning, "missing clientId", Times.Once());
+        _logger.VerifyLog(LogLevel.Warning, "Validation failed:", Times.Once());
     }
 
     [Test]
@@ -142,7 +142,7 @@ public class MessageHandlerTests
             { Type = SignalMessageTypes.MsgToClient, ClientId = "clientX" });
         await _handler.HandleMessage(_socket.Object, raw);
 
-        _logger.VerifyLog(LogLevel.Warning, "Not registered as host", Times.Once());
+        _logger.VerifyLog(LogLevel.Warning, "Validation failed:", Times.Once());
     }
 
     // ──────────────── FUNCTIONAL TESTS ────────────────

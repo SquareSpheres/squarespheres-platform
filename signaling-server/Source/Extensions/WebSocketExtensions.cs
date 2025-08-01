@@ -54,11 +54,8 @@ public static class WebSocketExtensions
     /// </summary>
     /// <param name="socket">The target WebSocket.</param>
     /// <param name="errorMessage">The error message to send.</param>
-    /// <param name="logger">Optional logger for logging the error.</param>
-    public static async Task SendErrorAsync(this WebSocket socket, string errorMessage, ILogger? logger = null)
+    public static async Task SendErrorAsync(this WebSocket socket, string errorMessage)
     {
-        logger?.LogWarning("WebSocket error response: {Message}", errorMessage);
-
         var error = new SignalErrorResponse
         {
             Type = "error",
