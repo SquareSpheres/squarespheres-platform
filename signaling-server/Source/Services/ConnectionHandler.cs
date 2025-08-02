@@ -57,7 +57,10 @@ public class ConnectionHandler(
 
     private async Task CleanupHost(string hostId)
     {
-        signalRegistry.RemoveHost(hostId);
+        if (signalRegistry.TryGetHostSocket(hostId, out var hostSocket))
+        {
+            await RemoveSocket(hostSocket);
+        }
 
         var clientsToRemove = signalRegistry.GetClientsForHost(hostId);
 
@@ -69,6 +72,8 @@ public class ConnectionHandler(
 
     private async Task RemoveSocket(WebSocket socket)
     {
+        logger.LogDebug("Removing socket: {SocketHash}", socket.GetHashCode());
+
         signalRegistry.RemoveClient(socket);
         signalRegistry.RemoveHost(socket);
         signalRegistry.UntrackSocket(socket);
@@ -81,12 +86,17 @@ public class ConnectionHandler(
         {
             try
             {
+                logger.LogDebug("Closing WebSocket with state: {State}", socket.State);
                 await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
             }
             catch (WebSocketException ex)
             {
                 logger.LogWarning(ex, "Error closing WebSocket");
             }
+        }
+        else
+        {
+            logger.LogDebug("WebSocket not in a closeable state: {State}", socket.State);
         }
     }
 }
