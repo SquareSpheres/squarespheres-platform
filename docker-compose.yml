@@ -37,11 +37,11 @@ services:
     volumes:
       - wasm-output:/usr/share/nginx/html/wasm:ro
     depends_on:
-      wasm-builder:
-        condition: service_completed_successfully
       signaling-server:
         condition: service_healthy
     restart: unless-stopped
+    profiles:
+      - build
 
   # Development services (commented out by default)
   # Uncomment for development mode

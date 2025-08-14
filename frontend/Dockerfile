@@ -18,7 +18,7 @@ RUN cargo install wasm-bindgen-cli
 COPY frontend/package*.json ./
 
 # Use npm ci for faster, more reliable installs
-RUN npm ci --only=production
+RUN npm ci
 
 # Copy source code (separate layer)
 COPY frontend/ .

@@ -6,6 +6,7 @@ module.exports = {
     "no-unused-vars": "warn",
     "no-undef": "warn",
     "no-constant-condition": "warn",
+    "no-extra-semi": "warn",
     // Add more rules here as needed to make them warnings
   },
 };
