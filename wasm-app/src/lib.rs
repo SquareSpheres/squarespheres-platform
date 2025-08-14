@@ -18,11 +18,13 @@ pub fn decompress_chunk(chunk: &[u8]) -> Vec<u8> {
 #[wasm_bindgen]
 pub fn hash_chunk(_chunk: &[u8]) -> String {
     // TODO: Implement real hashing if needed
-    "".to_string()
+    "dummy_hash_123".to_string()
 }
 
 // Called when the WASM module is instantiated
 #[wasm_bindgen(start)]
 pub fn main() {
-    // Initialization logic if needed
+    // Log when WASM module is loaded
+    web_sys::console::log_1(&"🚀 WASM module loaded and initialized!".into());
+    web_sys::console::log_1(&"📦 Available functions: compress_chunk, decompress_chunk, hash_chunk".into());
 }

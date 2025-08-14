@@ -1,5 +1,7 @@
-# No longer ignoring public/wasm files; WASM files are in wasm-module
 # Ignore auto-generated WASM files
-public/wasm/wasm_app.js
-public/wasm/wasm_app.d.ts
-public/wasm/wasm_app_bg.wasm 
+wasm-module/wasm_app.js
+wasm-module/wasm_app.d.ts
+wasm-module/wasm_app_bg.wasm
+src/wasm/wasm_app.js
+src/wasm/wasm_app.d.ts
+src/wasm/wasm_app_bg.wasm 

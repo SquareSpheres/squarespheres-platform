@@ -17,7 +17,7 @@ build: ## Build all components
 build-wasm: ## Build WASM module only
 	@echo "🦀 Building WASM module..."
 	@rm -rf frontend/public/wasm
-	cd wasm-app && wasm-pack build --target web --out-dir ../frontend/wasm-module --out-name wasm_app --no-pack
+	cd wasm-app && wasm-pack build --target web --out-dir ../frontend/src/wasm --out-name wasm_app --no-pack
 
 build-frontend: ## Build frontend only
 	@echo "⚛️  Building frontend..."
@@ -30,7 +30,7 @@ build-signaling: ## Build signaling server only
 # Development commands
 up: ## Start all services with Docker Compose
 	@echo "🚀 Starting all services..."
-	docker-compose up --build
+	docker-compose --profile build up --build
 
 down: ## Stop all services
 	@echo "🛑 Stopping all services..."
@@ -41,6 +41,10 @@ dev: ## Start development environment
 	@echo "Building WASM module first..."
 	$(MAKE) build-wasm
 	@echo "Starting services..."
+	docker-compose --profile build up --build
+
+dev-simple: ## Start development environment without WASM build
+	@echo "🔧 Starting simple development environment..."
 	docker-compose up --build
 
 dev-local: ## Start local development (requires local .NET/Node.js/Rust for WASM)
@@ -72,7 +76,7 @@ clean: ## Clean build artifacts and Docker containers
 	cd signaling-server && dotnet clean
 	rm -rf wasm-app/target/
 	rm -rf frontend/public/wasm
-	rm -rf frontend/wasm-module
+	rm -rf frontend/src/wasm/*.wasm frontend/src/wasm/*.js frontend/src/wasm/*.d.ts
 
 test: test-signaling test-frontend ## Run tests
 

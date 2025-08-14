@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import initWasm, { decompress_chunk } from '../../wasm-module/wasm_app.js'
+import initWasm, { decompress_chunk, hash_chunk } from '../../src/wasm/wasm_app.js'
 import { useWebRTCReceiver } from './useWebRTCChannel/receiver'
 
 export interface ReceiveFileTransferState {
@@ -31,7 +31,28 @@ export function useReceiverFileHandler() {
 
   // Load WASM on mount
   useEffect(() => {
-    initWasm().then(() => setWasmReady(true))
+    console.log('🔄 Starting WASM initialization for receiver...')
+    
+    initWasm()
+      .then(() => {
+        console.log('✅ WASM initialized successfully for receiver')
+        
+        // Test WASM functionality with a dummy function
+        try {
+          const testData = new Uint8Array([1, 2, 3, 4, 5])
+          const hash = hash_chunk(testData)
+          console.log('🧪 WASM test - hash_chunk result:', hash)
+          console.log('✅ WASM functions are working correctly')
+        } catch (error) {
+          console.error('❌ WASM function test failed:', error)
+        }
+        
+        setWasmReady(true)
+      })
+      .catch((error) => {
+        console.error('❌ Failed to initialize WASM for receiver:', error)
+        setWasmReady(false)
+      })
   }, [])
 
   // Register chunk receive handler

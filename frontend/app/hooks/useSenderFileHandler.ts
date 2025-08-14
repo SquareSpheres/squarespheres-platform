@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import initWasm, { compress_chunk } from '../../wasm-module/wasm_app.js'
+import initWasm, { compress_chunk, hash_chunk } from '../../src/wasm/wasm_app.js'
 import { useWebRTCSender } from './useWebRTCChannel/sender'
 
 export interface FileTransferState {
@@ -23,7 +23,28 @@ export function useSenderFileHandler() {
 
   // Load WASM on mount
   React.useEffect(() => {
-    initWasm().then(() => setWasmReady(true))
+    console.log('🔄 Starting WASM initialization for sender...')
+    
+    initWasm()
+      .then(() => {
+        console.log('✅ WASM initialized successfully for sender')
+        
+        // Test WASM functionality with a dummy function
+        try {
+          const testData = new Uint8Array([1, 2, 3, 4, 5])
+          const hash = hash_chunk(testData)
+          console.log('🧪 WASM test - hash_chunk result:', hash)
+          console.log('✅ WASM functions are working correctly')
+        } catch (error) {
+          console.error('❌ WASM function test failed:', error)
+        }
+        
+        setWasmReady(true)
+      })
+      .catch((error) => {
+        console.error('❌ Failed to initialize WASM for sender:', error)
+        setWasmReady(false)
+      })
   }, [])
 
   // Handles file selection and starts chunked transfer
