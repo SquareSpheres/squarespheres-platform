@@ -43,9 +43,9 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
             return;
         }
 
-
         string? hostId;
         string? clientId;
+        WebSocket? hostSocket;
 
         switch (msg.Type!.ToLower())
         {
@@ -63,7 +63,6 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
 
                 break;
 
-
             case SignalMessageTypes.JoinHost:
                 if (string.IsNullOrWhiteSpace(msg.HostId))
                 {
@@ -72,18 +71,35 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                     return;
                 }
 
-                if (signalRegistry.TryGetHostSocket(msg.HostId, out _))
+                if (signalRegistry.TryGetHostSocket(msg.HostId, out hostSocket))
                 {
                     clientId = await signalRegistry.GenerateUniqueClientIdAsync();
                     signalRegistry.RegisterClient(clientId, socket, msg.HostId);
                     logger.LogInformation("Client {ClientId} joined host {HostId}", clientId, msg.HostId);
 
+                    // Acknowledge client
                     await socket.SendJsonAsync(new SignalMessage
                     {
                         Type = SignalMessageTypes.JoinHost,
                         HostId = msg.HostId,
                         ClientId = clientId
                     });
+
+                    // Notify host with a distinct, host-facing type
+                    try
+                    {
+                        await hostSocket.SendJsonAsync(new SignalMessage
+                        {
+                            Type = SignalMessageTypes.ClientJoined,
+                            HostId = msg.HostId,
+                            ClientId = clientId
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Failed to notify host {HostId} about client {ClientId}", msg.HostId,
+                            clientId);
+                    }
                 }
                 else
                 {
@@ -93,10 +109,9 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
 
                 break;
 
-
             case SignalMessageTypes.MsgToHost:
                 if (signalRegistry.TryGetClientHost(socket, out hostId) &&
-                    signalRegistry.TryGetHostSocket(hostId, out var hostSocket) &&
+                    signalRegistry.TryGetHostSocket(hostId, out hostSocket) &&
                     signalRegistry.TryGetClientId(socket, out clientId))
                 {
                     logger.LogInformation("Client {ClientId} → Host [{HostId}]", clientId, hostId);
@@ -152,6 +167,82 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
             default:
                 logger.LogWarning("Received unknown message type: {Type}", msg.Type);
                 await socket.SendErrorAsync("Unknown message type");
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Sends peer notifications when a socket disconnects.
+    /// IMPORTANT: Call this BEFORE registry cleanup/closure so peers can still be notified.
+    /// This method does NOT remove/untrack/close any sockets.
+    /// </summary>
+    public async Task HandleDisconnect(WebSocket socket, DisconnectionType type)
+    {
+        switch (type)
+        {
+            case DisconnectionType.Client:
+            {
+                if (signalRegistry.TryGetClientId(socket, out var clientId) &&
+                    signalRegistry.TryGetClientHost(socket, out var hostId) &&
+                    signalRegistry.TryGetHostSocket(hostId, out var hostSocket))
+                {
+                    logger.LogInformation("Notifying host {HostId} that client {ClientId} disconnected", hostId,
+                        clientId);
+
+                    try
+                    {
+                        await hostSocket.SendJsonAsync(new SignalMessage
+                        {
+                            Type = SignalMessageTypes.ClientDisconnected,
+                            HostId = hostId,
+                            ClientId = clientId
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Failed to notify host {HostId} of client {ClientId} disconnection",
+                            hostId, clientId);
+                    }
+                }
+
+                break;
+            }
+
+            case DisconnectionType.Host:
+            {
+                if (signalRegistry.TryGetHostId(socket, out var hostId))
+                {
+                    var clients = signalRegistry.GetClientsForHost(hostId).ToList();
+                    logger.LogInformation("Notifying {Count} clients that host {HostId} disconnected", clients.Count,
+                        hostId);
+
+                    var tasks = clients.Select(async clientSocket =>
+                    {
+                        try
+                        {
+                            await clientSocket.SendJsonAsync(new SignalMessage
+                            {
+                                Type = SignalMessageTypes.HostDisconnected,
+                                HostId = hostId
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogWarning(ex, "Failed to notify a client of host {HostId} disconnection", hostId);
+                        }
+                    });
+
+                    await Task.WhenAll(tasks);
+                }
+
+
+                break;
+            }
+
+            case DisconnectionType.Unknown:
+            default:
+                // No-op: unknown/unregistered sockets have no peers to notify.
+                logger.LogDebug("Disconnect notification ignored for unknown socket");
                 break;
         }
     }

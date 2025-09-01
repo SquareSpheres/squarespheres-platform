@@ -17,8 +17,8 @@ public interface ISignalRegistry
 
     bool RegisterClient(string clientId, WebSocket socket, string hostId);
 
-    bool TryGetClientSocket(string clientId, [NotNullWhen(true)] out WebSocket? socket);
-    bool TryGetClientId(WebSocket socket, [NotNullWhen(true)] out string? clientId);
+    bool TryGetClientSocket(string clientId, [NotNullWhen(true)] out WebSocket? clientSocket);
+    bool TryGetClientId(WebSocket clientSocket, [NotNullWhen(true)] out string? clientId);
     bool TryGetClientHost(WebSocket clientSocket, [NotNullWhen(true)] out string? hostId);
     bool RemoveClient(WebSocket clientSocket);
 

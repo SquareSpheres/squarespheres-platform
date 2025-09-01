@@ -40,18 +40,27 @@ public class ConnectionHandler(
             if (signalRegistry.TryGetHostId(socket, out var hostId))
             {
                 logger.LogInformation("Host {HostId} disconnected", hostId);
+
+                await messageHandler.HandleDisconnect(socket, DisconnectionType.Host);
+
                 await CleanupHost(hostId);
                 SocketDisconnected?.Invoke(socket, DisconnectionType.Host);
             }
             else if (signalRegistry.TryGetClientHost(socket, out hostId))
             {
                 logger.LogInformation("Client disconnected from host {HostId}", hostId);
+
+                await messageHandler.HandleDisconnect(socket, DisconnectionType.Client);
+
                 await RemoveSocket(socket);
                 SocketDisconnected?.Invoke(socket, DisconnectionType.Client);
             }
             else
             {
                 logger.LogInformation("Unregistered socket disconnected before registration");
+
+                await messageHandler.HandleDisconnect(socket, DisconnectionType.Unknown);
+
                 await RemoveSocket(socket);
                 SocketDisconnected?.Invoke(socket, DisconnectionType.Unknown);
             }

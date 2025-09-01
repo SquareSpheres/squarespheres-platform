@@ -100,7 +100,7 @@
 <div class="box">
     <h3><code>host</code></h3>
     <p>Registers a new host.</p>
-    
+
     <div class="payload-section">
         <span class="section-label payload-label">📤 PAYLOAD:</span>
         <div class="message-example">
@@ -124,7 +124,7 @@
 <div class="box">
     <h3><code>join-host</code></h3>
     <p>Client joins a host by hostId.</p>
-    
+
     <div class="payload-section">
         <span class="section-label payload-label">📤 PAYLOAD:</span>
         <div class="message-example">
@@ -136,10 +136,21 @@
     </div>
 
     <div class="response-section">
-        <span class="section-label response-label">📥 RESPONSE:</span>
+        <span class="section-label response-label">📥 RESPONSE TO CLIENT:</span>
         <div class="message-example">
             <pre>{
   "type": "join-host",
+  "hostId": "abc123",
+  "clientId": "xyz456"
+}</pre>
+        </div>
+    </div>
+
+    <div class="response-section">
+        <span class="section-label response-label">📥 NOTIFICATION TO HOST:</span>
+        <div class="message-example">
+            <pre>{
+  "type": "client-joined",
   "hostId": "abc123",
   "clientId": "xyz456"
 }</pre>
@@ -150,7 +161,7 @@
 <div class="box">
     <h3><code>msg-to-host</code></h3>
     <p>Client sends a message to its host.</p>
-    
+
     <div class="payload-section">
         <span class="section-label payload-label">📤 PAYLOAD:</span>
         <div class="message-example">
@@ -162,9 +173,14 @@
     </div>
 
     <div class="response-section">
-        <span class="section-label response-label">📥 RESPONSE:</span>
+        <span class="section-label response-label">📥 FORWARDED TO HOST:</span>
         <div class="message-example">
-            <p><em>No direct response. The message is forwarded to the host.</em></p>
+            <pre>{
+  "type": "msg-to-host",
+  "hostId": "abc123",
+  "clientId": "xyz456",
+  "payload": "message data"
+}</pre>
         </div>
     </div>
 </div>
@@ -172,7 +188,7 @@
 <div class="box">
     <h3><code>msg-to-client</code></h3>
     <p>Host sends a message to a specific client.</p>
-    
+
     <div class="payload-section">
         <span class="section-label payload-label">📤 PAYLOAD:</span>
         <div class="message-example">
@@ -185,9 +201,43 @@
     </div>
 
     <div class="response-section">
-        <span class="section-label response-label">📥 RESPONSE:</span>
+        <span class="section-label response-label">📥 FORWARDED TO CLIENT:</span>
         <div class="message-example">
-            <p><em>No direct response. The message is forwarded to the specified client.</em></p>
+            <pre>{
+  "type": "msg-to-client",
+  "hostId": "abc123",
+  "clientId": "xyz456",
+  "payload": "message data"
+}</pre>
+        </div>
+    </div>
+</div>
+
+<div class="box">
+    <h3><code>client-disconnected</code></h3>
+    <p>Sent to the host when a client disconnects.</p>
+    <div class="response-section">
+        <span class="section-label response-label">📥 NOTIFICATION:</span>
+        <div class="message-example">
+            <pre>{
+  "type": "client-disconnected",
+  "hostId": "abc123",
+  "clientId": "xyz456"
+}</pre>
+        </div>
+    </div>
+</div>
+
+<div class="box">
+    <h3><code>host-disconnected</code></h3>
+    <p>Sent to all connected clients when the host disconnects.</p>
+    <div class="response-section">
+        <span class="section-label response-label">📥 NOTIFICATION:</span>
+        <div class="message-example">
+            <pre>{
+  "type": "host-disconnected",
+  "hostId": "abc123"
+}</pre>
         </div>
     </div>
 </div>
