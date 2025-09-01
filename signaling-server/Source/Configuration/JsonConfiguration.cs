@@ -16,7 +16,7 @@ public static class JsonConfiguration
     private static readonly JsonSerializerOptions Base = new()
     {
         PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = null, // Keep C# naming convention (PascalCase) for responses
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase, // Use camelCase for TypeScript/JavaScript compatibility
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, // Don't send null properties
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping, // Allow special characters
         Converters = { new JsonStringEnumConverter() } // Output enums as strings instead of numbers
@@ -25,7 +25,7 @@ public static class JsonConfiguration
     /// <summary>
     /// Default JSON serialization options.
     /// - Case-insensitive property matching
-    /// - PascalCase output
+    /// - camelCase output for TypeScript/JavaScript compatibility
     /// - Compact JSON for network transmission
     /// - Null properties ignored
     /// </summary>
