@@ -19,5 +19,6 @@ app.UseWebSockets();
 app.MapWebSocketEndpoints();
 app.MapHomeEndpoints();
 app.MapHealthEndpoints();
+app.MapApiSpecEndpoints();
 
 app.Run();

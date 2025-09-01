@@ -34,12 +34,53 @@
             border-radius: 6px;
             background: #fcfcfc;
         }
+
+        .payload-section {
+            border-left: 4px solid #3498db;
+            padding-left: 1rem;
+            margin: 1rem 0;
+        }
+
+        .response-section {
+            border-left: 4px solid #27ae60;
+            padding-left: 1rem;
+            margin: 1rem 0;
+        }
+
+        .section-label {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .payload-label {
+            color: #3498db;
+        }
+
+        .response-label {
+            color: #27ae60;
+        }
+
+        .message-example {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+        }
     </style>
 </head>
 <body>
 <h1>📡 Signaling Server - WebSocket API</h1>
 
 <p>This WebSocket server facilitates peer-to-peer signaling between a single host and multiple clients.</p>
+
+<div class="box">
+    <h3>🔗 Machine-Readable API Spec</h3>
+    <p><strong>JSON API Spec:</strong> <a href="/api-spec" target="_blank">/api-spec</a></p>
+    <p><em>Returns a WebSocket-specific API specification in JSON format for client generation</em></p>
+</div>
 
 <h2>🌐 WebSocket Connection</h2>
 <div class="box">
@@ -59,53 +100,108 @@
 <div class="box">
     <h3><code>host</code></h3>
     <p>Registers a new host.</p>
-    <pre>{
+    
+    <div class="payload-section">
+        <span class="section-label payload-label">📤 PAYLOAD:</span>
+        <div class="message-example">
+            <pre>{
   "type": "host"
 }</pre>
-    <pre>{
+        </div>
+    </div>
+
+    <div class="response-section">
+        <span class="section-label response-label">📥 RESPONSE:</span>
+        <div class="message-example">
+            <pre>{
   "type": "host",
   "hostId": "abc123"
 }</pre>
+        </div>
+    </div>
 </div>
 
 <div class="box">
     <h3><code>join-host</code></h3>
     <p>Client joins a host by hostId.</p>
-    <pre>{
+    
+    <div class="payload-section">
+        <span class="section-label payload-label">📤 PAYLOAD:</span>
+        <div class="message-example">
+            <pre>{
   "type": "join-host",
   "hostId": "abc123"
 }</pre>
-    <pre>{
+        </div>
+    </div>
+
+    <div class="response-section">
+        <span class="section-label response-label">📥 RESPONSE:</span>
+        <div class="message-example">
+            <pre>{
   "type": "join-host",
   "hostId": "abc123",
   "clientId": "xyz456"
 }</pre>
+        </div>
+    </div>
 </div>
 
 <div class="box">
     <h3><code>msg-to-host</code></h3>
     <p>Client sends a message to its host.</p>
-    <pre>{
+    
+    <div class="payload-section">
+        <span class="section-label payload-label">📤 PAYLOAD:</span>
+        <div class="message-example">
+            <pre>{
   "type": "msg-to-host",
   "payload": "message data"
 }</pre>
+        </div>
+    </div>
+
+    <div class="response-section">
+        <span class="section-label response-label">📥 RESPONSE:</span>
+        <div class="message-example">
+            <p><em>No direct response. The message is forwarded to the host.</em></p>
+        </div>
+    </div>
 </div>
 
 <div class="box">
     <h3><code>msg-to-client</code></h3>
     <p>Host sends a message to a specific client.</p>
-    <pre>{
+    
+    <div class="payload-section">
+        <span class="section-label payload-label">📤 PAYLOAD:</span>
+        <div class="message-example">
+            <pre>{
   "type": "msg-to-client",
   "clientId": "xyz456",
   "payload": "message data"
 }</pre>
+        </div>
+    </div>
+
+    <div class="response-section">
+        <span class="section-label response-label">📥 RESPONSE:</span>
+        <div class="message-example">
+            <p><em>No direct response. The message is forwarded to the specified client.</em></p>
+        </div>
+    </div>
 </div>
 
 <h2>❌ Error Messages</h2>
 <p>If a problem occurs, the server responds with:</p>
-<pre>{
+<div class="response-section">
+    <span class="section-label response-label">📥 ERROR:</span>
+    <div class="message-example">
+        <pre>{
   "type": "error",
   "message": "description of the error"
 }</pre>
+    </div>
+</div>
 </body>
 </html>
