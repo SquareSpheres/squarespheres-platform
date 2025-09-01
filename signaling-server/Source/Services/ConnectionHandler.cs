@@ -13,6 +13,9 @@ public class ConnectionHandler(
 
     public async Task HandleConnection(WebSocket socket, CancellationToken cancellationToken)
     {
+
+        logger.LogDebug("Trying to establish connection...");
+        
         signalRegistry.TrackSocket(socket);
 
         try

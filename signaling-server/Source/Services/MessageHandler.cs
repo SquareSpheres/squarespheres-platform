@@ -3,6 +3,7 @@ using System.Text.Json;
 using SignalingServer.Extensions;
 using SignalingServer.Models;
 using SignalingServer.Validation;
+using SignalingServer.Configuration;
 
 namespace SignalingServer.Services;
 
@@ -14,7 +15,8 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
 
         try
         {
-            msg = JsonSerializer.Deserialize<SignalMessage>(raw);
+            // Use centralized JSON configuration for case-insensitive deserialization
+            msg = raw.FromJson<SignalMessage>();
             if (msg == null)
             {
                 logger.LogWarning("Invalid message format");

@@ -1,6 +1,6 @@
 # SquareSpheres Platform Makefile
 
-.PHONY: help build build-wasm build-frontend build-signaling up down dev clean install test lint prereqs
+.PHONY: help build build-wasm build-frontend build-signaling up down dev clean install test lint prereqs signaling frontend signaling-stop frontend-stop
 
 # Default target
 help: ## Show this help message
@@ -55,6 +55,11 @@ dev-local: ## Start local development (requires local .NET/Node.js/Rust for WASM
 	dotnet run --project signaling-server/Source/SignalingServer.csproj &
 	@echo "Starting frontend dev server..."
 	cd frontend && npm install && npm run dev
+
+signaling: ## Start only the signaling server locally
+	@echo "📡 Starting signaling server only..."
+	@echo "Starting signaling server..."
+	dotnet run --project signaling-server/Source/SignalingServer.csproj
 
 # Utility commands
 dependency-restore: ## Restore dependencies for signaling server
@@ -163,3 +168,19 @@ prod: ## Build and start production environment
 
 prod-down: ## Stop production environment
 	docker-compose down
+
+signaling-stop: ## Stop the local signaling server
+	@echo "🛑 Stopping local signaling server..."
+	@pkill -f "dotnet.*SignalingServer" || echo "No signaling server process found"
+
+frontend: ## Start only the frontend development server
+	@echo "⚛️  Starting frontend development server only..."
+	@echo "Building WASM module..."
+	$(MAKE) build-wasm
+	@echo "Starting frontend dev server..."
+	cd frontend && npm install && npm run dev
+
+frontend-stop: ## Stop the local frontend development server
+	@echo "🛑 Stopping local frontend development server..."
+	@pkill -f "npm run dev" || echo "No frontend development server process found"
+	@pkill -f "next dev" || echo "No Next.js process found"

@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using SignalingServer.Models;
+using SignalingServer.Configuration;
 
 namespace SignalingServer.Extensions;
 
@@ -29,7 +30,7 @@ public static class WebSocketExtensions
     }
 
     /// <summary>
-    /// Serializes an object to JSON and sends it over the WebSocket.
+    /// Serializes an object to JSON and sends it over the WebSocket using centralized configuration.
     /// </summary>
     /// <typeparam name="T">Type of the object to serialize.</typeparam>
     /// <param name="socket">The target WebSocket.</param>
@@ -38,7 +39,8 @@ public static class WebSocketExtensions
     {
         if (socket.State != WebSocketState.Open) return;
 
-        var json = JsonSerializer.Serialize(message);
+        // Use centralized JSON configuration for consistent serialization
+        var json = message.ToJson();
         var bytes = Encoding.UTF8.GetBytes(json);
 
         await socket.SendAsync(
