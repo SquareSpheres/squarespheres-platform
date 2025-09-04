@@ -6,13 +6,13 @@ using SignalingServer.Helpers;
 
 namespace SignalingServer.Services;
 
-public class SignalRegistry : ISignalRegistry
+public class SignalRegistry(ILogger<SignalRegistry> logger) : ISignalRegistry
 {
     private readonly BiDirectionalConcurrentDictionary<string, WebSocket> _hosts = new();
     private readonly BiDirectionalConcurrentDictionary<string, WebSocket> _clients = new();
     private readonly ConcurrentDictionary<WebSocket, string> _clientHostMap = new();
     private readonly ConcurrentDictionary<WebSocket, byte> _allSockets = new();
-    
+
     public async Task<string> GenerateUniqueHostIdAsync()
     {
         string id;
@@ -33,16 +33,13 @@ public class SignalRegistry : ISignalRegistry
         return id;
     }
 
-    public bool RegisterHost(string hostId, WebSocket socket)
-        => _hosts.TryAdd(hostId, socket);
+    public bool RegisterHost(string hostId, WebSocket socket) => _hosts.TryAdd(hostId, socket);
 
-    public bool TryGetHostSocket(string hostId, [NotNullWhen(true)] out WebSocket? socket)
-        => _hosts.TryGetByKey(hostId, out socket);
+    public bool TryGetHostSocket(string hostId, [NotNullWhen(true)] out WebSocket? socket) =>
+        _hosts.TryGetByKey(hostId, out socket);
 
-    public bool TryGetHostId(WebSocket socket, [NotNullWhen(true)] out string? hostId)
-        => _hosts.TryGetByValue(socket, out hostId);
-
-
+    public bool TryGetHostId(WebSocket socket, [NotNullWhen(true)] out string? hostId) =>
+        _hosts.TryGetByValue(socket, out hostId);
 
     public bool RegisterClient(string clientId, WebSocket socket, string hostId)
     {
@@ -54,44 +51,44 @@ public class SignalRegistry : ISignalRegistry
         return added;
     }
 
-    public bool TryGetClientSocket(string clientId, [NotNullWhen(true)] out WebSocket? socket)
-        => _clients.TryGetByKey(clientId, out socket);
+    public bool TryGetClientSocket(string clientId, [NotNullWhen(true)] out WebSocket? socket) =>
+        _clients.TryGetByKey(clientId, out socket);
 
-    public bool TryGetClientId(WebSocket socket, [NotNullWhen(true)] out string? clientId)
-        => _clients.TryGetByValue(socket, out clientId);
+    public bool TryGetClientId(WebSocket socket, [NotNullWhen(true)] out string? clientId) =>
+        _clients.TryGetByValue(socket, out clientId);
 
-    public bool TryGetClientHost(WebSocket clientSocket, [NotNullWhen(true)] out string? hostId)
-        => _clientHostMap.TryGetValue(clientSocket, out hostId);
+    public bool TryGetClientHost(WebSocket clientSocket, [NotNullWhen(true)] out string? hostId) =>
+        _clientHostMap.TryGetValue(clientSocket, out hostId);
 
     public bool RemoveClient(WebSocket clientSocket)
     {
         _clientHostMap.TryRemove(clientSocket, out _);
+        logger.LogDebug("ClientHostMap size = {Count}", _clientHostMap.Count);
         _clients.TryRemoveByValue(clientSocket);
+        logger.LogDebug("Clients size = {Count}", _clients.Count);
         return true;
     }
 
     public bool RemoveHost(string hostId)
     {
-        return _hosts.TryRemoveByKey(hostId);
+        var success = _hosts.TryRemoveByKey(hostId);
+        logger.LogDebug("Hosts size = {Count}", _hosts.Count);
+        return success;
     }
 
     public bool RemoveHost(WebSocket socket)
     {
-        return _hosts.TryRemoveByValue(socket);
+        var success = _hosts.TryRemoveByValue(socket);
+        logger.LogDebug("Hosts size = {Count}", _hosts.Count);
+        return success;
     }
-    
 
     public IEnumerable<WebSocket> GetClientsForHost(string hostId)
     {
-        return _clientHostMap
-            .ToArray()
-            .Where(kvp => kvp.Value == hostId)
-            .Select(kvp => kvp.Key);
+        return _clientHostMap.ToArray().Where(kvp => kvp.Value == hostId).Select(kvp => kvp.Key);
     }
 
-    public void TrackSocket(WebSocket socket)
-        => _allSockets.TryAdd(socket, 0);
+    public void TrackSocket(WebSocket socket) => _allSockets.TryAdd(socket, 0);
 
-    public void UntrackSocket(WebSocket socket)
-        => _allSockets.TryRemove(socket, out _);
+    public void UntrackSocket(WebSocket socket) => _allSockets.TryRemove(socket, out _);
 }

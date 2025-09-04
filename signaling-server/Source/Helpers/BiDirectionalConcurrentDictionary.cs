@@ -9,7 +9,8 @@ namespace SignalingServer.Helpers;
 /// </summary>
 /// <typeparam name="TKey">The type of the key. Must be non-nullable.</typeparam>
 /// <typeparam name="TValue">The type of the value. Must be non-nullable.</typeparam>
-public class BiDirectionalConcurrentDictionary<TKey, TValue> : IBiDirectionalConcurrentDictionary<TKey, TValue>
+public class BiDirectionalConcurrentDictionary<TKey, TValue>
+    : IBiDirectionalConcurrentDictionary<TKey, TValue>
     where TKey : notnull
     where TValue : notnull
 {
@@ -22,8 +23,8 @@ public class BiDirectionalConcurrentDictionary<TKey, TValue> : IBiDirectionalCon
     /// <param name="key">The key to look up.</param>
     /// <param name="value">When this method returns, contains the value associated with the specified key, if the key is found; otherwise, <c>null</c>.</param>
     /// <returns><c>true</c> if the key was found; otherwise, <c>false</c>.</returns>
-    public bool TryGetByKey(TKey key, [NotNullWhen(true)] out TValue? value)
-        => _forward.TryGetValue(key, out value);
+    public bool TryGetByKey(TKey key, [NotNullWhen(true)] out TValue? value) =>
+        _forward.TryGetValue(key, out value);
 
     /// <summary>
     /// Attempts to get the key associated with the specified value.
@@ -31,8 +32,8 @@ public class BiDirectionalConcurrentDictionary<TKey, TValue> : IBiDirectionalCon
     /// <param name="value">The value to look up.</param>
     /// <param name="key">When this method returns, contains the key associated with the specified value, if the value is found; otherwise, <c>null</c>.</param>
     /// <returns><c>true</c> if the value was found; otherwise, <c>false</c>.</returns>
-    public bool TryGetByValue(TValue value, [NotNullWhen(true)] out TKey? key)
-        => _reverse.TryGetValue(value, out key);
+    public bool TryGetByValue(TValue value, [NotNullWhen(true)] out TKey? key) =>
+        _reverse.TryGetValue(value, out key);
 
     /// <summary>
     /// Determines whether the dictionary contains the specified key.
@@ -103,4 +104,6 @@ public class BiDirectionalConcurrentDictionary<TKey, TValue> : IBiDirectionalCon
     /// </summary>
     /// <returns>An array of key-value pairs.</returns>
     public KeyValuePair<TKey, TValue>[] ToArray() => _forward.ToArray();
+
+    public int Count => _forward.Count;
 }
