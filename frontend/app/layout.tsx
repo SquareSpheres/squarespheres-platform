@@ -6,7 +6,7 @@ import './globals.css'
 import Link from 'next/link'
 import React from 'react'
 import StaticBackground from './StaticBackground'
-import { Share2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
+import { Share2, ArrowUpCircle, ArrowDownCircle, Wifi } from 'lucide-react'
 
 const inter = Inter({ subsets: ['latin'] })
 const poppins = Poppins({
@@ -56,6 +56,10 @@ export default function RootLayout({
               <Link href="/receive" className="flex items-center gap-2 p-2 rounded-lg text-slate-300 hover:bg-gray-800 hover:text-white transition-colors" title="Receive">
                 <ArrowDownCircle className="h-6 w-6" />
                 <span className="hidden md:inline font-medium text-sm">Receive</span>
+              </Link>
+              <Link href="/signaling-demo" className="flex items-center gap-2 p-2 rounded-lg text-slate-300 hover:bg-gray-800 hover:text-white transition-colors" title="Signaling Demo">
+                <Wifi className="h-6 w-6" />
+                <span className="hidden md:inline font-medium text-sm">Signaling</span>
               </Link>
             </nav>
           </header>
