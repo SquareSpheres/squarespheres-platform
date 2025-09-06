@@ -1,5 +1,1 @@
-# Exclude temporary build artifacts but allow generated WASM files
-*.tmp
-*.temp
-.DS_Store
-Thumbs.db
+*
