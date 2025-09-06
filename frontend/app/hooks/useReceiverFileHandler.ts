@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import initWasm, { decompress_chunk, hash_chunk } from '../../src/wasm/wasm_app.js'
-import { useWebRTCReceiver } from './useWebRTCChannel/receiver'
 
 export interface ReceiveFileTransferState {
   fileName: string | null;
@@ -20,14 +19,7 @@ export function useReceiverFileHandler() {
     receivedChunks: 0,
   })
   const [wasmReady, setWasmReady] = useState(false)
-  const {
-    onChunkReceived,
-    createOffer,
-    createAnswer,
-    setRemoteDescription,
-    addIceCandidate,
-    connectionState,
-  } = useWebRTCReceiver()
+
 
   // Load WASM on mount
   useEffect(() => {
@@ -58,31 +50,10 @@ export function useReceiverFileHandler() {
   // Register chunk receive handler
   useEffect(() => {
     if (!wasmReady) return
-    onChunkReceived((chunk: Uint8Array) => {
-      // Decompress chunk in WASM
-      let decompressed: Uint8Array
-      try {
-        decompressed = decompress_chunk(chunk)
-      } catch (err) {
-        console.error('WASM decompression failed:', err)
-        decompressed = chunk
-      }
-      // TODO: Write decompressed chunk to buffer, stream, or IndexedDB
-      setTransferState(prev => ({
-        ...prev,
-        receivedBytes: prev.receivedBytes + decompressed.length,
-        receivedChunks: prev.receivedChunks + 1,
-      }))
-    })
-  }, [wasmReady, onChunkReceived])
+  }, [wasmReady])
 
   return {
     transferState,
     wasmReady,
-    createOffer,
-    createAnswer,
-    setRemoteDescription,
-    addIceCandidate,
-    connectionState,
   }
 } 

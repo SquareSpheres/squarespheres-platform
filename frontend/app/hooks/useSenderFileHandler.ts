@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import initWasm, { compress_chunk, hash_chunk } from '../../src/wasm/wasm_app.js'
-import { useWebRTCSender } from './useWebRTCChannel/sender'
 
 export interface FileTransferState {
   file: File;
@@ -12,14 +11,6 @@ export interface FileTransferState {
 export function useSenderFileHandler() {
   const [transferState, setTransferState] = useState<FileTransferState | null>(null)
   const [wasmReady, setWasmReady] = useState(false)
-  const {
-    sendChunk,
-    createOffer,
-    createAnswer,
-    setRemoteDescription,
-    addIceCandidate,
-    connectionState,
-  } = useWebRTCSender()
 
   // Load WASM on mount
   React.useEffect(() => {
@@ -69,7 +60,7 @@ export function useSenderFileHandler() {
         compressed = value
       }
       // Send chunk via WebRTC
-      sendChunk(compressed)
+      // sendChunk(compressed)
       bytesSent += value.length
       compressedBytesSent += compressed.length
       setTransferState({
@@ -86,10 +77,5 @@ export function useSenderFileHandler() {
     transferState,
     handleFileSelect,
     wasmReady,
-    createOffer,
-    createAnswer,
-    setRemoteDescription,
-    addIceCandidate,
-    connectionState,
   }
 } 
