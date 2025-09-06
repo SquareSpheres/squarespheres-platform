@@ -6,7 +6,7 @@ import FileDropAnimation from './FileDropAnimation'
 import { useSenderFileHandler } from './hooks/useSenderFileHandler'
 
 export default function SendPage() {
-  const { transferState, handleFileSelect, connectionState } = useSenderFileHandler()
+  const { transferState, handleFileSelect } = useSenderFileHandler()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragCounter = useRef(0);
   const isDraggingRef = useRef(false);
@@ -112,7 +112,7 @@ export default function SendPage() {
           </div>
 
           <div className="mt-8 text-center status-loading p-3 rounded-lg w-full">
-            <p className="text-sm sm:text-base">Connection state: {connectionState}</p>
+            <p className="text-sm sm:text-base">Ready for file transfer</p>
             <p className="text-xs sm:text-sm">(This is where WebRTC magic will happen)</p>
           </div>
         </div>
