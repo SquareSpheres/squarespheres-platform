@@ -15,4 +15,7 @@ public class SignalMessage
     
     [JsonPropertyName("payload")]
     public string? Payload { get; set; }
+    
+    [JsonPropertyName("requestId")]
+    public string? RequestId { get; set; }
 }

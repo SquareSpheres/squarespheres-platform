@@ -58,7 +58,8 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                 await socket.SendJsonAsync(new SignalMessage
                 {
                     Type = SignalMessageTypes.Host,
-                    HostId = hostId
+                    HostId = hostId,
+                    RequestId = msg.RequestId,
                 });
 
                 break;
@@ -82,7 +83,8 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                     {
                         Type = SignalMessageTypes.JoinHost,
                         HostId = msg.HostId,
-                        ClientId = clientId
+                        ClientId = clientId,
+                        RequestId = msg.RequestId,
                     });
 
                     // Notify host with a distinct, host-facing type
@@ -92,7 +94,8 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                         {
                             Type = SignalMessageTypes.ClientJoined,
                             HostId = msg.HostId,
-                            ClientId = clientId
+                            ClientId = clientId,
+                            RequestId = msg.RequestId,
                         });
                     }
                     catch (Exception ex)
@@ -121,7 +124,8 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                         Type = SignalMessageTypes.MsgToHost,
                         ClientId = clientId,
                         HostId = hostId,
-                        Payload = msg.Payload
+                        Payload = msg.Payload,
+                        RequestId = msg.RequestId
                     };
 
                     await hostSocket.SendJsonAsync(forward);
@@ -145,7 +149,8 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                             Type = SignalMessageTypes.MsgToClient,
                             ClientId = msg.ClientId,
                             HostId = hostId,
-                            Payload = msg.Payload
+                            Payload = msg.Payload,
+                            RequestId = msg.RequestId
                         };
 
                         await clientSocket.SendJsonAsync(forward);
@@ -195,7 +200,8 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                         {
                             Type = SignalMessageTypes.ClientDisconnected,
                             HostId = hostId,
-                            ClientId = clientId
+                            ClientId = clientId,
+                            RequestId = null
                         });
                     }
                     catch (Exception ex)
