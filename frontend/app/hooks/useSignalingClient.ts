@@ -84,7 +84,7 @@ class SignalError extends Error {
 // Base WebSocket connection manager
 function useWebSocketConnection(config: SignalingClientConfig) {
   const {
-    url = process.env.NEXT_PUBLIC_SIGNALING_WS_URL || 'ws://localhost:5052/ws',
+    url = process.env.NEXT_PUBLIC_SIGNAL_SERVER || 'ws://localhost:5052/ws',
     onMessage,
     onError,
     onOpen,

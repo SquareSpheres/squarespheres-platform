@@ -1,10 +1,4 @@
 {
-  "rewrites": [
-    {
-      "source": "/ws/:path*",
-      "destination": "https://your-signaling-server.vercel.app/ws/:path*"
-    }
-  ],
   "headers": [
     {
       "source": "/wasm/:path*",
