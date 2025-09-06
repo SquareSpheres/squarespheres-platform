@@ -19,7 +19,7 @@ export default function FileDropAnimation({ isDragging }: FileDropAnimationProps
         className="absolute inset-0 flex items-center justify-center"
       >
         <UploadCloud
-          className={`h-24 w-24 transition-colors duration-300 ${isDragging ? 'text-blue-400' : 'text-gray-400'}`}
+          className={`h-24 w-24 transition-colors duration-300 ${isDragging ? 'text-primary' : 'text-muted-foreground'}`}
         />
       </motion.div>
     </div>

@@ -170,33 +170,33 @@ export default function SignalingDemo() {
   const getMessageStyle = (message: SignalingMessage & { timestamp?: string }) => {
     const type = message.type || 'unknown';
     const styles = {
-      error: 'bg-red-100 border-red-300 text-red-900',
-      system: 'bg-blue-100 border-blue-300 text-blue-900',
-      outgoing: 'bg-green-100 border-green-300 text-green-900',
-      'client-joined': 'bg-emerald-100 border-emerald-300 text-emerald-900',
-      'client-disconnected': 'bg-orange-100 border-orange-300 text-orange-900',
-      'host-disconnected': 'bg-red-100 border-red-300 text-red-900',
-      'join-host': 'bg-purple-100 border-purple-300 text-purple-900',
-      'msg-to-host': 'bg-indigo-100 border-indigo-300 text-indigo-900',
-      'msg-to-client': 'bg-cyan-100 border-cyan-300 text-cyan-900',
+      error: 'status-error',
+      system: 'status-message-system',
+      outgoing: 'status-message-outgoing',
+      'client-joined': 'status-connected',
+      'client-disconnected': 'status-warning',
+      'host-disconnected': 'status-disconnected',
+      'join-host': 'status-joining',
+      'msg-to-host': 'status-message-host',
+      'msg-to-client': 'status-message-client',
     };
-    return styles[type as keyof typeof styles] || 'bg-gray-100 border-gray-300 text-gray-900';
+    return styles[type as keyof typeof styles] || 'bg-muted border-border text-card-foreground';
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8 text-center text-gray-900">Signaling Client Demo</h1>
+        <h1 className="text-3xl font-bold mb-8 text-center text-foreground">Signaling Client Demo</h1>
         
         {/* Tab Navigation */}
-        <div className="bg-white rounded-lg shadow-md mb-6">
-          <div className="flex border-b">
+        <div className="bg-card rounded-lg shadow-md mb-6">
+          <div className="flex border-b border-border">
             <button
               onClick={() => setActiveTab('host')}
               className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
                 activeTab === 'host'
-                  ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-500'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               }`}
             >
               🖥️ Host
@@ -205,8 +205,8 @@ export default function SignalingDemo() {
               onClick={() => setActiveTab('client')}
               className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
                 activeTab === 'client'
-                  ? 'bg-green-50 text-green-700 border-b-2 border-green-500'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  ? 'bg-accent/10 text-accent border-b-2 border-accent'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               }`}
             >
               👤 Client
@@ -215,38 +215,38 @@ export default function SignalingDemo() {
         </div>
 
         {/* Tab Content */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="bg-card rounded-lg shadow-md p-6 mb-6">
           {activeTab === 'host' ? (
             <div className="space-y-6">
-              <h2 className="text-xl font-semibold text-gray-900">Host Controls</h2>
+              <h2 className="text-xl font-semibold text-card-foreground">Host Controls</h2>
               
               <div className="space-y-4">
                 <button
                   onClick={handleRegisterHost}
                   disabled={hostClient.isConnected}
-                  className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg disabled:opacity-50 hover:bg-blue-600 transition-colors"
+                  className="btn btn-primary w-full"
                 >
                   Register as Host
                 </button>
                 
                 {hostClient.hostId && (
-                  <div className="p-3 bg-blue-50 rounded-lg">
-                    <p className="text-sm font-medium text-gray-900">Host ID:</p>
-                    <p className="font-mono text-sm break-all text-gray-900">{hostClient.hostId}</p>
+                  <div className="p-3 bg-primary/10 rounded-lg">
+                    <p className="text-sm font-medium text-card-foreground">Host ID:</p>
+                    <p className="font-mono text-sm break-all text-card-foreground">{hostClient.hostId}</p>
                   </div>
                 )}
               </div>
 
               {/* Status */}
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm font-medium text-gray-900">Status: {getCurrentStatus()}</p>
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium text-card-foreground">Status: {getCurrentStatus()}</p>
               </div>
 
               {/* Disconnect */}
               {hostClient.isConnected && (
                 <button
                   onClick={handleDisconnect}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                  className="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 transition-colors"
                 >
                   Disconnect Host
                 </button>
@@ -254,7 +254,7 @@ export default function SignalingDemo() {
             </div>
           ) : (
             <div className="space-y-6">
-              <h2 className="text-xl font-semibold text-gray-900">Client Controls</h2>
+              <h2 className="text-xl font-semibold text-card-foreground">Client Controls</h2>
               
               <div className="space-y-4">
                 <div className="flex gap-2">
@@ -263,35 +263,35 @@ export default function SignalingDemo() {
                     value={hostIdInput}
                     onChange={(e) => setHostIdInput(e.target.value)}
                     placeholder="Enter host ID to join"
-                    className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                    className="input flex-1"
                   />
                   <button
                     onClick={handleJoinHost}
                     disabled={clientClient.isConnected || !hostIdInput}
-                    className="px-4 py-2 bg-green-500 text-white rounded-lg disabled:opacity-50 hover:bg-green-600 transition-colors"
+                    className="btn btn-secondary disabled:opacity-50"
                   >
                     Join Host
                   </button>
                 </div>
                 
                 {clientClient.clientId && (
-                  <div className="p-3 bg-green-50 rounded-lg">
-                    <p className="text-sm font-medium text-gray-900">Client ID:</p>
-                    <p className="font-mono text-sm break-all text-gray-900">{clientClient.clientId}</p>
+                  <div className="p-3 bg-accent/10 rounded-lg">
+                    <p className="text-sm font-medium text-card-foreground">Client ID:</p>
+                    <p className="font-mono text-sm break-all text-card-foreground">{clientClient.clientId}</p>
                   </div>
                 )}
               </div>
 
               {/* Status */}
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm font-medium text-gray-900">Status: {getCurrentStatus()}</p>
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium text-card-foreground">Status: {getCurrentStatus()}</p>
               </div>
 
               {/* Disconnect */}
               {clientClient.isConnected && (
                 <button
                   onClick={handleDisconnect}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                  className="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 transition-colors"
                 >
                   Disconnect Client
                 </button>
@@ -303,30 +303,30 @@ export default function SignalingDemo() {
         {/* Connected Clients (Host Only) */}
         {activeTab === 'host' && hostClient.isConnected && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4 text-gray-900">Connected Clients ({connectedClients.length})</h2>
+            <h2 className="text-xl font-semibold mb-4 text-card-foreground">Connected Clients ({connectedClients.length})</h2>
             {connectedClients.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {connectedClients.map((clientId) => (
-                  <div key={clientId} className="p-2 bg-blue-50 rounded border">
-                    <p className="font-mono text-sm break-all text-gray-900">{clientId}</p>
+                  <div key={clientId} className="p-2 bg-primary/10 rounded border border-border">
+                    <p className="font-mono text-sm break-all text-card-foreground">{clientId}</p>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-4">No clients connected yet</p>
+              <p className="text-muted-foreground text-center py-4">No clients connected yet</p>
             )}
           </div>
         )}
 
         {/* Messaging */}
         {((activeTab === 'host' && hostClient.isConnected) || (activeTab === 'client' && clientClient.isConnected)) && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4 text-gray-900">Messaging</h2>
+          <div className="bg-card rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4 text-card-foreground">Messaging</h2>
             
             <div className="space-y-4">
               {activeTab === 'host' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-2">
+                  <label className="block text-sm font-medium text-card-foreground mb-2">
                     Target Client ID:
                   </label>
                   <input
@@ -334,7 +334,7 @@ export default function SignalingDemo() {
                     value={targetClientId}
                     onChange={(e) => setTargetClientId(e.target.value)}
                     placeholder="Enter client ID to send message to"
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                    className="input w-full"
                   />
                 </div>
               )}
@@ -345,13 +345,13 @@ export default function SignalingDemo() {
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
                   placeholder={activeTab === 'host' ? 'Type message to send to client...' : 'Type message to send to host...'}
-                  className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                  className="input flex-1"
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                 />
                 <button
                   onClick={handleSendMessage}
                   disabled={!messageInput || (activeTab === 'host' && !targetClientId)}
-                  className="px-6 py-2 bg-purple-500 text-white rounded-lg disabled:opacity-50 hover:bg-purple-600 transition-colors"
+                  className="btn btn-primary disabled:opacity-50"
                 >
                   Send
                 </button>
@@ -361,26 +361,26 @@ export default function SignalingDemo() {
         )}
 
         {/* Message Log */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900">Message Log</h2>
+        <div className="bg-card rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold mb-4 text-card-foreground">Message Log</h2>
           
-          <div className="h-96 overflow-y-auto border rounded-lg p-4 space-y-2">
+          <div className="h-96 overflow-y-auto border border-border rounded-lg p-4 space-y-2">
             {messages.length === 0 ? (
-              <p className="text-gray-500 text-center">No messages yet</p>
+              <p className="text-muted-foreground text-center">No messages yet</p>
             ) : (
               messages.map((msg, index) => (
                 <div key={index} className={`p-3 rounded-lg border ${getMessageStyle(msg)}`}>
                                                         <div className="flex justify-between items-start mb-1">
-                     <span className="text-xs font-bold text-gray-700">
+                     <span className="text-xs font-bold">
                        {(msg.type || 'unknown').toUpperCase()}
                      </span>
                      {(msg as any).timestamp && (
-                       <span className="text-xs text-gray-600">
+                       <span className="text-xs opacity-70">
                          {new Date((msg as any).timestamp).toLocaleTimeString()}
                        </span>
                      )}
                    </div>
-                   <div className="font-mono text-sm break-all text-gray-800">
+                   <div className="font-mono text-sm break-all">
                      {msg.payload || JSON.stringify(msg, null, 2)}
                    </div>
                 </div>

@@ -41,21 +41,21 @@ function ReceiveComponent() {
     switch (status) {
       case 'connecting':
         return (
-          <div className="mt-8 text-center text-yellow-400 bg-yellow-900 bg-opacity-50 p-4 rounded-lg">
+          <div className="mt-8 text-center status-loading p-4 rounded-lg">
             <p className="font-semibold">Connecting...</p>
             <p className="text-sm">Attempting to establish a connection with the sender.</p>
           </div>
         )
       case 'connected':
         return (
-          <div className="mt-8 text-center text-green-400 bg-green-900 bg-opacity-50 p-4 rounded-lg">
+          <div className="mt-8 text-center status-success p-4 rounded-lg">
             <p className="font-semibold">Connection Established!</p>
             <p className="text-sm">Preparing to receive the file. This is where the file transfer would begin.</p>
           </div>
         )
       case 'error':
          return (
-          <div className="mt-8 text-center text-red-400 bg-red-900 bg-opacity-50 p-4 rounded-lg">
+          <div className="mt-8 text-center status-error p-4 rounded-lg">
             <p className="font-semibold">Connection Failed</p>
             <p className="text-sm">Could not connect to the sender. Please check the code and try again.</p>
           </div>
@@ -67,9 +67,9 @@ function ReceiveComponent() {
 
   return (
     <div className="w-full max-w-sm sm:max-w-md text-center">
-      <div className="card bg-gray-800 p-6 sm:p-8 rounded-xl">
-        <h2 className="text-xl sm:text-2xl font-bold mb-4">Receive a File</h2>
-        <p className="text-gray-400 mb-6 text-sm sm:text-base">Enter the 6-digit code from the sender to start the transfer.</p>
+      <div className="card p-6 sm:p-8 rounded-xl">
+        <h2 className="text-xl sm:text-2xl font-bold mb-4 text-card-foreground">Receive a File</h2>
+        <p className="text-muted-foreground mb-6 text-sm sm:text-base">Enter the 6-digit code from the sender to start the transfer.</p>
         
         <div className="flex items-center gap-2">
           <input
@@ -78,12 +78,12 @@ function ReceiveComponent() {
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             maxLength={6}
             placeholder="A1B2C3"
-            className="input bg-gray-700 border-gray-600 text-white w-full text-center text-2xl sm:text-3xl font-mono tracking-widest h-14 sm:h-16"
+            className="input w-full text-center text-2xl sm:text-3xl font-mono tracking-widest h-14 sm:h-16"
           />
           <button 
             onClick={handleConnect} 
             disabled={!code || code.length !== 6 || status === 'connecting' || status === 'connected'} 
-            className="btn btn-primary bg-blue-600 hover:bg-blue-700 h-14 sm:h-16 w-16 sm:w-20 flex items-center justify-center"
+            className="btn btn-primary h-14 sm:h-16 w-16 sm:w-20 flex items-center justify-center"
           >
             <ArrowRight className="h-6 w-6 sm:h-8 sm:w-8" />
           </button>

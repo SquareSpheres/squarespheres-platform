@@ -27,37 +27,37 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.className} ${poppins.variable} bg-gray-900 text-white relative`}>
+      <body className={`${inter.className} ${poppins.variable} bg-background text-foreground relative`}>
         <Analytics />
         <SpeedInsights />
-        <div className="fixed inset-0 z-0 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900">
+        <div className="fixed inset-0 z-0 bg-gradient-to-b from-background via-muted to-background">
           <StaticBackground />
         </div>
         <div className="container mx-auto p-4 flex flex-col min-h-screen relative z-10">
-          <header className="flex flex-col md:flex-row justify-between items-center py-4 md:space-x-4 space-y-4 md:space-y-0 border-b border-gray-700 bg-gray-900 bg-opacity-50 backdrop-blur-sm rounded-lg px-4">
+          <header className="flex flex-col md:flex-row justify-between items-center py-4 md:space-x-4 space-y-4 md:space-y-0 border-b border-border bg-card/50 backdrop-blur-sm rounded-lg px-4">
             <h1 className="text-xl md:text-2xl font-semibold font-poppins">
               <Link href="/" className="flex items-center gap-3 group">
                 <div className="relative h-8 w-8">
-                  <div className="absolute h-6 w-6 top-0 left-0 bg-slate-400 rounded-md"></div>
-                  <div className="absolute h-6 w-6 bottom-0 right-0 bg-slate-600 rounded-full"></div>
+                  <div className="absolute h-6 w-6 top-0 left-0 bg-muted-foreground rounded-md"></div>
+                  <div className="absolute h-6 w-6 bottom-0 right-0 bg-primary rounded-full"></div>
                 </div>
                 <div className="flex items-center gap-1">
                   <span>Square</span>
-                  <Share2 className="h-6 w-6 text-slate-400" />
+                  <Share2 className="h-6 w-6 text-muted-foreground" />
                   <span>pheres</span>
                 </div>
               </Link>
             </h1>
             <nav className="flex items-center space-x-2 md:space-x-4">
-              <Link href="/" className="flex items-center gap-2 p-2 rounded-lg text-slate-300 hover:bg-gray-800 hover:text-white transition-colors" title="Send">
+              <Link href="/" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Send">
                 <ArrowUpCircle className="h-6 w-6" />
                 <span className="hidden md:inline font-medium text-sm">Send</span>
               </Link>
-              <Link href="/receive" className="flex items-center gap-2 p-2 rounded-lg text-slate-300 hover:bg-gray-800 hover:text-white transition-colors" title="Receive">
+              <Link href="/receive" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Receive">
                 <ArrowDownCircle className="h-6 w-6" />
                 <span className="hidden md:inline font-medium text-sm">Receive</span>
               </Link>
-              <Link href="/signaling-demo" className="flex items-center gap-2 p-2 rounded-lg text-slate-300 hover:bg-gray-800 hover:text-white transition-colors" title="Signaling Demo">
+              <Link href="/signaling-demo" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Signaling Demo">
                 <Wifi className="h-6 w-6" />
                 <span className="hidden md:inline font-medium text-sm">Signaling</span>
               </Link>

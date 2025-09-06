@@ -1,10 +1,128 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Updated to a more colorful but relaxing palette with sage green, warm beige, and soft blues */
+  --background: oklch(0.98 0.005 120); /* Soft off-white with hint of green */
+  --foreground: oklch(0.25 0.02 200); /* Deep blue-gray text */
+  --card: oklch(0.96 0.01 80); /* Warm light beige card background */
+  --card-foreground: oklch(0.3 0.02 200); /* Deep blue-gray for card text */
+  --popover: oklch(0.98 0.005 120); /* Soft off-white popover */
+  --popover-foreground: oklch(0.3 0.02 200); /* Deep blue-gray popover text */
+  --primary: oklch(0.55 0.08 150); /* Sage green primary */
+  --primary-foreground: oklch(0.98 0.005 120); /* Light text on primary */
+  --secondary: oklch(0.75 0.04 60); /* Warm sand secondary */
+  --secondary-foreground: oklch(0.25 0.02 200); /* Dark text on secondary */
+  --muted: oklch(0.88 0.01 80); /* Soft beige for muted elements */
+  --muted-foreground: oklch(0.5 0.02 200); /* Medium blue-gray text */
+  --accent: oklch(0.7 0.06 220); /* Soft blue accent */
+  --accent-foreground: oklch(0.98 0.005 120); /* Light text on accent */
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.85 0.01 80); /* Soft beige borders */
+  --input: oklch(0.98 0.005 120); /* Light input background */
+  --ring: oklch(0.55 0.08 150 / 0.3); /* Sage green focus ring */
+  --chart-1: oklch(0.55 0.08 150);
+  --chart-2: oklch(0.7 0.06 220);
+  --chart-3: oklch(0.75 0.04 60);
+  --chart-4: oklch(0.88 0.01 80);
+  --chart-5: oklch(0.96 0.01 80);
+  --radius: 1rem; /* More rounded for modern feel */
+  --sidebar: oklch(0.96 0.01 80);
+  --sidebar-foreground: oklch(0.3 0.02 200);
+  --sidebar-primary: oklch(0.55 0.08 150);
+  --sidebar-primary-foreground: oklch(0.98 0.005 120);
+  --sidebar-accent: oklch(0.7 0.06 220);
+  --sidebar-accent-foreground: oklch(0.98 0.005 120);
+  --sidebar-border: oklch(0.85 0.01 80);
+  --sidebar-ring: oklch(0.55 0.08 150 / 0.3);
+}
+
+.dark {
+  /* Updated dark mode with deeper, richer colors maintaining the relaxing palette */
+  --background: oklch(0.12 0.01 200); /* Deep blue-gray background */
+  --foreground: oklch(0.9 0.005 120); /* Light sage-tinted text */
+  --card: oklch(0.15 0.01 180); /* Slightly lighter dark card with blue tint */
+  --card-foreground: oklch(0.88 0.005 120); /* Light text on cards */
+  --popover: oklch(0.12 0.01 200); /* Deep popover */
+  --popover-foreground: oklch(0.88 0.005 120); /* Light popover text */
+  --primary: oklch(0.6 0.08 150); /* Brighter sage green for dark mode */
+  --primary-foreground: oklch(0.12 0.01 200); /* Dark text on primary */
+  --secondary: oklch(0.25 0.02 60); /* Dark warm secondary */
+  --secondary-foreground: oklch(0.88 0.005 120); /* Light text on secondary */
+  --muted: oklch(0.2 0.01 180); /* Dark muted with blue tint */
+  --muted-foreground: oklch(0.65 0.02 200); /* Medium light text */
+  --accent: oklch(0.65 0.06 220); /* Brighter soft blue accent */
+  --accent-foreground: oklch(0.12 0.01 200); /* Dark text on accent */
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.9 0 0);
+  --border: oklch(0.2 0.01 180); /* Dark borders with blue tint */
+  --input: oklch(0.15 0.01 180); /* Dark input background */
+  --ring: oklch(0.6 0.08 150 / 0.4); /* Brighter sage focus ring */
+  --chart-1: oklch(0.6 0.08 150);
+  --chart-2: oklch(0.65 0.06 220);
+  --chart-3: oklch(0.7 0.04 60);
+  --chart-4: oklch(0.2 0.01 180);
+  --chart-5: oklch(0.15 0.01 180);
+  --sidebar: oklch(0.15 0.01 180);
+  --sidebar-foreground: oklch(0.88 0.005 120);
+  --sidebar-primary: oklch(0.6 0.08 150);
+  --sidebar-primary-foreground: oklch(0.12 0.01 200);
+  --sidebar-accent: oklch(0.65 0.06 220);
+  --sidebar-accent-foreground: oklch(0.12 0.01 200);
+  --sidebar-border: oklch(0.2 0.01 180);
+  --sidebar-ring: oklch(0.6 0.08 150 / 0.4);
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
 
 @layer base {
-  html {
-    font-family: system-ui, sans-serif;
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }
 
@@ -14,31 +132,67 @@
   }
   
   .btn-primary {
-    @apply bg-primary-600 text-white hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed;
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:cursor-not-allowed;
   }
   
   .btn-secondary {
-    @apply bg-gray-200 text-gray-800 hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed;
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:bg-muted disabled:cursor-not-allowed;
   }
   
   .input {
-    @apply px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+    @apply px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent bg-input;
   }
   
   .card {
-    @apply bg-white rounded-lg shadow-md p-6 border border-gray-200;
+    @apply bg-card rounded-lg shadow-md p-6 border border-border text-card-foreground;
   }
   
   .status-success {
-    @apply text-green-600 bg-green-50 border-green-200;
+    @apply text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800;
   }
   
   .status-error {
-    @apply text-red-600 bg-red-50 border-red-200;
+    @apply text-destructive bg-destructive/10 border-destructive/20;
   }
   
   .status-loading {
-    @apply text-yellow-600 bg-yellow-50 border-yellow-200;
+    @apply text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800;
+  }
+  
+  .status-info {
+    @apply text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800;
+  }
+  
+  .status-warning {
+    @apply text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800;
+  }
+  
+  .status-connected {
+    @apply text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800;
+  }
+  
+  .status-disconnected {
+    @apply text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800;
+  }
+  
+  .status-joining {
+    @apply text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800;
+  }
+  
+  .status-message-host {
+    @apply text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800;
+  }
+  
+  .status-message-client {
+    @apply text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-800;
+  }
+  
+  .status-message-outgoing {
+    @apply text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800;
+  }
+  
+  .status-message-system {
+    @apply text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800;
   }
 }
 
@@ -49,4 +203,4 @@
   to {
     transform: translateY(-1000px);
   }
-} 
+}

@@ -150,11 +150,11 @@ export default function WebRTCTestPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto my-8 font-sans bg-gray-800 rounded-xl shadow-lg p-8">
-      <h1 className="text-2xl font-bold text-center mb-8 text-white">WebRTC Manual Signaling Test</h1>
+    <div className="max-w-xl mx-auto my-8 font-sans bg-card rounded-xl shadow-lg p-8">
+      <h1 className="text-2xl font-bold text-center mb-8 text-card-foreground">WebRTC Manual Signaling Test</h1>
       <div className="mb-6 flex flex-col items-center gap-2">
         <div className="flex justify-center gap-8">
-          <label className="font-bold text-lg flex items-center gap-2 text-gray-100">
+          <label className="font-bold text-lg flex items-center gap-2 text-card-foreground">
             <input
               type="radio"
               name="role"
@@ -167,11 +167,11 @@ export default function WebRTCTestPage() {
                 setSdpReady(false)
                 setError(null)
               }}
-              className="accent-blue-400"
+              className="accent-primary"
             />
             Sender
           </label>
-          <label className="font-bold text-lg flex items-center gap-2 text-gray-100">
+          <label className="font-bold text-lg flex items-center gap-2 text-card-foreground">
             <input
               type="radio"
               name="role"
@@ -184,59 +184,57 @@ export default function WebRTCTestPage() {
                 setSdpReady(false)
                 setError(null)
               }}
-              className="accent-blue-400"
+              className="accent-primary"
             />
             Receiver
           </label>
         </div>
-        <label className="flex items-center gap-2 mt-2 text-gray-200 text-base">
+        <label className="flex items-center gap-2 mt-2 text-muted-foreground text-base">
           <input
             type="checkbox"
             checked={noTrickle}
             onChange={e => setNoTrickle(e.target.checked)}
-            className="accent-green-500"
+            className="accent-primary"
           />
           No Trickle ICE (single SDP with all candidates)
         </label>
       </div>
       <div className="mb-5 text-center">
-        <strong className="text-gray-200">Connection state:</strong>{' '}
-        <span className={channel.connectionState === 'connected' ? 'text-green-400' : 'text-gray-300'}>
+        <strong className="text-card-foreground">Connection state:</strong>{' '}
+        <span className={channel.connectionState === 'connected' ? 'status-success' : 'text-muted-foreground'}>
           {channel.connectionState}
         </span>
       </div>
-      {error && <div className="text-red-400 mb-4 text-center">{error}</div>}
+      {error && <div className="text-destructive mb-4 text-center">{error}</div>}
 
       {/* SENDER FLOW */}
       {role === 'sender' && (
         <div className="space-y-6">
           {/* Step 1: Create Offer */}
           <div>
-            <div className="font-bold text-gray-200 mb-1">1. Create Offer</div>
+            <div className="font-bold text-card-foreground mb-1">1. Create Offer</div>
             <button
               onClick={handleCreateOffer}
               disabled={sdpReady}
-              className={`px-6 py-2 text-base rounded-md font-bold shadow transition-colors
-                ${!sdpReady ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer' : 'bg-gray-500 cursor-not-allowed'}
-                text-white`}
+              className={`btn ${!sdpReady ? 'btn-primary' : 'btn-secondary cursor-not-allowed'}`}
             >
               Create Offer
             </button>
           </div>
           {/* Step 2: Copy Offer */}
           <div>
-            <div className="font-bold text-gray-200 mb-1">2. Copy Offer and send to Receiver</div>
+            <div className="font-bold text-card-foreground mb-1">2. Copy Offer and send to Receiver</div>
             <textarea
-              className="w-full h-32 font-mono text-sm bg-gray-900 border border-gray-700 rounded-md p-3 text-gray-100 resize-vertical overflow-auto select-all"
+              className="w-full h-32 font-mono text-sm bg-muted border border-border rounded-md p-3 text-card-foreground resize-vertical overflow-auto select-all"
               value={localSDP}
               readOnly
             />
           </div>
           {/* Step 3: Paste Answer */}
           <div>
-            <div className="font-bold text-gray-200 mb-1">3. Paste Answer from Receiver</div>
+            <div className="font-bold text-card-foreground mb-1">3. Paste Answer from Receiver</div>
             <textarea
-              className="w-full h-32 font-mono text-sm bg-gray-900 border border-gray-700 rounded-md p-3 text-gray-100 resize-vertical overflow-auto mb-2"
+              className="w-full h-32 font-mono text-sm bg-muted border border-border rounded-md p-3 text-card-foreground resize-vertical overflow-auto mb-2"
               value={remoteSDP}
               onChange={(e) => setRemoteSDP(e.target.value)}
               disabled={!localSDP}
@@ -244,12 +242,11 @@ export default function WebRTCTestPage() {
           </div>
           {/* Step 4: Set Remote SDP */}
           <div>
-            <div className="font-bold text-gray-200 mb-1">4. Set Remote SDP</div>
+            <div className="font-bold text-card-foreground mb-1">4. Set Remote SDP</div>
             <button
               onClick={handleSetRemoteSDP}
               disabled={!remoteSDP}
-              className={`px-5 py-2 text-base rounded-md font-bold shadow bg-green-600 hover:bg-green-700 text-white mt-1
-                ${!remoteSDP ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`btn btn-primary mt-1 ${!remoteSDP ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               Set Remote SDP
             </button>
@@ -257,30 +254,30 @@ export default function WebRTCTestPage() {
           {/* ICE Candidate Exchange */}
           {!noTrickle && localSDP && remoteSDP && (
             <div className="space-y-4">
-              <div className="font-bold text-gray-200 mb-1">5. ICE Candidate Exchange</div>
+              <div className="font-bold text-card-foreground mb-1">5. ICE Candidate Exchange</div>
               <div>
-                <div className="text-gray-200 mb-1">Your Local ICE Candidates (copy and send to Receiver):</div>
-                <ul className="bg-gray-900 border border-gray-700 rounded-md p-3 text-gray-100 text-xs max-h-32 overflow-auto">
-                  {channel.localIceCandidates.length === 0 && <li className="text-gray-500">(none yet)</li>}
+                <div className="text-card-foreground mb-1">Your Local ICE Candidates (copy and send to Receiver):</div>
+                <ul className="bg-muted border border-border rounded-md p-3 text-card-foreground text-xs max-h-32 overflow-auto">
+                  {channel.localIceCandidates.length === 0 && <li className="text-muted-foreground">(none yet)</li>}
                   {channel.localIceCandidates.map((cand, i) => (
                     <li key={i} className="mb-1 flex items-center justify-between gap-2">
                       <span className="break-all">{JSON.stringify(cand)}</span>
-                      <button className="ml-2 px-2 py-1 text-xs bg-blue-700 text-white rounded" onClick={() => {navigator.clipboard.writeText(JSON.stringify(cand))}}>Copy</button>
+                      <button className="ml-2 px-2 py-1 text-xs btn btn-secondary" onClick={() => {navigator.clipboard.writeText(JSON.stringify(cand))}}>Copy</button>
                     </li>
                   ))}
                 </ul>
               </div>
               <div>
-                <div className="text-gray-200 mb-1">Paste Remote ICE Candidate from Receiver:</div>
+                <div className="text-card-foreground mb-1">Paste Remote ICE Candidate from Receiver:</div>
                 <div className="flex gap-2">
                   <textarea
-                    className="w-full h-12 font-mono text-xs bg-gray-900 border border-gray-700 rounded-md p-2 text-gray-100"
+                    className="w-full h-12 font-mono text-xs bg-muted border border-border rounded-md p-2 text-card-foreground"
                     value={remoteIce}
                     onChange={e => setRemoteIce(e.target.value)}
                   />
-                  <button className="px-3 py-1 bg-green-700 text-white rounded" onClick={handleAddRemoteIce} disabled={!remoteIce}>Add</button>
+                  <button className="btn btn-primary px-3 py-1" onClick={handleAddRemoteIce} disabled={!remoteIce}>Add</button>
                 </div>
-                <div className="text-xs text-gray-400 mt-1">Added: {addedRemoteIce.length}</div>
+                <div className="text-xs text-muted-foreground mt-1">Added: {addedRemoteIce.length}</div>
               </div>
             </div>
           )}
@@ -292,9 +289,9 @@ export default function WebRTCTestPage() {
         <div className="space-y-6">
           {/* Step 1: Paste Offer */}
           <div>
-            <div className="font-bold text-gray-200 mb-1">1. Paste Offer from Sender</div>
+            <div className="font-bold text-card-foreground mb-1">1. Paste Offer from Sender</div>
             <textarea
-              className="w-full h-32 font-mono text-sm bg-gray-900 border border-gray-700 rounded-md p-3 text-gray-100 resize-vertical overflow-auto mb-2"
+              className="w-full h-32 font-mono text-sm bg-muted border border-border rounded-md p-3 text-card-foreground resize-vertical overflow-auto mb-2"
               value={remoteSDP}
               onChange={(e) => {
                 setRemoteSDP(e.target.value)
@@ -304,34 +301,31 @@ export default function WebRTCTestPage() {
           </div>
           {/* Step 2: Set Remote SDP */}
           <div>
-            <div className="font-bold text-gray-200 mb-1">2. Set Remote SDP</div>
+            <div className="font-bold text-card-foreground mb-1">2. Set Remote SDP</div>
             <button
               onClick={handleSetRemoteSDP}
               disabled={!remoteSDP}
-              className={`px-5 py-2 text-base rounded-md font-bold shadow bg-green-600 hover:bg-green-700 text-white mt-1
-                ${!remoteSDP ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`btn btn-primary mt-1 ${!remoteSDP ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               Set Remote SDP
             </button>
           </div>
           {/* Step 3: Create Answer */}
           <div>
-            <div className="font-bold text-gray-200 mb-1">3. Create Answer</div>
+            <div className="font-bold text-card-foreground mb-1">3. Create Answer</div>
             <button
               onClick={handleCreateAnswer}
               disabled={!remoteSdpSet}
-              className={`px-6 py-2 text-base rounded-md font-bold shadow transition-colors
-                ${remoteSdpSet ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer' : 'bg-gray-500 cursor-not-allowed'}
-                text-white`}
+              className={`btn ${remoteSdpSet ? 'btn-primary' : 'btn-secondary cursor-not-allowed'}`}
             >
               Create Answer
             </button>
           </div>
           {/* Step 4: Copy Answer */}
           <div>
-            <div className="font-bold text-gray-200 mb-1">4. Copy Answer and send to Sender</div>
+            <div className="font-bold text-card-foreground mb-1">4. Copy Answer and send to Sender</div>
             <textarea
-              className="w-full h-32 font-mono text-sm bg-gray-900 border border-gray-700 rounded-md p-3 text-gray-100 resize-vertical overflow-auto select-all"
+              className="w-full h-32 font-mono text-sm bg-muted border border-border rounded-md p-3 text-card-foreground resize-vertical overflow-auto select-all"
               value={localSDP}
               readOnly
             />
@@ -339,30 +333,30 @@ export default function WebRTCTestPage() {
           {/* ICE Candidate Exchange */}
           {!noTrickle && localSDP && remoteSDP && (
             <div className="space-y-4">
-              <div className="font-bold text-gray-200 mb-1">5. ICE Candidate Exchange</div>
+              <div className="font-bold text-card-foreground mb-1">5. ICE Candidate Exchange</div>
               <div>
-                <div className="text-gray-200 mb-1">Your Local ICE Candidates (copy and send to Sender):</div>
-                <ul className="bg-gray-900 border border-gray-700 rounded-md p-3 text-gray-100 text-xs max-h-32 overflow-auto">
-                  {channel.localIceCandidates.length === 0 && <li className="text-gray-500">(none yet)</li>}
+                <div className="text-card-foreground mb-1">Your Local ICE Candidates (copy and send to Sender):</div>
+                <ul className="bg-muted border border-border rounded-md p-3 text-card-foreground text-xs max-h-32 overflow-auto">
+                  {channel.localIceCandidates.length === 0 && <li className="text-muted-foreground">(none yet)</li>}
                   {channel.localIceCandidates.map((cand, i) => (
                     <li key={i} className="mb-1 flex items-center justify-between gap-2">
                       <span className="break-all">{JSON.stringify(cand)}</span>
-                      <button className="ml-2 px-2 py-1 text-xs bg-blue-700 text-white rounded" onClick={() => {navigator.clipboard.writeText(JSON.stringify(cand))}}>Copy</button>
+                      <button className="ml-2 px-2 py-1 text-xs btn btn-secondary" onClick={() => {navigator.clipboard.writeText(JSON.stringify(cand))}}>Copy</button>
                     </li>
                   ))}
                 </ul>
               </div>
               <div>
-                <div className="text-gray-200 mb-1">Paste Remote ICE Candidate from Sender:</div>
+                <div className="text-card-foreground mb-1">Paste Remote ICE Candidate from Sender:</div>
                 <div className="flex gap-2">
                   <textarea
-                    className="w-full h-12 font-mono text-xs bg-gray-900 border border-gray-700 rounded-md p-2 text-gray-100"
+                    className="w-full h-12 font-mono text-xs bg-muted border border-border rounded-md p-2 text-card-foreground"
                     value={remoteIce}
                     onChange={e => setRemoteIce(e.target.value)}
                   />
-                  <button className="px-3 py-1 bg-green-700 text-white rounded" onClick={handleAddRemoteIce} disabled={!remoteIce}>Add</button>
+                  <button className="btn btn-primary px-3 py-1" onClick={handleAddRemoteIce} disabled={!remoteIce}>Add</button>
                 </div>
-                <div className="text-xs text-gray-400 mt-1">Added: {addedRemoteIce.length}</div>
+                <div className="text-xs text-muted-foreground mt-1">Added: {addedRemoteIce.length}</div>
               </div>
             </div>
           )}
@@ -372,17 +366,17 @@ export default function WebRTCTestPage() {
       {/* Messaging Section (only if connected) */}
       {channel.connectionState === 'connected' && (
         <div className="mb-6 mt-8">
-          <div className="font-bold mb-1 text-gray-200">Send Message:</div>
+          <div className="font-bold mb-1 text-card-foreground">Send Message:</div>
           <div className="flex gap-2">
             <input
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="w-4/5 text-base rounded-md border border-gray-700 p-2 bg-gray-900 text-gray-100"
+              className="input w-4/5"
             />
             <button
               onClick={handleSendMessage}
-              className="px-5 py-2 text-base rounded-md font-bold shadow bg-blue-600 hover:bg-blue-700 text-white"
+              className="btn btn-primary"
             >
               Send
             </button>
@@ -392,11 +386,11 @@ export default function WebRTCTestPage() {
       {/* Received Messages (only if connected) */}
       {channel.connectionState === 'connected' && (
         <div className="mb-2">
-          <strong className="text-gray-200">Received Messages:</strong>
-          <ul className="bg-gray-900 border border-gray-700 rounded-md p-3 min-h-[40px] mt-2">
-            {receivedMessages.length === 0 && <li className="text-gray-500">(none yet)</li>}
+          <strong className="text-card-foreground">Received Messages:</strong>
+          <ul className="bg-muted border border-border rounded-md p-3 min-h-[40px] mt-2">
+            {receivedMessages.length === 0 && <li className="text-muted-foreground">(none yet)</li>}
             {receivedMessages.map((msg, i) => (
-              <li key={i} className="break-all py-0.5 text-gray-100">{msg}</li>
+              <li key={i} className="break-all py-0.5 text-card-foreground">{msg}</li>
             ))}
           </ul>
         </div>
