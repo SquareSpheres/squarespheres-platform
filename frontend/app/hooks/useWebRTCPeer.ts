@@ -73,7 +73,9 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
         await pc.setRemoteDescription(parsed.sdp);
       } else if (parsed.kind === 'webrtc-ice') {
         if (parsed.candidate) {
-          try { await pc.addIceCandidate(parsed.candidate); } catch {}
+          try { await pc.addIceCandidate(parsed.candidate); } catch (error) {
+            console.warn('Failed to add ICE candidate:', error);
+          }
         }
       }
     },

@@ -104,7 +104,9 @@ function useWebSocketConnection(config: SignalingClientConfig) {
     const waiters = pendingWaitersRef.current;
     Array.from(waiters).forEach((waiter) => {
       clearTimeout(waiter.timeoutId);
-      try { waiter.reject(reason); } catch {}
+      try { waiter.reject(reason); } catch (error) {
+        console.warn('Error rejecting waiter:', error);
+      }
       waiters.delete(waiter);
     });
   }, []);
