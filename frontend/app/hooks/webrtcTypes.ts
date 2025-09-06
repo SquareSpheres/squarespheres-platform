@@ -1,0 +1,35 @@
+'use client';
+
+export type WebRTCSignalKind = 'webrtc-offer' | 'webrtc-answer' | 'webrtc-ice';
+
+export interface WebRTCOfferPayload {
+  kind: 'webrtc-offer';
+  sdp: RTCSessionDescriptionInit;
+}
+
+export interface WebRTCAnswerPayload {
+  kind: 'webrtc-answer';
+  sdp: RTCSessionDescriptionInit;
+}
+
+export interface WebRTCIcePayload {
+  kind: 'webrtc-ice';
+  candidate: RTCIceCandidateInit;
+}
+
+export type WebRTCSignalPayload = WebRTCOfferPayload | WebRTCAnswerPayload | WebRTCIcePayload;
+
+export interface WebRTCPeerConfig {
+  role: 'host' | 'client';
+  // For client role: hostId to join; for host: optional pre-registered id
+  hostId?: string;
+  // STUN/TURN servers
+  iceServers?: RTCIceServer[];
+  // Optional callbacks
+  onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
+  onChannelMessage?: (data: string | ArrayBuffer | Blob) => void;
+  onChannelOpen?: () => void;
+  onChannelClose?: () => void;
+}
+
+
