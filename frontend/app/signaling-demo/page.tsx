@@ -15,7 +15,6 @@ export default function SignalingDemo() {
     onMessage: (message) => {
       setMessages(prev => [...prev, { ...message, timestamp: new Date().toISOString() }]);
       
-      // Track client connections and disconnections
       if (message.type === 'client-joined' && message.clientId) {
         setConnectedClients(prev => [...prev, message.clientId!]);
       } else if (message.type === 'client-disconnected' && message.clientId) {
@@ -52,14 +51,12 @@ export default function SignalingDemo() {
     onMessage: (message) => {
       setMessages(prev => [...prev, { ...message, timestamp: new Date().toISOString() }]);
       
-      // Handle host disconnection
       if (message.type === 'host-disconnected') {
         setMessages(prev => [...prev, { 
           type: 'system', 
           payload: 'Host disconnected - you will be disconnected',
           timestamp: new Date().toISOString()
         }]);
-        // Optionally disconnect the client when host disconnects
         setTimeout(() => {
           clientClient.disconnect();
         }, 1000);
@@ -187,7 +184,6 @@ export default function SignalingDemo() {
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-bold mb-8 text-center text-foreground">Signaling Client Demo</h1>
-        
         {/* Tab Navigation */}
         <div className="bg-card rounded-lg shadow-md mb-6">
           <div className="flex border-b border-border">
@@ -219,7 +215,6 @@ export default function SignalingDemo() {
           {activeTab === 'host' ? (
             <div className="space-y-6">
               <h2 className="text-xl font-semibold text-card-foreground">Host Controls</h2>
-              
               <div className="space-y-4">
                 <button
                   onClick={handleRegisterHost}
@@ -228,7 +223,6 @@ export default function SignalingDemo() {
                 >
                   Register as Host
                 </button>
-                
                 {hostClient.hostId && (
                   <div className="p-3 bg-primary/10 rounded-lg">
                     <p className="text-sm font-medium text-card-foreground">Host ID:</p>
@@ -236,13 +230,9 @@ export default function SignalingDemo() {
                   </div>
                 )}
               </div>
-
-              {/* Status */}
               <div className="p-3 bg-muted rounded-lg">
                 <p className="text-sm font-medium text-card-foreground">Status: {getCurrentStatus()}</p>
               </div>
-
-              {/* Disconnect */}
               {hostClient.isConnected && (
                 <button
                   onClick={handleDisconnect}
@@ -255,7 +245,6 @@ export default function SignalingDemo() {
           ) : (
             <div className="space-y-6">
               <h2 className="text-xl font-semibold text-card-foreground">Client Controls</h2>
-              
               <div className="space-y-4">
                 <div className="flex gap-2">
                   <input
@@ -273,7 +262,6 @@ export default function SignalingDemo() {
                     Join Host
                   </button>
                 </div>
-                
                 {clientClient.clientId && (
                   <div className="p-3 bg-accent/10 rounded-lg">
                     <p className="text-sm font-medium text-card-foreground">Client ID:</p>
@@ -281,13 +269,9 @@ export default function SignalingDemo() {
                   </div>
                 )}
               </div>
-
-              {/* Status */}
               <div className="p-3 bg-muted rounded-lg">
                 <p className="text-sm font-medium text-card-foreground">Status: {getCurrentStatus()}</p>
               </div>
-
-              {/* Disconnect */}
               {clientClient.isConnected && (
                 <button
                   onClick={handleDisconnect}
@@ -322,7 +306,6 @@ export default function SignalingDemo() {
         {((activeTab === 'host' && hostClient.isConnected) || (activeTab === 'client' && clientClient.isConnected)) && (
           <div className="bg-card rounded-lg shadow-md p-6 mb-6">
             <h2 className="text-xl font-semibold mb-4 text-card-foreground">Messaging</h2>
-            
             <div className="space-y-4">
               {activeTab === 'host' && (
                 <div>
@@ -338,7 +321,6 @@ export default function SignalingDemo() {
                   />
                 </div>
               )}
-              
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -363,26 +345,32 @@ export default function SignalingDemo() {
         {/* Message Log */}
         <div className="bg-card rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4 text-card-foreground">Message Log</h2>
-          
           <div className="h-96 overflow-y-auto border border-border rounded-lg p-4 space-y-2">
             {messages.length === 0 ? (
               <p className="text-muted-foreground text-center">No messages yet</p>
             ) : (
               messages.map((msg, index) => (
                 <div key={index} className={`p-3 rounded-lg border ${getMessageStyle(msg)}`}>
-                                                        <div className="flex justify-between items-start mb-1">
-                     <span className="text-xs font-bold">
-                       {(msg.type || 'unknown').toUpperCase()}
-                     </span>
-                     {(msg as any).timestamp && (
-                       <span className="text-xs opacity-70">
-                         {new Date((msg as any).timestamp).toLocaleTimeString()}
-                       </span>
-                     )}
-                   </div>
-                   <div className="font-mono text-sm break-all">
-                     {msg.payload || JSON.stringify(msg, null, 2)}
-                   </div>
+                  <div className="flex justify-between items-start mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-gray-700">
+                        {(msg.type || 'unknown').toUpperCase()}
+                      </span>
+                      {(msg as any).requestId && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-700">
+                          {(msg as any).requestId}
+                        </span>
+                      )}
+                    </div>
+                    {(msg as any).timestamp && (
+                      <span className="text-xs text-gray-600">
+                        {new Date((msg as any).timestamp).toLocaleTimeString()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-mono text-sm break-all text-gray-800">
+                    {msg.payload || JSON.stringify(msg, null, 2)}
+                  </div>
                 </div>
               ))
             )}
