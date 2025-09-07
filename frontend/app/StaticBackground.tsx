@@ -88,7 +88,7 @@ const generateCharacters = (count: number): DigitalCharacter[] => {
         userSelect: "none",
         pointerEvents: "none",
         willChange: "transform",
-        filter: "blur(1.5px)",
+        filter: "blur(1px)",
       },
     };
   });
@@ -98,7 +98,33 @@ export default function StaticBackground() {
   const [characters, setCharacters] = useState<DigitalCharacter[]>([]);
 
   useEffect(() => {
-    setCharacters(generateCharacters(150));
+    const calculateCharacterCount = () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      
+      const baseCount = Math.floor((width * height) / 50000);
+      const minCount = 15;
+      const maxCount = 80;  
+      
+      return Math.max(minCount, Math.min(maxCount, baseCount));
+    };
+
+    const updateCharacters = () => {
+      console.log('Setting number of characters to', calculateCharacterCount());
+      setCharacters(generateCharacters(calculateCharacterCount()));
+    };
+
+    updateCharacters();
+
+    const handleResize = () => {
+      updateCharacters();
+    };
+
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   return (
