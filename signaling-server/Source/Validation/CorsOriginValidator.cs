@@ -31,7 +31,7 @@ public class CorsOriginValidator(IWebHostEnvironment environment)
     /// <summary>
     /// Checks if the request origin from HttpContext is allowed.
     /// </summary>
-    public bool IsOriginAllowed(HttpContext context)
+    public bool IsOriginAllowed(HttpContext? context)
     {
         if (context == null)
             return false;
