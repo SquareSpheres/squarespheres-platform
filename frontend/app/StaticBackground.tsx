@@ -85,7 +85,7 @@ export default function StaticBackground() {
 
   return (
     <div className="absolute inset-0">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.04] via-accent/[0.02] to-chart-2/[0.04]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.2] via-accent/[0.2] to-chart-2/[0.2]" />
       {characters.map((item) => (
         <span key={item.id} style={item.style}>
           {item.char}
