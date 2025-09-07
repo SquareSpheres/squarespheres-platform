@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Types based on the API spec
 export interface SignalingMessage {
   type: string;
   hostId?: string;
@@ -81,7 +80,6 @@ class SignalError extends Error {
   }
 }
 
-// Base WebSocket connection manager
 function useWebSocketConnection(config: SignalingClientConfig) {
   const {
     url = process.env.NEXT_PUBLIC_SIGNAL_SERVER || 'ws://localhost:5052/ws',
@@ -220,7 +218,6 @@ function useWebSocketConnection(config: SignalingClientConfig) {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
       return (crypto as any).randomUUID();
     }
-    // Fallback
     return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   }, []);
 

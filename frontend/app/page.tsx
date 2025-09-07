@@ -10,9 +10,9 @@ export default function SendPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragCounter = useRef(0);
   const isDraggingRef = useRef(false);
-  const [, forceUpdate] = useState({}); // for re-rendering on drag state
+  const [, forceUpdate] = useState({});
 
-  // Local state for drag UI only
+
   const setIsDragging = (val: boolean) => {
     isDraggingRef.current = val;
     forceUpdate({});
@@ -61,8 +61,7 @@ export default function SendPage() {
       handleFileSelect(e.target.files)
     }
   }
-
-  // Helper for progress
+  
   const progress = transferState && transferState.fileSize > 0
     ? (transferState.bytesSent / transferState.fileSize) * 100
     : 0

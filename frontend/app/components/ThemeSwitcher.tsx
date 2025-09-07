@@ -13,7 +13,6 @@ export function ThemeSwitcher() {
   }, [])
 
   if (!mounted) {
-    // Return a placeholder that matches the expected size to prevent layout shift
     return (
       <div className="flex items-center gap-2 p-2 rounded-lg">
         <div className="h-5 w-5" />
@@ -22,7 +21,6 @@ export function ThemeSwitcher() {
     )
   }
 
-  // Use resolvedTheme which gives us the actual theme being used
   const currentTheme = resolvedTheme || theme
 
   return (
