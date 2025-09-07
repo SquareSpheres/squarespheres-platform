@@ -9,15 +9,7 @@ export default function SendPage() {
   const { transferState, handleFileSelect } = useSenderFileHandler()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragCounter = useRef(0);
-  const isDraggingRef = useRef(false);
-  const [, forceUpdate] = useState({});
-
-
-  const setIsDragging = (val: boolean) => {
-    isDraggingRef.current = val;
-    forceUpdate({});
-  }
-  const isDragging = isDraggingRef.current;
+  const [isDragging, setIsDragging] = useState(false);
 
   const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
