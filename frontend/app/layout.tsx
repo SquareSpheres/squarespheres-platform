@@ -20,6 +20,11 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: 'SquareSpheres Share',
   description: 'Share files securely with WebRTC',
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+  },
 }
 
 export default function RootLayout({
@@ -41,7 +46,7 @@ export default function RootLayout({
               <h1 className="text-xl md:text-2xl font-semibold font-poppins">
                 <Link href="/" className="flex items-center gap-3 group">
                   <div className="relative h-8 w-8">
-                    <div className="absolute h-6 w-6 top-0 left-0 bg-muted-foreground rounded-md"></div>
+                    <div className="absolute h-6 w-6 top-0 left-0 bg-muted-foreground rounded"></div>
                     <div className="absolute h-6 w-6 bottom-0 right-0 bg-primary rounded-full"></div>
                   </div>
                   <div className="flex items-center gap-1">

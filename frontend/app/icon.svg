@@ -1,0 +1,6 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Square (muted background) -->
+  <rect x="2" y="2" width="24" height="24" rx="3" fill="oklch(0.88 0.01 80)"/>
+  <!-- Circle (primary accent) overlapping -->
+  <circle cx="20" cy="20" r="10" fill="oklch(0.55 0.08 150)"/>
+</svg>
