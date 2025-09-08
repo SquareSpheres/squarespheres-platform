@@ -108,13 +108,13 @@ jobs:
         dotnet-version: '9.0.x'
     
     - name: Restore dependencies
-      run: dotnet restore Source/SignalingServer.csproj
+      run: dotnet restore SignalingServer.sln
     
-    - name: Build signaling server
-      run: dotnet build Source/SignalingServer.csproj --no-restore
+    - name: Build solution
+      run: dotnet build SignalingServer.sln --no-restore
     
     - name: Run tests
-      run: dotnet test Tests/SignalingServer.Tests.csproj --no-build --verbosity normal
+      run: dotnet test SignalingServer.sln --no-build --verbosity normal
 
   build-docker-images:
     runs-on: ubuntu-latest
