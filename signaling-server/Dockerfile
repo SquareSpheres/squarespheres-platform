@@ -4,7 +4,9 @@ WORKDIR /src
 
 # Copy project files first for better layer caching
 COPY Source/*.csproj ./Source/
-RUN dotnet restore Source/SignalingServer.csproj
+COPY .config/dotnet-tools.json ./.config/
+RUN dotnet restore Source/SignalingServer.csproj && \
+    dotnet tool restore
 
 # Copy source code
 COPY Source/ ./Source/
