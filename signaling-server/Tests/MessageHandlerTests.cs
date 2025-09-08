@@ -129,7 +129,7 @@ public class MessageHandlerTests
             {
                 Type = SignalMessageTypes.MsgToClient,
                 ClientId = "client404",
-                Payload = "payload"
+                Payload = "payload",
             }
         );
         await _handler.HandleMessage(_socket.Object, raw);
@@ -316,7 +316,7 @@ public class MessageHandlerTests
         {
             Type = SignalMessageTypes.MsgToClient,
             ClientId = "client42",
-            Payload = "pong"
+            Payload = "pong",
         };
 
         var raw = JsonSerializer.Serialize(msg);
@@ -361,7 +361,7 @@ public class MessageHandlerTests
         {
             Type = SignalMessageTypes.MsgToClient,
             ClientId = "client42",
-            Payload = "secret-payload"
+            Payload = "secret-payload",
         };
 
         var raw = JsonSerializer.Serialize(msg);

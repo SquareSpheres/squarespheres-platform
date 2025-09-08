@@ -146,7 +146,7 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                         ClientId = clientId,
                         HostId = hostId,
                         Payload = msg.Payload,
-                        RequestId = msg.RequestId
+                        RequestId = msg.RequestId,
                     };
 
                     await hostSocket.SendJsonAsync(forward);
@@ -178,7 +178,7 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                             ClientId = msg.ClientId,
                             HostId = hostId,
                             Payload = msg.Payload,
-                            RequestId = msg.RequestId
+                            RequestId = msg.RequestId,
                         };
 
                         await clientSocket.SendJsonAsync(forward);
@@ -235,7 +235,7 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                                 Type = SignalMessageTypes.ClientDisconnected,
                                 HostId = hostId,
                                 ClientId = clientId,
-                                RequestId = null
+                                RequestId = null,
                             }
                         );
                     }
@@ -272,7 +272,7 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                                 new SignalMessage
                                 {
                                     Type = SignalMessageTypes.HostDisconnected,
-                                    HostId = hostId
+                                    HostId = hostId,
                                 }
                             );
                         }

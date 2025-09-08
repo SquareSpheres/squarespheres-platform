@@ -19,7 +19,7 @@ public static class ApiSpecEndpoints
                         connection = new
                         {
                             url = "ws://localhost:5052/ws",
-                            description = "WebSocket connection endpoint"
+                            description = "WebSocket connection endpoint",
                         },
                         messageFormat = new
                         {
@@ -33,21 +33,21 @@ public static class ApiSpecEndpoints
                                     hostId = new
                                     {
                                         type = "string",
-                                        description = "Host identifier"
+                                        description = "Host identifier",
                                     },
                                     clientId = new
                                     {
                                         type = "string",
-                                        description = "Client identifier"
+                                        description = "Client identifier",
                                     },
                                     payload = new
                                     {
                                         type = "string",
-                                        description = "Message payload"
-                                    }
+                                        description = "Message payload",
+                                    },
                                 },
-                                required = new[] { "type" }
-                            }
+                                required = new[] { "type" },
+                            },
                         },
                         messageTypes = new
                         {
@@ -56,7 +56,7 @@ public static class ApiSpecEndpoints
                                 description = "Register a new host",
                                 direction = "client_to_server",
                                 request = new { type = "host" },
-                                response = new { type = "host", hostId = "generated-host-id" }
+                                response = new { type = "host", hostId = "generated-host-id" },
                             },
                             joinHost = new
                             {
@@ -67,8 +67,8 @@ public static class ApiSpecEndpoints
                                 {
                                     type = "join-host",
                                     hostId = "target-host-id",
-                                    clientId = "generated-client-id"
-                                }
+                                    clientId = "generated-client-id",
+                                },
                             },
                             clientJoined = new
                             {
@@ -78,15 +78,15 @@ public static class ApiSpecEndpoints
                                 {
                                     type = "client-joined",
                                     hostId = "abc123",
-                                    clientId = "xyz456"
-                                }
+                                    clientId = "xyz456",
+                                },
                             },
                             msgToHost = new
                             {
                                 description = "Client sends message to host",
                                 direction = "client_to_server",
                                 request = new { type = "msg-to-host", payload = "message-content" },
-                                response = "No direct response - message forwarded to host"
+                                response = "No direct response - message forwarded to host",
                             },
                             msgToClient = new
                             {
@@ -96,9 +96,9 @@ public static class ApiSpecEndpoints
                                 {
                                     type = "msg-to-client",
                                     clientId = "target-client-id",
-                                    payload = "message-content"
+                                    payload = "message-content",
                                 },
-                                response = "No direct response - message forwarded to client"
+                                response = "No direct response - message forwarded to client",
                             },
                             clientDisconnected = new
                             {
@@ -108,15 +108,15 @@ public static class ApiSpecEndpoints
                                 {
                                     type = "client-disconnected",
                                     hostId = "abc123",
-                                    clientId = "xyz456"
-                                }
+                                    clientId = "xyz456",
+                                },
                             },
                             hostDisconnected = new
                             {
                                 description = "Server notifies all clients that host disconnected",
                                 direction = "server_to_client",
-                                response = new { type = "host-disconnected", hostId = "abc123" }
-                            }
+                                response = new { type = "host-disconnected", hostId = "abc123" },
+                            },
                         },
                         errorFormat = new { type = "error", message = "Error description" },
                         examples = new
@@ -124,36 +124,36 @@ public static class ApiSpecEndpoints
                             registerHost = new
                             {
                                 request = "{\"type\":\"host\"}",
-                                response = "{\"type\":\"host\",\"hostId\":\"abc123\"}"
+                                response = "{\"type\":\"host\",\"hostId\":\"abc123\"}",
                             },
                             joinHost = new
                             {
                                 request = "{\"type\":\"join-host\",\"hostId\":\"abc123\"}",
-                                response = "{\"type\":\"join-host\",\"hostId\":\"abc123\",\"clientId\":\"xyz456\"}"
+                                response = "{\"type\":\"join-host\",\"hostId\":\"abc123\",\"clientId\":\"xyz456\"}",
                             },
                             clientJoinedNotification = new
                             {
-                                response = "{\"type\":\"client-joined\",\"hostId\":\"abc123\",\"clientId\":\"xyz456\"}"
+                                response = "{\"type\":\"client-joined\",\"hostId\":\"abc123\",\"clientId\":\"xyz456\"}",
                             },
                             sendMessageToHost = new
                             {
                                 request = "{\"type\":\"msg-to-host\",\"payload\":\"Hello host!\"}",
-                                response = "No direct response"
+                                response = "No direct response",
                             },
                             sendMessageToClient = new
                             {
                                 request = "{\"type\":\"msg-to-client\",\"clientId\":\"xyz456\",\"payload\":\"Hello client!\"}",
-                                response = "No direct response"
+                                response = "No direct response",
                             },
                             clientDisconnectedNotification = new
                             {
-                                response = "{\"type\":\"client-disconnected\",\"hostId\":\"abc123\",\"clientId\":\"xyz456\"}"
+                                response = "{\"type\":\"client-disconnected\",\"hostId\":\"abc123\",\"clientId\":\"xyz456\"}",
                             },
                             hostDisconnectedNotification = new
                             {
-                                response = "{\"type\":\"host-disconnected\",\"hostId\":\"abc123\"}"
-                            }
-                        }
+                                response = "{\"type\":\"host-disconnected\",\"hostId\":\"abc123\"}",
+                            },
+                        },
                     };
 
                     return Results.Json(spec, new JsonSerializerOptions { WriteIndented = true });
