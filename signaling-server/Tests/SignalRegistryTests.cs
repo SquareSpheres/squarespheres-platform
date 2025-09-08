@@ -1,6 +1,8 @@
 using SignalingServer.Services;
 using System.Net.WebSockets;
 using SignalingServer.Tests.Helpers;
+using Microsoft.Extensions.Logging;
+using Moq;
 
 namespace SignalingServer.Tests;
 
@@ -8,11 +10,13 @@ namespace SignalingServer.Tests;
 public class SignalRegistryTests
 {
     private SignalRegistry _registry;
+    private Mock<ILogger<SignalRegistry>> _loggerMock;
 
     [SetUp]
     public void SetUp()
     {
-        _registry = new SignalRegistry();
+        _loggerMock = new Mock<ILogger<SignalRegistry>>();
+        _registry = new SignalRegistry(_loggerMock.Object);
     }
 
     private static WebSocket CreateSocket() => new TestWebSocket();

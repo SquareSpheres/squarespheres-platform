@@ -31,7 +31,7 @@ public class MessageHandlerTests
     public async Task InvalidJson_LogsWarning()
     {
         await _handler.HandleMessage(_socket.Object, "{ invalid }");
-        _logger.VerifyLog(LogLevel.Warning, "Malformed JSON or unknown message type", Times.Once());
+        _logger.VerifyLog(LogLevel.Warning, "Invalid message format", Times.Once());
     }
 
     [Test]

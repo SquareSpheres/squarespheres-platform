@@ -20,8 +20,8 @@ public class TestWebSocket : WebSocket
     public override WebSocketState State => WebSocketState.Open;
     public override string SubProtocol => "";
     public override void Abort() { }
-    public override Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken) => Task.CompletedTask;
-    public override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken) => Task.CompletedTask;
+    public override Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken) => Task.CompletedTask;
+    public override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken) => Task.CompletedTask;
     public override void Dispose() { }
     public override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken) =>
         Task.FromResult(new WebSocketReceiveResult(0, WebSocketMessageType.Text, true));

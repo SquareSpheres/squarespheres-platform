@@ -41,10 +41,17 @@ public class ConnectionHandlerTests
         socketMock.Setup(s => s.ReceiveAsync(It.IsAny<ArraySegment<byte>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WebSocketReceiveResult(0, WebSocketMessageType.Close, true));
 
-        _signalRegistryMock.Setup(r => r.TryGetHostId(socketMock.Object, out It.Ref<string>.IsAny))
+        _signalRegistryMock.Setup(r => r.TryGetHostId(socketMock.Object, out It.Ref<string>.IsAny!))
             .Returns((WebSocket s, out string hostId) =>
             {
                 hostId = "host-1";
+                return true;
+            });
+
+        _signalRegistryMock.Setup(r => r.TryGetHostSocket("host-1", out It.Ref<WebSocket>.IsAny!))
+            .Returns((string _, out WebSocket ws) =>
+            {
+                ws = socketMock.Object;
                 return true;
             });
 
@@ -53,7 +60,7 @@ public class ConnectionHandlerTests
 
         await _handler.HandleConnection(socketMock.Object, CancellationToken.None);
 
-        _signalRegistryMock.Verify(r => r.RemoveHost("host-1"), Times.Once);
+        _signalRegistryMock.Verify(r => r.RemoveHost(socketMock.Object), Times.Once);
         Assert.That(actualType, Is.EqualTo(DisconnectionType.Host));
     }
 
@@ -100,10 +107,18 @@ public class ConnectionHandlerTests
         socketMock.Setup(s => s.ReceiveAsync(It.IsAny<ArraySegment<byte>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WebSocketReceiveResult(0, WebSocketMessageType.Close, true));
 
-        _signalRegistryMock.Setup(r => r.TryGetHostId(socketMock.Object, out It.Ref<string>.IsAny))
-            .Returns(false);
-        _signalRegistryMock.Setup(r => r.TryGetClientHost(socketMock.Object, out It.Ref<string>.IsAny))
-            .Returns(false);
+        _signalRegistryMock.Setup(r => r.TryGetHostId(socketMock.Object, out It.Ref<string>.IsAny!))
+            .Returns((WebSocket s, out string hostId) =>
+            {
+                hostId = null!;
+                return false;
+            });
+        _signalRegistryMock.Setup(r => r.TryGetClientHost(socketMock.Object, out It.Ref<string>.IsAny!))
+            .Returns((WebSocket s, out string hostId) =>
+            {
+                hostId = null!;
+                return false;
+            });
 
         DisconnectionType? actualType = null;
         _handler.SocketDisconnected += (_, type) => actualType = type;
@@ -133,6 +148,14 @@ public class ConnectionHandlerTests
                 return true;
             });
 
+        // Simulate host socket lookup
+        _signalRegistryMock.Setup(r => r.TryGetHostSocket("host-xyz", out It.Ref<WebSocket>.IsAny!))
+            .Returns((string _, out WebSocket ws) =>
+            {
+                ws = hostSocketMock.Object;
+                return true;
+            });
+
         // Simulate 2 client sockets connected to host
         var client1 = new Mock<WebSocket>();
         var client2 = new Mock<WebSocket>();
@@ -147,7 +170,7 @@ public class ConnectionHandlerTests
         await _handler.HandleConnection(hostSocketMock.Object, CancellationToken.None);
 
         // Assert host was removed
-        _signalRegistryMock.Verify(r => r.RemoveHost("host-xyz"), Times.Once);
+        _signalRegistryMock.Verify(r => r.RemoveHost(hostSocketMock.Object), Times.Once);
 
         // Assert clients were cleaned up
         _signalRegistryMock.Verify(r => r.RemoveClient(client1.Object), Times.Once);
