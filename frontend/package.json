@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "npm run build:wasm && next dev",
     "build:wasm": "cd ../wasm-app && wasm-pack build --target web --out-dir ../frontend/src/wasm && cd ../frontend",
-    "build": "if [ \"$VERCEL\" != \"1\" ]; then npm run build:wasm; fi && next build",
+    "build": "if [ \"$VERCEL\" != \"1\" ] && [ \"$SKIP_WASM\" != \"1\" ]; then npm run build:wasm; fi && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
