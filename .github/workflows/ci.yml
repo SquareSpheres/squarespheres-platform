@@ -83,6 +83,8 @@ jobs:
     
     - name: Build frontend
       run: npm run build
+      env:
+        VERCEL: 1
     
     - name: Upload frontend artifacts
       uses: actions/upload-artifact@v4
