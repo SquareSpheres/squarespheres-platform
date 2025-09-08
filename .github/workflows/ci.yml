@@ -12,9 +12,6 @@ env:
 jobs:
   build-wasm:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./wasm-app
     
     steps:
     - uses: actions/checkout@v4
@@ -32,7 +29,7 @@ jobs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-          target/
+          wasm-app/target/
         key: ${{ runner.os }}-cargo-wasm-${{ env.PROJECT_NAME }}-${{ hashFiles('wasm-app/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-wasm-${{ env.PROJECT_NAME }}-
@@ -43,15 +40,17 @@ jobs:
     
     - name: Run WASM tests
       run: cargo test
+      working-directory: ./wasm-app
     
     - name: Build WASM
       run: wasm-pack build --target web --out-dir ../frontend/src/wasm
+      working-directory: ./wasm-app
     
     - name: Upload WASM artifacts
       uses: actions/upload-artifact@v4
       with:
         name: wasm-files
-        path: ../frontend/src/wasm/
+        path: frontend/src/wasm/
 
   test-frontend:
     runs-on: ubuntu-latest
