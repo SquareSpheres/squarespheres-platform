@@ -16,5 +16,8 @@
     <EmbeddedResource Include="Resources\Pages\home.html" />
   </ItemGroup>
 
+  <Target Name="FormatCode" BeforeTargets="Build">
+    <Exec Command="dotnet csharpier ." ContinueOnError="false" />
+  </Target>
 
 </Project>

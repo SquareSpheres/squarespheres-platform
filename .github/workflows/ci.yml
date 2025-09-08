@@ -75,6 +75,12 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore SignalingServer.sln
     
+    - name: Restore .NET tools
+      run: dotnet tool restore
+    
+    - name: Check code formatting with CSharpier
+      run: dotnet csharpier --check
+    
     - name: Build solution
       run: dotnet build SignalingServer.sln --no-restore
     
