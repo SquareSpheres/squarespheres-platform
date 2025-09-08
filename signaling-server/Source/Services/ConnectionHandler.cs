@@ -7,15 +7,15 @@ namespace SignalingServer.Services;
 public class ConnectionHandler(
     IMessageHandler messageHandler,
     ISignalRegistry signalRegistry,
-    ILogger<ConnectionHandler> logger) : IConnectionHandler
+    ILogger<ConnectionHandler> logger
+) : IConnectionHandler
 {
     public event Action<WebSocket, DisconnectionType>? SocketDisconnected;
 
     public async Task HandleConnection(WebSocket socket, CancellationToken cancellationToken)
     {
-
         logger.LogDebug("Trying to establish connection...");
-        
+
         signalRegistry.TrackSocket(socket);
 
         try
@@ -23,7 +23,9 @@ public class ConnectionHandler(
             while (socket.State == WebSocketState.Open)
             {
                 // TODO read size limits from env, currently using defaults
-                var raw = await socket.ReceiveFullMessageAsync(cancellationToken: cancellationToken);
+                var raw = await socket.ReceiveFullMessageAsync(
+                    cancellationToken: cancellationToken
+                );
 
                 if (raw == null)
                     break; // Closed or canceled
@@ -99,7 +101,11 @@ public class ConnectionHandler(
             try
             {
                 logger.LogDebug("Closing WebSocket with state: {State}", socket.State);
-                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                await socket.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure,
+                    "Closing",
+                    CancellationToken.None
+                );
             }
             catch (WebSocketException ex)
             {

@@ -1,7 +1,7 @@
 using System.Net.WebSockets;
 using System.Text;
-using SignalingServer.Models;
 using SignalingServer.Configuration;
+using SignalingServer.Models;
 
 namespace SignalingServer.Extensions;
 
@@ -17,7 +17,8 @@ public static class WebSocketExtensions
     /// <param name="json">The raw JSON string to send.</param>
     public static async Task SendRawAsync(this WebSocket socket, string json)
     {
-        if (socket.State != WebSocketState.Open) return;
+        if (socket.State != WebSocketState.Open)
+            return;
 
         var bytes = Encoding.UTF8.GetBytes(json);
         await socket.SendAsync(
@@ -36,7 +37,8 @@ public static class WebSocketExtensions
     /// <param name="message">The object to serialize and send.</param>
     public static async Task SendJsonAsync<T>(this WebSocket socket, T message)
     {
-        if (socket.State != WebSocketState.Open) return;
+        if (socket.State != WebSocketState.Open)
+            return;
 
         // Use centralized JSON configuration for consistent serialization
         var json = message.ToJson();
@@ -57,11 +59,7 @@ public static class WebSocketExtensions
     /// <param name="errorMessage">The error message to send.</param>
     public static async Task SendErrorAsync(this WebSocket socket, string errorMessage)
     {
-        var error = new SignalErrorResponse
-        {
-            Type = "error",
-            Message = errorMessage
-        };
+        var error = new SignalErrorResponse { Type = "error", Message = errorMessage };
 
         await socket.SendJsonAsync(error);
     }
@@ -79,14 +77,18 @@ public static class WebSocketExtensions
         this WebSocket socket,
         int maxSizeInBytes = 64 * 1024,
         int chunkSize = 4 * 1024,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         var buffer = new byte[chunkSize];
         using var ms = new MemoryStream();
 
         while (true)
         {
-            var result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+            var result = await socket.ReceiveAsync(
+                new ArraySegment<byte>(buffer),
+                cancellationToken
+            );
 
             if (result.MessageType == WebSocketMessageType.Close)
                 return null;

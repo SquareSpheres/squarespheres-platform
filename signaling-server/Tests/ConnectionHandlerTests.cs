@@ -4,7 +4,6 @@ using Moq;
 using SignalingServer.Models;
 using SignalingServer.Services;
 
-
 namespace SignalingServer.Tests;
 
 [TestFixture]
@@ -34,26 +33,36 @@ public class ConnectionHandlerTests
     {
         var socketMock = new Mock<WebSocket>();
 
-        socketMock.SetupSequence(s => s.State)
+        socketMock
+            .SetupSequence(s => s.State)
             .Returns(WebSocketState.Open)
             .Returns(WebSocketState.Closed);
 
-        socketMock.Setup(s => s.ReceiveAsync(It.IsAny<ArraySegment<byte>>(), It.IsAny<CancellationToken>()))
+        socketMock
+            .Setup(s =>
+                s.ReceiveAsync(It.IsAny<ArraySegment<byte>>(), It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync(new WebSocketReceiveResult(0, WebSocketMessageType.Close, true));
 
-        _signalRegistryMock.Setup(r => r.TryGetHostId(socketMock.Object, out It.Ref<string>.IsAny!))
-            .Returns((WebSocket s, out string hostId) =>
-            {
-                hostId = "host-1";
-                return true;
-            });
+        _signalRegistryMock
+            .Setup(r => r.TryGetHostId(socketMock.Object, out It.Ref<string>.IsAny!))
+            .Returns(
+                (WebSocket s, out string hostId) =>
+                {
+                    hostId = "host-1";
+                    return true;
+                }
+            );
 
-        _signalRegistryMock.Setup(r => r.TryGetHostSocket("host-1", out It.Ref<WebSocket>.IsAny!))
-            .Returns((string _, out WebSocket ws) =>
-            {
-                ws = socketMock.Object;
-                return true;
-            });
+        _signalRegistryMock
+            .Setup(r => r.TryGetHostSocket("host-1", out It.Ref<WebSocket>.IsAny!))
+            .Returns(
+                (string _, out WebSocket ws) =>
+                {
+                    ws = socketMock.Object;
+                    return true;
+                }
+            );
 
         DisconnectionType? actualType = null;
         _handler.SocketDisconnected += (_, type) => actualType = type;
@@ -69,22 +78,30 @@ public class ConnectionHandlerTests
     {
         var socketMock = new Mock<WebSocket>();
 
-        socketMock.SetupSequence(s => s.State)
+        socketMock
+            .SetupSequence(s => s.State)
             .Returns(WebSocketState.Open)
             .Returns(WebSocketState.Closed);
 
-        socketMock.Setup(s => s.ReceiveAsync(It.IsAny<ArraySegment<byte>>(), It.IsAny<CancellationToken>()))
+        socketMock
+            .Setup(s =>
+                s.ReceiveAsync(It.IsAny<ArraySegment<byte>>(), It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync(new WebSocketReceiveResult(0, WebSocketMessageType.Close, true));
 
-        _signalRegistryMock.Setup(r => r.TryGetHostId(socketMock.Object, out It.Ref<string>.IsAny!))
+        _signalRegistryMock
+            .Setup(r => r.TryGetHostId(socketMock.Object, out It.Ref<string>.IsAny!))
             .Returns(false);
 
-        _signalRegistryMock.Setup(r => r.TryGetClientHost(socketMock.Object, out It.Ref<string>.IsAny!))
-            .Returns((WebSocket s, out string hostId) =>
-            {
-                hostId = "host-2";
-                return true;
-            });
+        _signalRegistryMock
+            .Setup(r => r.TryGetClientHost(socketMock.Object, out It.Ref<string>.IsAny!))
+            .Returns(
+                (WebSocket s, out string hostId) =>
+                {
+                    hostId = "host-2";
+                    return true;
+                }
+            );
 
         DisconnectionType? actualType = null;
         _handler.SocketDisconnected += (_, type) => actualType = type;
@@ -100,25 +117,35 @@ public class ConnectionHandlerTests
     {
         var socketMock = new Mock<WebSocket>();
 
-        socketMock.SetupSequence(s => s.State)
+        socketMock
+            .SetupSequence(s => s.State)
             .Returns(WebSocketState.Open)
             .Returns(WebSocketState.Closed);
 
-        socketMock.Setup(s => s.ReceiveAsync(It.IsAny<ArraySegment<byte>>(), It.IsAny<CancellationToken>()))
+        socketMock
+            .Setup(s =>
+                s.ReceiveAsync(It.IsAny<ArraySegment<byte>>(), It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync(new WebSocketReceiveResult(0, WebSocketMessageType.Close, true));
 
-        _signalRegistryMock.Setup(r => r.TryGetHostId(socketMock.Object, out It.Ref<string>.IsAny!))
-            .Returns((WebSocket s, out string hostId) =>
-            {
-                hostId = null!;
-                return false;
-            });
-        _signalRegistryMock.Setup(r => r.TryGetClientHost(socketMock.Object, out It.Ref<string>.IsAny!))
-            .Returns((WebSocket s, out string hostId) =>
-            {
-                hostId = null!;
-                return false;
-            });
+        _signalRegistryMock
+            .Setup(r => r.TryGetHostId(socketMock.Object, out It.Ref<string>.IsAny!))
+            .Returns(
+                (WebSocket s, out string hostId) =>
+                {
+                    hostId = null!;
+                    return false;
+                }
+            );
+        _signalRegistryMock
+            .Setup(r => r.TryGetClientHost(socketMock.Object, out It.Ref<string>.IsAny!))
+            .Returns(
+                (WebSocket s, out string hostId) =>
+                {
+                    hostId = null!;
+                    return false;
+                }
+            );
 
         DisconnectionType? actualType = null;
         _handler.SocketDisconnected += (_, type) => actualType = type;
@@ -134,27 +161,37 @@ public class ConnectionHandlerTests
     {
         // Arrange
         var hostSocketMock = new Mock<WebSocket>();
-        hostSocketMock.SetupSequence(s => s.State)
+        hostSocketMock
+            .SetupSequence(s => s.State)
             .Returns(WebSocketState.Open)
             .Returns(WebSocketState.Closed);
-        hostSocketMock.Setup(s => s.ReceiveAsync(It.IsAny<ArraySegment<byte>>(), It.IsAny<CancellationToken>()))
+        hostSocketMock
+            .Setup(s =>
+                s.ReceiveAsync(It.IsAny<ArraySegment<byte>>(), It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync(new WebSocketReceiveResult(0, WebSocketMessageType.Close, true));
 
         // Simulate host ID
-        _signalRegistryMock.Setup(r => r.TryGetHostId(hostSocketMock.Object, out It.Ref<string>.IsAny!))
-            .Returns((WebSocket s, out string id) =>
-            {
-                id = "host-xyz";
-                return true;
-            });
+        _signalRegistryMock
+            .Setup(r => r.TryGetHostId(hostSocketMock.Object, out It.Ref<string>.IsAny!))
+            .Returns(
+                (WebSocket s, out string id) =>
+                {
+                    id = "host-xyz";
+                    return true;
+                }
+            );
 
         // Simulate host socket lookup
-        _signalRegistryMock.Setup(r => r.TryGetHostSocket("host-xyz", out It.Ref<WebSocket>.IsAny!))
-            .Returns((string _, out WebSocket ws) =>
-            {
-                ws = hostSocketMock.Object;
-                return true;
-            });
+        _signalRegistryMock
+            .Setup(r => r.TryGetHostSocket("host-xyz", out It.Ref<WebSocket>.IsAny!))
+            .Returns(
+                (string _, out WebSocket ws) =>
+                {
+                    ws = hostSocketMock.Object;
+                    return true;
+                }
+            );
 
         // Simulate 2 client sockets connected to host
         var client1 = new Mock<WebSocket>();
@@ -163,7 +200,8 @@ public class ConnectionHandlerTests
         client1.Setup(s => s.State).Returns(WebSocketState.Open);
         client2.Setup(s => s.State).Returns(WebSocketState.Open);
 
-        _signalRegistryMock.Setup(r => r.GetClientsForHost("host-xyz"))
+        _signalRegistryMock
+            .Setup(r => r.GetClientsForHost("host-xyz"))
             .Returns(new List<WebSocket> { client1.Object, client2.Object });
 
         // Act
@@ -179,14 +217,24 @@ public class ConnectionHandlerTests
         _signalRegistryMock.Verify(r => r.UntrackSocket(client2.Object), Times.Once);
 
         // CloseAsync should have been called for both clients (using It.IsAny since CloseAsync is protected)
-        client1.Verify(s => s.CloseAsync(
-            WebSocketCloseStatus.NormalClosure,
-            "Closing",
-            It.IsAny<CancellationToken>()), Times.Once);
+        client1.Verify(
+            s =>
+                s.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure,
+                    "Closing",
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
 
-        client2.Verify(s => s.CloseAsync(
-            WebSocketCloseStatus.NormalClosure,
-            "Closing",
-            It.IsAny<CancellationToken>()), Times.Once);
+        client2.Verify(
+            s =>
+                s.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure,
+                    "Closing",
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
     }
 }

@@ -15,11 +15,12 @@ public static class HomeEndpoints
         var host = context.Request.Host.Value;
         var wsUrl = $"{(scheme == "https" ? "wss" : "ws")}://{host}/ws";
 
-        var htmlTemplate = ResourceLoader.ReadEmbeddedHtml("SignalingServer.Resources.Pages.home.html");
+        var htmlTemplate = ResourceLoader.ReadEmbeddedHtml(
+            "SignalingServer.Resources.Pages.home.html"
+        );
 
         var finalHtml = htmlTemplate.Replace("{{wsUrl}}", wsUrl);
 
         return Results.Content(finalHtml, "text/html");
     }
-
 }

@@ -17,6 +17,6 @@ public interface IBiDirectionalConcurrentDictionary<TKey, TValue>
     bool TryRemoveByValue(TValue value);
 
     KeyValuePair<TKey, TValue>[] ToArray();
-    
+
     int Count { get; }
 }

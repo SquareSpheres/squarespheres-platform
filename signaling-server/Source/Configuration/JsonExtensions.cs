@@ -74,7 +74,8 @@ public static class JsonExtensions
     /// <typeparam name="T">The type of object to deserialize to.</typeparam>
     /// <param name="json">The JSON string to deserialize.</param>
     /// <returns>The deserialized object, or null if deserialization fails.</returns>
-    public static T? TryFromJson<T>(this string json) where T : class
+    public static T? TryFromJson<T>(this string json)
+        where T : class
     {
         return FromJson<T>(json);
     }

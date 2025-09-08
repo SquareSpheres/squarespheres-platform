@@ -44,7 +44,7 @@ public class MessageHandlerTests
     [Test]
     public async Task UnknownMessageType_LogsWarning()
     {
-        var msg = new SignalMessage { Type = "Unknown"};
+        var msg = new SignalMessage { Type = "Unknown" };
         await _handler.HandleMessage(_socket.Object, JsonSerializer.Serialize(msg));
         _logger.VerifyLog(LogLevel.Warning, "Received unknown message type: ", Times.Once());
     }
@@ -52,14 +52,19 @@ public class MessageHandlerTests
     [Test]
     public async Task JoinHost_HostNotFound_LogsWarning()
     {
-        _registry.Setup(r => r.TryGetHostSocket("host404", out It.Ref<WebSocket>.IsAny!))
-            .Returns((string _, out WebSocket ws) =>
-            {
-                ws = null!;
-                return false;
-            });
+        _registry
+            .Setup(r => r.TryGetHostSocket("host404", out It.Ref<WebSocket>.IsAny!))
+            .Returns(
+                (string _, out WebSocket ws) =>
+                {
+                    ws = null!;
+                    return false;
+                }
+            );
 
-        var raw = JsonSerializer.Serialize(new SignalMessage { Type = SignalMessageTypes.JoinHost, HostId = "host404" });
+        var raw = JsonSerializer.Serialize(
+            new SignalMessage { Type = SignalMessageTypes.JoinHost, HostId = "host404" }
+        );
         await _handler.HandleMessage(_socket.Object, raw);
 
         _logger.VerifyLog(LogLevel.Warning, "Host for host404 not found", Times.Once());
@@ -68,7 +73,9 @@ public class MessageHandlerTests
     [Test]
     public async Task JoinHost_MissingHostId_LogsWarning()
     {
-        var raw = JsonSerializer.Serialize(new SignalMessage { Type = SignalMessageTypes.JoinHost });
+        var raw = JsonSerializer.Serialize(
+            new SignalMessage { Type = SignalMessageTypes.JoinHost }
+        );
         await _handler.HandleMessage(_socket.Object, raw);
         _logger.VerifyLog(LogLevel.Warning, "Validation failed:", Times.Once());
     }
@@ -76,14 +83,19 @@ public class MessageHandlerTests
     [Test]
     public async Task MsgToHost_MissingContext_LogsWarning()
     {
-        _registry.Setup(r => r.TryGetClientHost(_socket.Object, out It.Ref<string>.IsAny!))
-            .Returns((WebSocket _, out string id) =>
-            {
-                id = null!;
-                return false;
-            });
+        _registry
+            .Setup(r => r.TryGetClientHost(_socket.Object, out It.Ref<string>.IsAny!))
+            .Returns(
+                (WebSocket _, out string id) =>
+                {
+                    id = null!;
+                    return false;
+                }
+            );
 
-        var raw = JsonSerializer.Serialize(new SignalMessage { Type = SignalMessageTypes.MsgToHost });
+        var raw = JsonSerializer.Serialize(
+            new SignalMessage { Type = SignalMessageTypes.MsgToHost }
+        );
         await _handler.HandleMessage(_socket.Object, raw);
 
         _logger.VerifyLog(LogLevel.Warning, "Validation failed:", Times.Once());
@@ -92,22 +104,34 @@ public class MessageHandlerTests
     [Test]
     public async Task MsgToClient_ClientNotFound_LogsWarning()
     {
-        _registry.Setup(r => r.TryGetHostId(_socket.Object, out It.Ref<string>.IsAny!))
-            .Returns((WebSocket _, out string id) =>
-            {
-                id = "host9";
-                return true;
-            });
+        _registry
+            .Setup(r => r.TryGetHostId(_socket.Object, out It.Ref<string>.IsAny!))
+            .Returns(
+                (WebSocket _, out string id) =>
+                {
+                    id = "host9";
+                    return true;
+                }
+            );
 
-        _registry.Setup(r => r.TryGetClientSocket("client404", out It.Ref<WebSocket>.IsAny!))
-            .Returns((string _, out WebSocket ws) =>
-            {
-                ws = null!;
-                return false;
-            });
+        _registry
+            .Setup(r => r.TryGetClientSocket("client404", out It.Ref<WebSocket>.IsAny!))
+            .Returns(
+                (string _, out WebSocket ws) =>
+                {
+                    ws = null!;
+                    return false;
+                }
+            );
 
-        var raw = JsonSerializer.Serialize(new SignalMessage
-            { Type = SignalMessageTypes.MsgToClient, ClientId = "client404", Payload = "payload"});
+        var raw = JsonSerializer.Serialize(
+            new SignalMessage
+            {
+                Type = SignalMessageTypes.MsgToClient,
+                ClientId = "client404",
+                Payload = "payload"
+            }
+        );
         await _handler.HandleMessage(_socket.Object, raw);
 
         _logger.VerifyLog(LogLevel.Warning, "Client client404 not found", Times.Once());
@@ -116,14 +140,19 @@ public class MessageHandlerTests
     [Test]
     public async Task MsgToClient_MissingClientId_LogsWarning()
     {
-        _registry.Setup(r => r.TryGetHostId(_socket.Object, out It.Ref<string>.IsAny!))
-            .Returns((WebSocket _, out string id) =>
-            {
-                id = "hostX";
-                return true;
-            });
+        _registry
+            .Setup(r => r.TryGetHostId(_socket.Object, out It.Ref<string>.IsAny!))
+            .Returns(
+                (WebSocket _, out string id) =>
+                {
+                    id = "hostX";
+                    return true;
+                }
+            );
 
-        var raw = JsonSerializer.Serialize(new SignalMessage { Type = SignalMessageTypes.MsgToClient });
+        var raw = JsonSerializer.Serialize(
+            new SignalMessage { Type = SignalMessageTypes.MsgToClient }
+        );
         await _handler.HandleMessage(_socket.Object, raw);
         _logger.VerifyLog(LogLevel.Warning, "Validation failed:", Times.Once());
     }
@@ -131,15 +160,19 @@ public class MessageHandlerTests
     [Test]
     public async Task MsgToClient_NotHost_LogsWarning()
     {
-        _registry.Setup(r => r.TryGetHostId(_socket.Object, out It.Ref<string>.IsAny!))
-            .Returns((WebSocket _, out string id) =>
-            {
-                id = null!;
-                return false;
-            });
+        _registry
+            .Setup(r => r.TryGetHostId(_socket.Object, out It.Ref<string>.IsAny!))
+            .Returns(
+                (WebSocket _, out string id) =>
+                {
+                    id = null!;
+                    return false;
+                }
+            );
 
-        var raw = JsonSerializer.Serialize(new SignalMessage
-            { Type = SignalMessageTypes.MsgToClient, ClientId = "clientX" });
+        var raw = JsonSerializer.Serialize(
+            new SignalMessage { Type = SignalMessageTypes.MsgToClient, ClientId = "clientX" }
+        );
         await _handler.HandleMessage(_socket.Object, raw);
 
         _logger.VerifyLog(LogLevel.Warning, "Validation failed:", Times.Once());
@@ -171,20 +204,21 @@ public class MessageHandlerTests
     {
         var socket = new TestWebSocket();
 
-        _registry.Setup(r => r.TryGetHostSocket("room123", out It.Ref<WebSocket>.IsAny!))
-            .Returns((string _, out WebSocket ws) =>
-            {
-                ws = new Mock<WebSocket>().Object;
-                return true;
-            });
+        _registry
+            .Setup(r => r.TryGetHostSocket("room123", out It.Ref<WebSocket>.IsAny!))
+            .Returns(
+                (string _, out WebSocket ws) =>
+                {
+                    ws = new Mock<WebSocket>().Object;
+                    return true;
+                }
+            );
 
         _registry.Setup(r => r.GenerateUniqueClientIdAsync()).ReturnsAsync("client-77");
 
-        var raw = JsonSerializer.Serialize(new SignalMessage
-        {
-            Type = SignalMessageTypes.JoinHost,
-            HostId = "room123"
-        });
+        var raw = JsonSerializer.Serialize(
+            new SignalMessage { Type = SignalMessageTypes.JoinHost, HostId = "room123" }
+        );
 
         var handler = new MessageHandler(_registry.Object, _logger.Object);
         await handler.HandleMessage(socket, raw);
@@ -206,32 +240,37 @@ public class MessageHandlerTests
         var clientSocket = new TestWebSocket();
         var hostSocket = new TestWebSocket();
 
-        _registry.Setup(r => r.TryGetClientHost(clientSocket, out It.Ref<string>.IsAny!))
-            .Returns((WebSocket _, out string hostId) =>
-            {
-                hostId = "host1";
-                return true;
-            });
+        _registry
+            .Setup(r => r.TryGetClientHost(clientSocket, out It.Ref<string>.IsAny!))
+            .Returns(
+                (WebSocket _, out string hostId) =>
+                {
+                    hostId = "host1";
+                    return true;
+                }
+            );
 
-        _registry.Setup(r => r.TryGetHostSocket("host1", out It.Ref<WebSocket>.IsAny!))
-            .Returns((string _, out WebSocket ws) =>
-            {
-                ws = hostSocket;
-                return true;
-            });
+        _registry
+            .Setup(r => r.TryGetHostSocket("host1", out It.Ref<WebSocket>.IsAny!))
+            .Returns(
+                (string _, out WebSocket ws) =>
+                {
+                    ws = hostSocket;
+                    return true;
+                }
+            );
 
-        _registry.Setup(r => r.TryGetClientId(clientSocket, out It.Ref<string>.IsAny!))
-            .Returns((WebSocket _, out string clientId) =>
-            {
-                clientId = "clientA";
-                return true;
-            });
+        _registry
+            .Setup(r => r.TryGetClientId(clientSocket, out It.Ref<string>.IsAny!))
+            .Returns(
+                (WebSocket _, out string clientId) =>
+                {
+                    clientId = "clientA";
+                    return true;
+                }
+            );
 
-        var msg = new SignalMessage
-        {
-            Type = SignalMessageTypes.MsgToHost,
-            Payload = "hello"
-        };
+        var msg = new SignalMessage { Type = SignalMessageTypes.MsgToHost, Payload = "hello" };
 
         var raw = JsonSerializer.Serialize(msg);
         var handler = new MessageHandler(_registry.Object, _logger.Object);
@@ -253,19 +292,25 @@ public class MessageHandlerTests
         var hostSocket = new TestWebSocket();
         var clientSocket = new TestWebSocket();
 
-        _registry.Setup(r => r.TryGetHostId(hostSocket, out It.Ref<string>.IsAny!))
-            .Returns((WebSocket _, out string id) =>
-            {
-                id = "host42";
-                return true;
-            });
+        _registry
+            .Setup(r => r.TryGetHostId(hostSocket, out It.Ref<string>.IsAny!))
+            .Returns(
+                (WebSocket _, out string id) =>
+                {
+                    id = "host42";
+                    return true;
+                }
+            );
 
-        _registry.Setup(r => r.TryGetClientSocket("client42", out It.Ref<WebSocket>.IsAny!))
-            .Returns((string _, out WebSocket ws) =>
-            {
-                ws = clientSocket;
-                return true;
-            });
+        _registry
+            .Setup(r => r.TryGetClientSocket("client42", out It.Ref<WebSocket>.IsAny!))
+            .Returns(
+                (string _, out WebSocket ws) =>
+                {
+                    ws = clientSocket;
+                    return true;
+                }
+            );
 
         var msg = new SignalMessage
         {
@@ -292,20 +337,25 @@ public class MessageHandlerTests
         var clientA = new TestWebSocket();
         var clientB = new TestWebSocket();
 
-        _registry.Setup(r => r.TryGetHostId(hostSocket, out It.Ref<string>.IsAny!))
-            .Returns((WebSocket _, out string id) =>
-            {
-                id = "host123";
-                return true;
-            });
+        _registry
+            .Setup(r => r.TryGetHostId(hostSocket, out It.Ref<string>.IsAny!))
+            .Returns(
+                (WebSocket _, out string id) =>
+                {
+                    id = "host123";
+                    return true;
+                }
+            );
 
-        _registry.Setup(r => r.TryGetClientSocket("client42", out It.Ref<WebSocket>.IsAny!))
-            .Returns((string _, out WebSocket ws) =>
-            {
-                ws = clientA;
-                return true;
-            });
-
+        _registry
+            .Setup(r => r.TryGetClientSocket("client42", out It.Ref<WebSocket>.IsAny!))
+            .Returns(
+                (string _, out WebSocket ws) =>
+                {
+                    ws = clientA;
+                    return true;
+                }
+            );
 
         var msg = new SignalMessage
         {

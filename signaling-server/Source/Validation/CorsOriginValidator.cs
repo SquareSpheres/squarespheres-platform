@@ -1,8 +1,8 @@
 namespace SignalingServer.Validation;
 
+using System.Linq;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
-using System.Linq;
 
 public class CorsOriginValidator(IWebHostEnvironment environment)
 {
@@ -21,8 +21,10 @@ public class CorsOriginValidator(IWebHostEnvironment environment)
         if (origin.EndsWith(".squarespheres.com"))
             return true;
 
-        if (environment.IsDevelopment() &&
-            (origin.StartsWith("http://localhost:") || origin.StartsWith("http://127.0.0.1:")))
+        if (
+            environment.IsDevelopment()
+            && (origin.StartsWith("http://localhost:") || origin.StartsWith("http://127.0.0.1:"))
+        )
             return true;
 
         return false;

@@ -11,4 +11,4 @@ public static class HealthEndpoints
     {
         return "OK";
     }
-} 
+}

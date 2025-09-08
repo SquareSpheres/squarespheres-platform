@@ -9,18 +9,24 @@ namespace SignalingServer.Tests.Helpers
             this Mock<ILogger<T>> logger,
             LogLevel level,
             string messageFragment,
-            Times times)
+            Times times
+        )
             where T : class
         {
             logger.Verify(
-                x => x.Log(
-                    level,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) =>
-                        v.ToString() != null && v.ToString()!.Contains(messageFragment)),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                times);
+                x =>
+                    x.Log(
+                        level,
+                        It.IsAny<EventId>(),
+                        It.Is<It.IsAnyType>(
+                            (v, t) =>
+                                v.ToString() != null && v.ToString()!.Contains(messageFragment)
+                        ),
+                        It.IsAny<Exception>(),
+                        It.IsAny<Func<It.IsAnyType, Exception?, string>>()
+                    ),
+                times
+            );
         }
     }
 }

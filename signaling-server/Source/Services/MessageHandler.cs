@@ -1,13 +1,14 @@
 using System.Net.WebSockets;
 using System.Text.Json;
+using SignalingServer.Configuration;
 using SignalingServer.Extensions;
 using SignalingServer.Models;
 using SignalingServer.Validation;
-using SignalingServer.Configuration;
 
 namespace SignalingServer.Services;
 
-public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandler> logger) : IMessageHandler
+public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandler> logger)
+    : IMessageHandler
 {
     public async Task HandleMessage(WebSocket socket, string raw)
     {
@@ -29,10 +30,14 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
 
             if (!validationResult.IsValid)
             {
-                logger.LogWarning("Validation failed: {Errors}",
-                    string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage)));
-                await socket.SendErrorAsync("Validation failed: " +
-                                            string.Join(", ", validationResult.Errors.Select(e => e.ErrorMessage)));
+                logger.LogWarning(
+                    "Validation failed: {Errors}",
+                    string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage))
+                );
+                await socket.SendErrorAsync(
+                    "Validation failed: "
+                        + string.Join(", ", validationResult.Errors.Select(e => e.ErrorMessage))
+                );
                 return;
             }
         }
@@ -55,12 +60,14 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                 signalRegistry.RegisterHost(hostId, socket);
                 logger.LogInformation("Host registered: {HostId}", hostId);
 
-                await socket.SendJsonAsync(new SignalMessage
-                {
-                    Type = SignalMessageTypes.Host,
-                    HostId = hostId,
-                    RequestId = msg.RequestId,
-                });
+                await socket.SendJsonAsync(
+                    new SignalMessage
+                    {
+                        Type = SignalMessageTypes.Host,
+                        HostId = hostId,
+                        RequestId = msg.RequestId,
+                    }
+                );
 
                 break;
 
@@ -76,32 +83,44 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                 {
                     clientId = await signalRegistry.GenerateUniqueClientIdAsync();
                     signalRegistry.RegisterClient(clientId, socket, msg.HostId);
-                    logger.LogInformation("Client {ClientId} joined host {HostId}", clientId, msg.HostId);
+                    logger.LogInformation(
+                        "Client {ClientId} joined host {HostId}",
+                        clientId,
+                        msg.HostId
+                    );
 
                     // Acknowledge client
-                    await socket.SendJsonAsync(new SignalMessage
-                    {
-                        Type = SignalMessageTypes.JoinHost,
-                        HostId = msg.HostId,
-                        ClientId = clientId,
-                        RequestId = msg.RequestId,
-                    });
+                    await socket.SendJsonAsync(
+                        new SignalMessage
+                        {
+                            Type = SignalMessageTypes.JoinHost,
+                            HostId = msg.HostId,
+                            ClientId = clientId,
+                            RequestId = msg.RequestId,
+                        }
+                    );
 
                     // Notify host with a distinct, host-facing type
                     try
                     {
-                        await hostSocket.SendJsonAsync(new SignalMessage
-                        {
-                            Type = SignalMessageTypes.ClientJoined,
-                            HostId = msg.HostId,
-                            ClientId = clientId,
-                            RequestId = msg.RequestId,
-                        });
+                        await hostSocket.SendJsonAsync(
+                            new SignalMessage
+                            {
+                                Type = SignalMessageTypes.ClientJoined,
+                                HostId = msg.HostId,
+                                ClientId = clientId,
+                                RequestId = msg.RequestId,
+                            }
+                        );
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "Failed to notify host {HostId} about client {ClientId}", msg.HostId,
-                            clientId);
+                        logger.LogWarning(
+                            ex,
+                            "Failed to notify host {HostId} about client {ClientId}",
+                            msg.HostId,
+                            clientId
+                        );
                     }
                 }
                 else
@@ -113,9 +132,11 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                 break;
 
             case SignalMessageTypes.MsgToHost:
-                if (signalRegistry.TryGetClientHost(socket, out hostId) &&
-                    signalRegistry.TryGetHostSocket(hostId, out hostSocket) &&
-                    signalRegistry.TryGetClientId(socket, out clientId))
+                if (
+                    signalRegistry.TryGetClientHost(socket, out hostId)
+                    && signalRegistry.TryGetHostSocket(hostId, out hostSocket)
+                    && signalRegistry.TryGetClientId(socket, out clientId)
+                )
                 {
                     logger.LogInformation("Client {ClientId} → Host [{HostId}]", clientId, hostId);
 
@@ -138,11 +159,18 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                 break;
 
             case SignalMessageTypes.MsgToClient:
-                if (signalRegistry.TryGetHostId(socket, out hostId) && !string.IsNullOrWhiteSpace(msg.ClientId))
+                if (
+                    signalRegistry.TryGetHostId(socket, out hostId)
+                    && !string.IsNullOrWhiteSpace(msg.ClientId)
+                )
                 {
                     if (signalRegistry.TryGetClientSocket(msg.ClientId, out var clientSocket))
                     {
-                        logger.LogInformation("Host {HostId} → Client {ClientId}", hostId, msg.ClientId);
+                        logger.LogInformation(
+                            "Host {HostId} → Client {ClientId}",
+                            hostId,
+                            msg.ClientId
+                        );
 
                         var forward = new SignalMessage
                         {
@@ -187,27 +215,38 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
         {
             case DisconnectionType.Client:
             {
-                if (signalRegistry.TryGetClientId(socket, out var clientId) &&
-                    signalRegistry.TryGetClientHost(socket, out var hostId) &&
-                    signalRegistry.TryGetHostSocket(hostId, out var hostSocket))
+                if (
+                    signalRegistry.TryGetClientId(socket, out var clientId)
+                    && signalRegistry.TryGetClientHost(socket, out var hostId)
+                    && signalRegistry.TryGetHostSocket(hostId, out var hostSocket)
+                )
                 {
-                    logger.LogInformation("Notifying host {HostId} that client {ClientId} disconnected", hostId,
-                        clientId);
+                    logger.LogInformation(
+                        "Notifying host {HostId} that client {ClientId} disconnected",
+                        hostId,
+                        clientId
+                    );
 
                     try
                     {
-                        await hostSocket.SendJsonAsync(new SignalMessage
-                        {
-                            Type = SignalMessageTypes.ClientDisconnected,
-                            HostId = hostId,
-                            ClientId = clientId,
-                            RequestId = null
-                        });
+                        await hostSocket.SendJsonAsync(
+                            new SignalMessage
+                            {
+                                Type = SignalMessageTypes.ClientDisconnected,
+                                HostId = hostId,
+                                ClientId = clientId,
+                                RequestId = null
+                            }
+                        );
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "Failed to notify host {HostId} of client {ClientId} disconnection",
-                            hostId, clientId);
+                        logger.LogWarning(
+                            ex,
+                            "Failed to notify host {HostId} of client {ClientId} disconnection",
+                            hostId,
+                            clientId
+                        );
                     }
                 }
 
@@ -219,28 +258,36 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                 if (signalRegistry.TryGetHostId(socket, out var hostId))
                 {
                     var clients = signalRegistry.GetClientsForHost(hostId).ToList();
-                    logger.LogInformation("Notifying {Count} clients that host {HostId} disconnected", clients.Count,
-                        hostId);
+                    logger.LogInformation(
+                        "Notifying {Count} clients that host {HostId} disconnected",
+                        clients.Count,
+                        hostId
+                    );
 
                     var tasks = clients.Select(async clientSocket =>
                     {
                         try
                         {
-                            await clientSocket.SendJsonAsync(new SignalMessage
-                            {
-                                Type = SignalMessageTypes.HostDisconnected,
-                                HostId = hostId
-                            });
+                            await clientSocket.SendJsonAsync(
+                                new SignalMessage
+                                {
+                                    Type = SignalMessageTypes.HostDisconnected,
+                                    HostId = hostId
+                                }
+                            );
                         }
                         catch (Exception ex)
                         {
-                            logger.LogWarning(ex, "Failed to notify a client of host {HostId} disconnection", hostId);
+                            logger.LogWarning(
+                                ex,
+                                "Failed to notify a client of host {HostId} disconnection",
+                                hostId
+                            );
                         }
                     });
 
                     await Task.WhenAll(tasks);
                 }
-
 
                 break;
             }
