@@ -10,7 +10,7 @@ env:
   PROJECT_NAME: squarespheres-platform
 
 jobs:
-  build-wasm:
+  test-wasm:
     runs-on: ubuntu-latest
     
     steps:
@@ -79,7 +79,7 @@ jobs:
 
   build-frontend:
     runs-on: ubuntu-latest
-    needs: [build-wasm, test-frontend]
+    needs: [test-wasm, test-frontend]
     defaults:
       run:
         working-directory: ./frontend
