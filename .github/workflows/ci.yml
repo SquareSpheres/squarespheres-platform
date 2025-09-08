@@ -79,7 +79,7 @@ jobs:
       run: dotnet tool restore
     
     - name: Check code formatting with CSharpier
-      run: dotnet csharpier --check
+      run: dotnet csharpier check .
     
     - name: Build solution
       run: dotnet build SignalingServer.sln --no-restore
