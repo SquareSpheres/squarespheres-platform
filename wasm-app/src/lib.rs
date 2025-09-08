@@ -28,3 +28,37 @@ pub fn main() {
     web_sys::console::log_1(&"🚀 WASM module loaded and initialized!".into());
     web_sys::console::log_1(&"📦 Available functions: compress_chunk, decompress_chunk, hash_chunk".into());
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compress_chunk_basic() {
+        let input = b"hello world";
+        let result = compress_chunk(input);
+        assert_eq!(result, input);
+    }
+
+    #[test]
+    fn test_decompress_chunk_basic() {
+        let input = b"test data";
+        let result = decompress_chunk(input);
+        assert_eq!(result, input);
+    }
+
+    #[test]
+    fn test_hash_chunk_basic() {
+        let input = b"some data";
+        let result = hash_chunk(input);
+        assert_eq!(result, "dummy_hash_123");
+    }
+
+    #[test]
+    fn test_compress_decompress_roundtrip() {
+        let original = b"roundtrip test";
+        let compressed = compress_chunk(original);
+        let decompressed = decompress_chunk(&compressed);
+        assert_eq!(original, decompressed.as_slice());
+    }
+}
