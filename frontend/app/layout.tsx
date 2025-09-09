@@ -6,7 +6,7 @@ import './globals.css'
 import Link from 'next/link'
 import React from 'react'
 import StaticBackground from './StaticBackground'
-import { Share2, ArrowUpCircle, ArrowDownCircle, Wifi } from 'lucide-react'
+import { Share2, ArrowUpCircle, ArrowDownCircle, Wifi, Zap } from 'lucide-react'
 import { ThemeProvider } from './Provider'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
 
@@ -42,8 +42,8 @@ export default function RootLayout({
             <StaticBackground />
           </div>
           <div className="container mx-auto p-4 flex flex-col min-h-screen relative z-10">
-            <header className="flex flex-col md:flex-row justify-between items-center py-4 md:space-x-4 space-y-4 md:space-y-0 border-b border-border bg-card/50 backdrop-blur-sm rounded-lg px-4">
-              <h1 className="text-xl md:text-2xl font-semibold font-poppins">
+            <header className="flex flex-col lg:flex-row justify-between items-center py-4 lg:space-x-4 space-y-4 lg:space-y-0 border-b border-border bg-card/50 backdrop-blur-sm rounded-lg px-4">
+              <h1 className="text-xl lg:text-2xl font-semibold font-poppins">
                 <Link href="/" className="flex items-center gap-3 group">
                   <div className="relative h-8 w-8">
                     <div className="absolute h-6 w-6 top-0 left-0 bg-muted-foreground rounded"></div>
@@ -56,21 +56,27 @@ export default function RootLayout({
                   </div>
                 </Link>
               </h1>
-              <nav className="flex items-center space-x-2 md:space-x-4">
-                <Link href="/" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Send">
-                  <ArrowUpCircle className="h-6 w-6" />
-                  <span className="hidden md:inline font-medium text-sm">Send</span>
-                </Link>
-                <Link href="/receive" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Receive">
-                  <ArrowDownCircle className="h-6 w-6" />
-                  <span className="hidden md:inline font-medium text-sm">Receive</span>
-                </Link>
-                <Link href="/signaling-demo" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Signaling Demo">
-                  <Wifi className="h-6 w-6" />
-                  <span className="hidden md:inline font-medium text-sm">Signaling</span>
-                </Link>
+              <div className="flex items-center space-x-2 lg:space-x-4">
+                <nav className="flex items-center space-x-1 lg:space-x-2">
+                  <Link href="/" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Send">
+                    <ArrowUpCircle className="h-5 w-5" />
+                    <span className="hidden lg:inline font-medium text-sm">Send</span>
+                  </Link>
+                  <Link href="/receive" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Receive">
+                    <ArrowDownCircle className="h-5 w-5" />
+                    <span className="hidden lg:inline font-medium text-sm">Receive</span>
+                  </Link>
+                  <Link href="/signaling-demo" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Signaling Demo">
+                    <Wifi className="h-5 w-5" />
+                    <span className="hidden lg:inline font-medium text-sm">Signaling</span>
+                  </Link>
+                  <Link href="/webrtc-demo" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="WebRTC Demo">
+                    <Zap className="h-5 w-5" />
+                    <span className="hidden lg:inline font-medium text-sm">WebRTC</span>
+                  </Link>
+                </nav>
                 <ThemeSwitcher />
-              </nav>
+              </div>
             </header>
             <main className="flex-grow flex items-center justify-center mt-4 md:mt-8">
               {children}
