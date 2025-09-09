@@ -17,17 +17,18 @@ export interface WebRTCPeerApi {
 // Default ICE servers: public STUN. TODO: Add TURN (e.g., coturn) with credentials.
 const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:global.stun.twilio.com:3478?transport=udp' },
+  { urls: 'stun:global.stun.twilio.com:3478' },
+  { urls: 'stun:stun1.l.google.com:19302' },
 ];
 
 export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
   const iceServers = useMemo(() => config.iceServers ?? DEFAULT_ICE_SERVERS, [config.iceServers]);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
+  const connectedClientIdRef = useRef<string | null>(null);
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>('new');
   const [dataChannelState, setDataChannelState] = useState<RTCDataChannelState>();
 
-  // Role-specific signaling client
   const host = useSignalHost({
     onMessage: (m) => handleSignalMessage(m),
   });
@@ -35,7 +36,6 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
     onMessage: (m) => handleSignalMessage(m),
   });
 
-  // Helper to send signaling payloads over existing signaling client
   const sendSignal = useCallback(
     async (payload: WebRTCSignalPayload, targetClientId?: string) => {
       const serialized = JSON.stringify(payload);
@@ -49,41 +49,49 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
     [client, host, config.role]
   );
 
-  // Incoming signaling handler
   const handleSignalMessage = useCallback(
     async (message: SignalingMessage) => {
       const text = message.payload;
       if (!text) return;
+      
       let parsed: WebRTCSignalPayload | undefined;
       try {
         parsed = JSON.parse(text);
-      } catch {
+      } catch (error) {
+        console.warn(`[WebRTC ${config.role}] Failed to parse signaling message:`, error);
         return;
       }
       if (!parsed || typeof parsed !== 'object' || !('kind' in parsed)) return;
+      
       const pc = pcRef.current;
       if (!pc) return;
 
       if (parsed.kind === 'webrtc-offer') {
+        if (config.role === 'host' && message.clientId) {
+          connectedClientIdRef.current = message.clientId;
+        }
         await pc.setRemoteDescription(parsed.sdp);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        await sendSignal({ kind: 'webrtc-answer', sdp: answer });
+        await sendSignal({ kind: 'webrtc-answer', sdp: answer }, message.clientId);
       } else if (parsed.kind === 'webrtc-answer') {
         await pc.setRemoteDescription(parsed.sdp);
       } else if (parsed.kind === 'webrtc-ice') {
         if (parsed.candidate) {
-          try { await pc.addIceCandidate(parsed.candidate); } catch (error) {
-            console.warn('Failed to add ICE candidate:', error);
+          try { 
+            await pc.addIceCandidate(parsed.candidate);
+          } catch (error) {
+            console.warn(`[WebRTC ${config.role}] Failed to add ICE candidate:`, error);
           }
         }
       }
     },
-    [sendSignal]
+    [sendSignal, config.role]
   );
 
   const ensurePeerConnection = useCallback(async () => {
     if (pcRef.current) return;
+    
     const pc = new RTCPeerConnection({ iceServers });
     pcRef.current = pc;
 
@@ -97,9 +105,10 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
       if (evt.candidate) {
         const payload: WebRTCSignalPayload = { kind: 'webrtc-ice', candidate: evt.candidate.toJSON() };
         if (config.role === 'host') {
-          // For host, we need to know which client to send to; we'll piggyback via last known datachannel label
-          const targetId = dcRef.current?.label;
-          if (targetId) sendSignal(payload, targetId);
+          const targetId = connectedClientIdRef.current;
+          if (targetId) {
+            sendSignal(payload, targetId);
+          }
         } else {
           sendSignal(payload);
         }
@@ -107,21 +116,42 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
     };
 
     if (config.role === 'host') {
-      // Host waits for client; create a channel per joined client when we know clientId
-      // We'll set the channel later when client joins; for demo we create a placeholder and relabel upon join
+      pc.ondatachannel = (evt) => {
+        const dc = evt.channel;
+        dcRef.current = dc;
+        setDataChannelState(dc.readyState);
+        dc.onopen = () => { 
+          setDataChannelState(dc.readyState); 
+          config.onChannelOpen?.(); 
+        };
+        dc.onclose = () => { 
+          setDataChannelState(dc.readyState); 
+          config.onChannelClose?.(); 
+        };
+        dc.onmessage = (e) => {
+          config.onChannelMessage?.(e.data);
+        };
+      };
     } else {
       pc.ondatachannel = (evt) => {
         const dc = evt.channel;
         dcRef.current = dc;
         setDataChannelState(dc.readyState);
-        dc.onopen = () => { setDataChannelState(dc.readyState); config.onChannelOpen?.(); };
-        dc.onclose = () => { setDataChannelState(dc.readyState); config.onChannelClose?.(); };
-        dc.onmessage = (e) => config.onChannelMessage?.(e.data);
+        dc.onopen = () => { 
+          setDataChannelState(dc.readyState); 
+          config.onChannelOpen?.(); 
+        };
+        dc.onclose = () => { 
+          setDataChannelState(dc.readyState); 
+          config.onChannelClose?.(); 
+        };
+        dc.onmessage = (e) => {
+          config.onChannelMessage?.(e.data);
+        };
       };
     }
   }, [config, iceServers, sendSignal]);
 
-  // Public API to start connection based on role
   const createOrEnsureConnection = useCallback(async () => {
     await ensurePeerConnection();
 
@@ -132,19 +162,28 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
       }
     } else {
       if (config.hostId) {
+        let clientId: string;
         if (!client.clientId) {
           await client.connect();
-          await client.joinHost(config.hostId);
+          clientId = await client.joinHost(config.hostId);
+        } else {
+          clientId = client.clientId;
         }
         const pc = pcRef.current!;
-        // Create a data channel labeled with clientId to help routing ICE from host
-        const label = client.clientId!;
-        const dc = pc.createDataChannel(label);
+        const dc = pc.createDataChannel(clientId);
         dcRef.current = dc;
         setDataChannelState(dc.readyState);
-        dc.onopen = () => { setDataChannelState(dc.readyState); config.onChannelOpen?.(); };
-        dc.onclose = () => { setDataChannelState(dc.readyState); config.onChannelClose?.(); };
-        dc.onmessage = (e) => config.onChannelMessage?.(e.data);
+        dc.onopen = () => { 
+          setDataChannelState(dc.readyState); 
+          config.onChannelOpen?.(); 
+        };
+        dc.onclose = () => { 
+          setDataChannelState(dc.readyState); 
+          config.onChannelClose?.(); 
+        };
+        dc.onmessage = (e) => {
+          config.onChannelMessage?.(e.data);
+        };
 
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
@@ -167,7 +206,6 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
     pcRef.current = null;
   }, []);
 
-  // Cleanup
   useEffect(() => () => close(), [close]);
 
   return {

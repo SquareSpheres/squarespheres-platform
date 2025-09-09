@@ -33,65 +33,77 @@ export default function WebRTCDemoPage() {
   }
 
   useEffect(() => {
-    // Nothing on mount
-  }, []);
+    // Track connection state changes
+  }, [hostPeer.connectionState, hostPeer.dataChannelState, clientPeer.connectionState, clientPeer.dataChannelState]);
 
   const createHost = async () => {
-    await hostPeer.createOrEnsureConnection();
+    try {
+      await hostPeer.createOrEnsureConnection();
+    } catch (error) {
+      console.error('[Demo] Failed to create host:', error);
+      setMessages((m) => [...m, `Error creating host: ${error}`]);
+    }
   };
 
   const joinAsClient = async () => {
     if (!hostIdInput) return;
-    await clientPeer.createOrEnsureConnection();
+    
+    try {
+      await clientPeer.createOrEnsureConnection();
+    } catch (error) {
+      console.error('[Demo] Failed to join as client:', error);
+      setMessages((m) => [...m, `Error joining as client: ${error}`]);
+    }
   };
 
   const sendMessage = () => {
     const peer = activeTab === 'host' ? hostPeer : clientPeer;
     if (!outgoing) return;
+    
     peer.send(outgoing);
     setMessages((m) => [...m, `${activeTab} sent: ${outgoing}`]);
     setOutgoing('');
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6 text-gray-900">WebRTC P2P Demo</h1>
+        <h1 className="text-3xl font-bold mb-6 text-foreground">WebRTC P2P Demo</h1>
 
-        <div className="bg-white rounded-lg shadow mb-4">
-          <div className="flex border-b">
-            <button onClick={() => setActiveTab('host')} className={`flex-1 px-4 py-3 ${activeTab==='host'?'bg-blue-50 text-blue-700 border-b-2 border-blue-500':'text-gray-600 hover:bg-gray-50'}`}>Host</button>
-            <button onClick={() => setActiveTab('client')} className={`flex-1 px-4 py-3 ${activeTab==='client'?'bg-green-50 text-green-700 border-b-2 border-green-500':'text-gray-600 hover:bg-gray-50'}`}>Client</button>
+        <div className="bg-card rounded-lg shadow mb-4 border">
+          <div className="flex border-b border-border">
+            <button onClick={() => setActiveTab('host')} className={`flex-1 px-4 py-3 ${activeTab==='host'?'bg-primary/10 text-primary border-b-2 border-primary':'text-muted-foreground hover:bg-muted'}`}>Host</button>
+            <button onClick={() => setActiveTab('client')} className={`flex-1 px-4 py-3 ${activeTab==='client'?'bg-primary/10 text-primary border-b-2 border-primary':'text-muted-foreground hover:bg-muted'}`}>Client</button>
           </div>
           <div className="p-6 space-y-4">
             {activeTab === 'host' ? (
               <div className="space-y-3">
-                <button onClick={createHost} className="px-4 py-2 bg-blue-600 text-white rounded">Create Host</button>
-                <div className="text-sm text-gray-700">Host ID: <span className="font-mono">{hostPeer.peerId || 'n/a'}</span></div>
+                <button onClick={createHost} className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90">Create Host</button>
+                <div className="text-sm text-muted-foreground">Host ID: <span className="font-mono text-foreground">{hostPeer.peerId || 'n/a'}</span></div>
               </div>
             ) : (
               <div className="space-y-3">
-                <input value={hostIdInput} onChange={(e)=>setHostIdInput(e.target.value)} placeholder="Enter Host ID" className="px-3 py-2 border rounded w-full text-gray-900" />
-                <button onClick={joinAsClient} disabled={!hostIdInput} className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50">Join Host</button>
-                <div className="text-sm text-gray-700">Client ID: <span className="font-mono">{clientPeer.peerId || 'n/a'}</span></div>
+                <input value={hostIdInput} onChange={(e)=>setHostIdInput(e.target.value)} placeholder="Enter Host ID" className="px-3 py-2 border border-border rounded w-full text-foreground bg-background" />
+                <button onClick={joinAsClient} disabled={!hostIdInput} className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50">Join Host</button>
+                <div className="text-sm text-muted-foreground">Client ID: <span className="font-mono text-foreground">{clientPeer.peerId || 'n/a'}</span></div>
               </div>
             )}
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6 space-y-4 mb-4">
-          <div className="text-sm text-gray-700">Host PC: {hostPeer.connectionState} | Client PC: {clientPeer.connectionState}</div>
+        <div className="bg-card rounded-lg shadow p-6 space-y-4 mb-4 border">
+          <div className="text-sm text-muted-foreground">Host PC: {hostPeer.connectionState} | Client PC: {clientPeer.connectionState}</div>
           <div className="flex gap-2">
-            <input value={outgoing} onChange={(e)=>setOutgoing(e.target.value)} placeholder={`Send message as ${activeTab}`} className="flex-1 px-3 py-2 border rounded text-gray-900" />
-            <button onClick={sendMessage} className="px-4 py-2 bg-purple-600 text-white rounded">Send</button>
+            <input value={outgoing} onChange={(e)=>setOutgoing(e.target.value)} placeholder={`Send message as ${activeTab}`} className="flex-1 px-3 py-2 border border-border rounded text-foreground bg-background" />
+            <button onClick={sendMessage} className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90">Send</button>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-2 text-gray-900">Log</h2>
-          <div className="h-80 overflow-y-auto border rounded p-3 space-y-1">
+        <div className="bg-card rounded-lg shadow p-6 border">
+          <h2 className="text-lg font-semibold mb-2 text-foreground">Log</h2>
+          <div className="h-80 overflow-y-auto border border-border rounded p-3 space-y-1">
             {messages.map((m, i) => (
-              <div key={i} className="text-sm text-gray-800">{m}</div>
+              <div key={i} className="text-sm text-foreground">{m}</div>
             ))}
           </div>
         </div>
