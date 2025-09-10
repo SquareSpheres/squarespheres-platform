@@ -65,6 +65,8 @@ export interface SignalingClientConfig {
   onError?: (error: Error) => void;
   onOpen?: () => void;
   onClose?: () => void;
+  onClientJoined?: (clientId: string) => void;
+  onClientDisconnected?: (clientId: string) => void;
 }
 
 class SignalError extends Error {
@@ -265,11 +267,28 @@ export interface SignalHost {
   hostId?: string;
   registerHost: () => Promise<string>;
   sendMessageToClient: (clientId: string, payload: string) => void;
+  connectedClients: string[];
+  onClientJoined?: (clientId: string) => void;
+  onClientDisconnected?: (clientId: string) => void;
 }
 
 export function useSignalHost(config: SignalingClientConfig = {}): SignalHost {
-  const { connect, disconnect, sendMessage, request, sendRequest, isConnected } = useWebSocketConnection(config);
   const [hostId, setHostId] = useState<string>();
+  const [connectedClients, setConnectedClients] = useState<string[]>([]);
+
+  const handleMessage = useCallback((message: SignalingMessage) => {
+    if (message.type === 'client-joined' && message.clientId) {
+      setConnectedClients(prev => [...prev, message.clientId!]);
+      config.onClientJoined?.(message.clientId);
+    } else if (message.type === 'client-disconnected' && message.clientId) {
+      setConnectedClients(prev => prev.filter(id => id !== message.clientId));
+      config.onClientDisconnected?.(message.clientId);
+    }
+    config.onMessage?.(message);
+  }, [config]);
+
+  const enhancedConfig = { ...config, onMessage: handleMessage };
+  const { connect, disconnect, sendMessage, request, sendRequest, isConnected } = useWebSocketConnection(enhancedConfig);
 
   const registerHost = useCallback(async (): Promise<string> => {
     const msg: SignalingMessage = { type: 'host' };
@@ -289,7 +308,10 @@ export function useSignalHost(config: SignalingClientConfig = {}): SignalHost {
     isConnected,
     hostId,
     registerHost,
-    sendMessageToClient
+    sendMessageToClient,
+    connectedClients,
+    onClientJoined: config.onClientJoined,
+    onClientDisconnected: config.onClientDisconnected
   };
 }
 

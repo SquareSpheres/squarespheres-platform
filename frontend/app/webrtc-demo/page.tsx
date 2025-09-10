@@ -8,6 +8,7 @@ export default function WebRTCDemoPage() {
   const [messages, setMessages] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'host' | 'client'>('host');
   const [outgoing, setOutgoing] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
 
   const hostPeer = useWebRTCPeer({
     role: 'host',
@@ -60,8 +61,16 @@ export default function WebRTCDemoPage() {
     const peer = activeTab === 'host' ? hostPeer : clientPeer;
     if (!outgoing) return;
     
-    peer.send(outgoing);
-    setMessages((m) => [...m, `${activeTab} sent: ${outgoing}`]);
+    if (activeTab === 'host' && selectedClientId) {
+      peer.send(outgoing, selectedClientId);
+      setMessages((m) => [...m, `Host sent to ${selectedClientId}: ${outgoing}`]);
+    } else if (activeTab === 'host' && !selectedClientId) {
+      peer.send(outgoing);
+      setMessages((m) => [...m, `Host sent to all clients: ${outgoing}`]);
+    } else {
+      peer.send(outgoing);
+      setMessages((m) => [...m, `Client sent: ${outgoing}`]);
+    }
     setOutgoing('');
   };
 
@@ -80,6 +89,80 @@ export default function WebRTCDemoPage() {
               <div className="space-y-3">
                 <button onClick={createHost} className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90">Create Host</button>
                 <div className="text-sm text-muted-foreground">Host ID: <span className="font-mono text-foreground">{hostPeer.peerId || 'n/a'}</span></div>
+                
+                {hostPeer.connectedClients && hostPeer.connectedClients.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium text-foreground">Connected Clients ({hostPeer.connectedClients.length})</div>
+                      <button 
+                        onClick={() => {
+                          if (hostPeer.disconnectClient) {
+                            hostPeer.connectedClients?.forEach(clientId => {
+                              hostPeer.disconnectClient!(clientId);
+                            });
+                            setMessages((m) => [...m, `Disconnected all clients`]);
+                            setSelectedClientId('');
+                          }
+                        }}
+                        className="px-2 py-1 rounded text-xs bg-red-100 text-red-800 hover:bg-red-200"
+                        title="Disconnect all clients"
+                      >
+                        Disconnect All
+                      </button>
+                    </div>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {hostPeer.connectedClients.map((clientId) => {
+                        const clientConn = hostPeer.clientConnections?.get(clientId);
+                        return (
+                          <div key={clientId} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs">{clientId}</span>
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                clientConn?.connectionState === 'connected' ? 'bg-green-100 text-green-800' :
+                                clientConn?.connectionState === 'connecting' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {clientConn?.connectionState || 'unknown'}
+                              </span>
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                clientConn?.dataChannelState === 'open' ? 'bg-green-100 text-green-800' :
+                                clientConn?.dataChannelState === 'connecting' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {clientConn?.dataChannelState || 'no channel'}
+                              </span>
+                            </div>
+                            <div className="flex gap-1">
+                              <button 
+                                onClick={() => setSelectedClientId(selectedClientId === clientId ? '' : clientId)}
+                                className={`px-2 py-1 rounded text-xs ${
+                                  selectedClientId === clientId ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground text-muted'
+                                }`}
+                              >
+                                {selectedClientId === clientId ? 'Selected' : 'Select'}
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  if (hostPeer.disconnectClient) {
+                                    hostPeer.disconnectClient(clientId);
+                                    setMessages((m) => [...m, `Disconnected client ${clientId}`]);
+                                    if (selectedClientId === clientId) {
+                                      setSelectedClientId('');
+                                    }
+                                  }
+                                }}
+                                className="px-2 py-1 rounded text-xs bg-red-100 text-red-800 hover:bg-red-200"
+                                title="Disconnect client"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -93,8 +176,45 @@ export default function WebRTCDemoPage() {
 
         <div className="bg-card rounded-lg shadow p-6 space-y-4 mb-4 border">
           <div className="text-sm text-muted-foreground">Host PC: {hostPeer.connectionState} | Client PC: {clientPeer.connectionState}</div>
+          
+          {activeTab === 'host' && hostPeer.connectedClients && hostPeer.connectedClients.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-foreground">Send to:</div>
+              <div className="flex gap-2 flex-wrap">
+                <button 
+                  onClick={() => setSelectedClientId('')}
+                  className={`px-3 py-1 rounded text-sm ${
+                    !selectedClientId ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  }`}
+                >
+                  All Clients
+                </button>
+                {hostPeer.connectedClients.map((clientId) => (
+                  <button 
+                    key={clientId}
+                    onClick={() => setSelectedClientId(clientId)}
+                    className={`px-3 py-1 rounded text-sm ${
+                      selectedClientId === clientId ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    }`}
+                  >
+                    {clientId}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          
           <div className="flex gap-2">
-            <input value={outgoing} onChange={(e)=>setOutgoing(e.target.value)} placeholder={`Send message as ${activeTab}`} className="flex-1 px-3 py-2 border border-border rounded text-foreground bg-background" />
+            <input 
+              value={outgoing} 
+              onChange={(e)=>setOutgoing(e.target.value)} 
+              placeholder={
+                activeTab === 'host' 
+                  ? (selectedClientId ? `Send message to ${selectedClientId}` : 'Send message to all clients')
+                  : 'Send message to host'
+              } 
+              className="flex-1 px-3 py-2 border border-border rounded text-foreground bg-background" 
+            />
             <button onClick={sendMessage} className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90">Send</button>
           </div>
         </div>

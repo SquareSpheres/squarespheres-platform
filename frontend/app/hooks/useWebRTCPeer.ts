@@ -7,11 +7,14 @@ import { WebRTCPeerConfig, WebRTCSignalPayload } from './webrtcTypes';
 export interface WebRTCPeerApi {
   connectionState: RTCPeerConnectionState;
   dataChannelState: RTCDataChannelState | undefined;
-  send: (data: string | ArrayBuffer | Blob) => void;
+  send: (data: string | ArrayBuffer | Blob, clientId?: string) => void;
   createOrEnsureConnection: () => Promise<void>;
   close: () => void;
+  disconnectClient?: (clientId: string) => void; // Only available for host role
   role: 'host' | 'client';
   peerId?: string; // hostId for host, clientId for client
+  connectedClients?: string[]; // Only available for host role
+  clientConnections?: Map<string, { connectionState: RTCPeerConnectionState; dataChannelState: RTCDataChannelState | undefined }>; // Only available for host role
 }
 
 // Default ICE servers: public STUN. TODO: Add TURN (e.g., coturn) with credentials.
@@ -33,9 +36,31 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
   const iceGatheringTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>('new');
   const [dataChannelState, setDataChannelState] = useState<RTCDataChannelState>();
+  
+  // For host role: manage multiple client connections
+  const clientConnectionsRef = useRef<Map<string, { pc: RTCPeerConnection; dc: RTCDataChannel | null }>>(new Map());
+  const [clientConnections, setClientConnections] = useState<Map<string, { connectionState: RTCPeerConnectionState; dataChannelState: RTCDataChannelState | undefined }>>(new Map());
 
   const host = useSignalHost({
     onMessage: (m) => handleSignalMessage(m),
+    onClientJoined: (clientId: string) => {
+      console.log(`[WebRTC Host] Client ${clientId} joined`);
+    },
+    onClientDisconnected: (clientId: string) => {
+      console.log(`[WebRTC Host] Client ${clientId} disconnected`);
+      // Clean up client connection
+      const clientConn = clientConnectionsRef.current.get(clientId);
+      if (clientConn) {
+        clientConn.pc.close();
+        clientConn.dc?.close();
+        clientConnectionsRef.current.delete(clientId);
+        setClientConnections(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(clientId);
+          return newMap;
+        });
+      }
+    },
   });
   const client = useSignalClient({
     onMessage: (m) => handleSignalMessage(m),
@@ -68,30 +93,121 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
       }
       if (!parsed || typeof parsed !== 'object' || !('kind' in parsed)) return;
       
-      const pc = pcRef.current;
-      if (!pc) return;
-
-      if (parsed.kind === 'webrtc-offer') {
-        if (config.role === 'host' && message.clientId) {
-          connectedClientIdRef.current = message.clientId;
+      if (config.role === 'host') {
+        // For host: handle multiple client connections
+        if (!message.clientId) return;
+        
+        let clientConn = clientConnectionsRef.current.get(message.clientId);
+        if (!clientConn && parsed.kind === 'webrtc-offer') {
+          // Create new peer connection for this client
+          const pc = new RTCPeerConnection({ iceServers });
+          const dc = null; // Will be set when data channel is received
+          clientConn = { pc, dc };
+          clientConnectionsRef.current.set(message.clientId, clientConn);
+          
+          // Set up peer connection event handlers
+          pc.onconnectionstatechange = () => {
+            setClientConnections(prev => {
+              const newMap = new Map(prev);
+              newMap.set(message.clientId!, {
+                connectionState: pc.connectionState,
+                dataChannelState: clientConn?.dc?.readyState
+              });
+              return newMap;
+            });
+          };
+          
+          pc.ondatachannel = (evt) => {
+            const dc = evt.channel;
+            clientConn!.dc = dc;
+            setClientConnections(prev => {
+              const newMap = new Map(prev);
+              newMap.set(message.clientId!, {
+                connectionState: pc.connectionState,
+                dataChannelState: dc.readyState
+              });
+              return newMap;
+            });
+            
+            dc.onopen = () => {
+              setClientConnections(prev => {
+                const newMap = new Map(prev);
+                newMap.set(message.clientId!, {
+                  connectionState: pc.connectionState,
+                  dataChannelState: dc.readyState
+                });
+                return newMap;
+              });
+              config.onChannelOpen?.();
+            };
+            
+            dc.onclose = () => {
+              setClientConnections(prev => {
+                const newMap = new Map(prev);
+                newMap.set(message.clientId!, {
+                  connectionState: pc.connectionState,
+                  dataChannelState: dc.readyState
+                });
+                return newMap;
+              });
+              config.onChannelClose?.();
+            };
+            
+            dc.onmessage = (e) => {
+              config.onChannelMessage?.(e.data);
+            };
+          };
+          
+          pc.onicecandidate = (evt) => {
+            if (evt.candidate) {
+              const payload: WebRTCSignalPayload = { kind: 'webrtc-ice', candidate: evt.candidate.toJSON() };
+              sendSignal(payload, message.clientId);
+            }
+          };
         }
-        await pc.setRemoteDescription(parsed.sdp);
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        await sendSignal({ kind: 'webrtc-answer', sdp: answer }, message.clientId);
-      } else if (parsed.kind === 'webrtc-answer') {
-        await pc.setRemoteDescription(parsed.sdp);
-      } else if (parsed.kind === 'webrtc-ice') {
-        if (parsed.candidate) {
-          try { 
-            await pc.addIceCandidate(parsed.candidate);
-          } catch (error) {
-            console.warn(`[WebRTC ${config.role}] Failed to add ICE candidate:`, error);
+        
+        if (!clientConn) return;
+        const pc = clientConn.pc;
+        
+        if (parsed.kind === 'webrtc-offer') {
+          await pc.setRemoteDescription(parsed.sdp);
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          await sendSignal({ kind: 'webrtc-answer', sdp: answer }, message.clientId);
+        } else if (parsed.kind === 'webrtc-ice') {
+          if (parsed.candidate) {
+            try { 
+              await pc.addIceCandidate(parsed.candidate);
+            } catch (error) {
+              console.warn(`[WebRTC Host] Failed to add ICE candidate for client ${message.clientId}:`, error);
+            }
+          }
+        }
+      } else {
+        // For client: handle single connection to host
+        const pc = pcRef.current;
+        if (!pc) return;
+
+        if (parsed.kind === 'webrtc-offer') {
+          connectedClientIdRef.current = message.clientId || null;
+          await pc.setRemoteDescription(parsed.sdp);
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          await sendSignal({ kind: 'webrtc-answer', sdp: answer }, message.clientId);
+        } else if (parsed.kind === 'webrtc-answer') {
+          await pc.setRemoteDescription(parsed.sdp);
+        } else if (parsed.kind === 'webrtc-ice') {
+          if (parsed.candidate) {
+            try { 
+              await pc.addIceCandidate(parsed.candidate);
+            } catch (error) {
+              console.warn(`[WebRTC Client] Failed to add ICE candidate:`, error);
+            }
           }
         }
       }
     },
-    [sendSignal, config.role]
+    [sendSignal, config.role, config.onChannelOpen, config.onChannelClose, config.onChannelMessage, iceServers]
   );
 
   const ensurePeerConnection = useCallback(async () => {
@@ -224,10 +340,41 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
     }
   }, [client, host, config, ensurePeerConnection, sendSignal, connectionTimeoutMs]);
 
-  const send = useCallback((data: string | ArrayBuffer | Blob) => {
-    const dc = dcRef.current;
-    if (dc && dc.readyState === 'open') {
-      dc.send(data as any);
+  const send = useCallback((data: string | ArrayBuffer | Blob, clientId?: string) => {
+    if (config.role === 'host' && clientId) {
+      // Send to specific client
+      const clientConn = clientConnectionsRef.current.get(clientId);
+      if (clientConn?.dc && clientConn.dc.readyState === 'open') {
+        clientConn.dc.send(data as any);
+      }
+    } else if (config.role === 'client') {
+      // Send to host
+      const dc = dcRef.current;
+      if (dc && dc.readyState === 'open') {
+        dc.send(data as any);
+      }
+    } else if (config.role === 'host' && !clientId) {
+      // Send to all connected clients
+      clientConnectionsRef.current.forEach((clientConn) => {
+        if (clientConn.dc && clientConn.dc.readyState === 'open') {
+          clientConn.dc.send(data as any);
+        }
+      });
+    }
+  }, [config.role]);
+
+  const disconnectClient = useCallback((clientId: string) => {
+    const clientConn = clientConnectionsRef.current.get(clientId);
+    if (clientConn) {
+      clientConn.dc?.close();
+      clientConn.pc.close();
+      clientConnectionsRef.current.delete(clientId);
+      setClientConnections(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(clientId);
+        return newMap;
+      });
+      console.log(`[WebRTC Host] Disconnected client ${clientId}`);
     }
   }, []);
 
@@ -242,10 +389,19 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
       iceGatheringTimeoutRef.current = null;
     }
     
+    // Close single connection (for client role)
     dcRef.current?.close();
     pcRef.current?.close();
     dcRef.current = null;
     pcRef.current = null;
+    
+    // Close all client connections (for host role)
+    clientConnectionsRef.current.forEach((clientConn) => {
+      clientConn.dc?.close();
+      clientConn.pc.close();
+    });
+    clientConnectionsRef.current.clear();
+    setClientConnections(new Map());
   }, []);
 
   useEffect(() => () => close(), [close]);
@@ -256,8 +412,11 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
     send,
     createOrEnsureConnection,
     close,
+    disconnectClient: config.role === 'host' ? disconnectClient : undefined,
     role: config.role,
     peerId: config.role === 'host' ? host.hostId : client.clientId,
+    connectedClients: config.role === 'host' ? host.connectedClients : undefined,
+    clientConnections: config.role === 'host' ? clientConnections : undefined,
   };
 }
 
