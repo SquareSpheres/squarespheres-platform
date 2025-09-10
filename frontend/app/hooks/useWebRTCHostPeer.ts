@@ -102,6 +102,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     const eventHandlers = createWebRTCEventHandlers({
       role: 'host',
       clientId,
+      pc,
       watchdog,
       sendSignal: (payload, targetClientId) => sendSignal(payload, targetClientId || clientId),
       onConnectionStateChange: (state) => {

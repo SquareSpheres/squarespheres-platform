@@ -12,6 +12,7 @@ export default function WebRTCDemoPage() {
 
   const hostPeer = useWebRTCPeer({
     role: 'host',
+    debug: true,
     onConnectionStateChange: (s) => setMessages((m) => [...m, `Host PC state: ${s}`]),
     onChannelOpen: () => setMessages((m) => [...m, 'Host data channel open']),
     onChannelClose: () => setMessages((m) => [...m, 'Host data channel closed']),
@@ -21,6 +22,7 @@ export default function WebRTCDemoPage() {
   const clientPeer = useWebRTCPeer({
     role: 'client',
     hostId: hostIdInput || undefined,
+    debug: true,
     onConnectionStateChange: (s) => setMessages((m) => [...m, `Client PC state: ${s}`]),
     onChannelOpen: () => setMessages((m) => [...m, 'Client data channel open']),
     onChannelClose: () => setMessages((m) => [...m, 'Client data channel closed']),

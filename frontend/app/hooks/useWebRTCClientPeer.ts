@@ -95,6 +95,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
 
     const eventHandlers = createWebRTCEventHandlers({
       role: 'client',
+      pc,
       watchdog,
       sendSignal,
       onConnectionStateChange: (state) => {

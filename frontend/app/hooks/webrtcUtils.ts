@@ -56,7 +56,8 @@ export class ConnectionWatchdog {
   }
 
   canRetry(): boolean {
-    const maxRetries = this.config.isChrome ? 1 : 2;
+    // Reduce Chrome retries to prevent interference with natural connection process
+    const maxRetries = this.config.isChrome ? 0 : 2;
     return this.retryCount < maxRetries && !this.retryInProgress;
   }
 
@@ -75,7 +76,8 @@ export class ConnectionWatchdog {
   }
 
   getRetryDelay(): number {
-    return this.config.isChrome ? 8000 : 3000;
+    // Increase Chrome retry delay to give more time for natural reconnection
+    return this.config.isChrome ? 15000 : 3000;
   }
 
   handleConnectionStateChange(state: RTCPeerConnectionState): void {
@@ -104,12 +106,12 @@ export class ConnectionWatchdog {
 export function createPeerConnection(config: PeerConnectionConfig): RTCPeerConnection {
   const pcConfig: RTCConfiguration = {
     iceServers: config.iceServers,
-    iceCandidatePoolSize: config.isChrome ? 10 : 0,
+    iceCandidatePoolSize: 0, // Set to 0 for all browsers to prevent overwhelming signaling
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
     ...(config.isChrome && {
       iceTransportPolicy: 'all',
-      sdpSemantics: 'unified-plan',
+      // Remove sdpSemantics as it's deprecated and can cause issues
     }),
   };
 
@@ -121,8 +123,15 @@ export function createPeerConnection(config: PeerConnectionConfig): RTCPeerConne
       iceCandidatePoolSize: pcConfig.iceCandidatePoolSize,
       bundlePolicy: pcConfig.bundlePolicy,
       rtcpMuxPolicy: pcConfig.rtcpMuxPolicy,
+      iceTransportPolicy: pcConfig.iceTransportPolicy,
+      // sdpSemantics: pcConfig.sdpSemantics, // Commented out as it's not in RTCConfiguration type
       isChrome: config.isChrome,
     });
+
+    // Add Chrome-specific debugging
+    if (config.isChrome) {
+      console.log('[WebRTC Utils] Chrome-specific config applied');
+    }
   }
 
   return pc;
@@ -228,6 +237,7 @@ export interface SignalingHandlers {
 export interface WebRTCEventHandlerConfig {
   role: 'client' | 'host';
   clientId?: string; // For host role, the client ID this connection is for
+  pc: RTCPeerConnection; // Add peer connection reference
   watchdog: ConnectionWatchdog;
   sendSignal: (payload: WebRTCSignalPayload, targetClientId?: string) => Promise<void>;
   onConnectionStateChange?: (state: RTCPeerConnectionState, clientId?: string) => void;
@@ -239,7 +249,7 @@ export interface WebRTCEventHandlerConfig {
 }
 
 export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): WebRTCEventHandlers {
-  const { role, clientId, watchdog, sendSignal, onConnectionStateChange, onChannelOpen, onChannelClose, onChannelMessage, isChrome, debug } = config;
+  const { role, clientId, pc, watchdog, sendSignal, onConnectionStateChange, onChannelOpen, onChannelClose, onChannelMessage, isChrome, debug } = config;
   const prefix = role === 'host' ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ''}` : '[WebRTC Client]';
 
   return {
@@ -266,10 +276,25 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
 
     onIceCandidate: (candidate: RTCIceCandidateInit | null) => {
       if (candidate) {
-        if (debug) console.log(`${prefix} ICE candidate:`, candidate.candidate);
+        if (debug) {
+          console.log(`${prefix} ICE candidate:`, {
+            candidate: candidate.candidate,
+            sdpMid: candidate.sdpMid,
+            sdpMLineIndex: candidate.sdpMLineIndex,
+            type: candidate.candidate?.split(' ')[7] || 'unknown'
+          });
+        }
         sendSignal({ kind: 'webrtc-ice', candidate }, clientId);
       } else {
-        if (debug) console.log(`${prefix} ICE gathering completed - sending end-of-candidates`);
+        if (debug) {
+          console.log(`${prefix} ICE gathering completed - sending end-of-candidates`);
+          console.log(`${prefix} Connection stats:`, {
+            iceConnectionState: pc.iceConnectionState,
+            iceGatheringState: pc.iceGatheringState,
+            connectionState: pc.connectionState,
+            signalingState: pc.signalingState
+          });
+        }
         sendSignal({ kind: 'webrtc-ice', candidate: null as any }, clientId);
       }
     },
@@ -282,11 +307,50 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
       if (debug) console.log(`${prefix} ICE connection state: ${state}`);
 
       if (state === 'failed') {
-        if (debug) console.warn(`${prefix} ICE connection failed`);
-        // Chrome-specific ICE restart logic will be handled in individual hooks
+        if (debug) {
+          console.warn(`${prefix} ICE connection failed`);
+          console.log(`${prefix} ICE failure stats:`, {
+            hasRemoteDescription: !!pc.remoteDescription,
+            signalingState: pc.signalingState,
+            iceGatheringState: pc.iceGatheringState,
+            connectionState: pc.connectionState
+          });
+        }
+        // For Chrome, attempt ICE restart on failure
+        if (isChrome && pc.remoteDescription) {
+          if (debug) console.log(`${prefix} Chrome ICE failed - attempting immediate restart`);
+          try {
+            pc.restartIce();
+            if (debug) console.log(`${prefix} ICE restart initiated successfully`);
+          } catch (error) {
+            if (debug) console.error(`${prefix} ICE restart failed:`, error);
+          }
+        }
       } else if (state === 'disconnected') {
-        if (debug) console.warn(`${prefix} ICE connection disconnected, waiting for reconnection...`);
-        // Chrome-specific restart logic will be handled in individual hooks
+        if (debug) {
+          console.warn(`${prefix} ICE connection disconnected, waiting for reconnection...`);
+          console.log(`${prefix} Disconnect stats:`, {
+            hasRemoteDescription: !!pc.remoteDescription,
+            signalingState: pc.signalingState,
+            iceGatheringState: pc.iceGatheringState
+          });
+        }
+        // For Chrome, attempt ICE restart after a short delay on disconnect
+        if (isChrome && pc.remoteDescription) {
+          setTimeout(() => {
+            if (pc.iceConnectionState === 'disconnected') {
+              if (debug) console.log(`${prefix} Chrome ICE still disconnected after 3s, attempting restart`);
+              try {
+                pc.restartIce();
+                if (debug) console.log(`${prefix} ICE restart initiated successfully`);
+              } catch (error) {
+                if (debug) console.error(`${prefix} ICE restart failed:`, error);
+              }
+            } else {
+              if (debug) console.log(`${prefix} ICE connection recovered, no restart needed`);
+            }
+          }, 3000);
+        }
       } else if (state === 'connected') {
         if (debug) console.log(`${prefix} ICE connection established!`);
       }
