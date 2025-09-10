@@ -183,9 +183,23 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     return { pc, dc: null, watchdog, iceCandidateManager };
   }, [iceServers, isChromeBrowser, debug, connectionTimeoutMs, iceGatheringTimeoutMs, config, sendSignal]);
 
-  const handleSignalMessage = useCallback(
-    createSignalingMessageHandler({
-      onOffer: async (sdp, message) => {
+  const handleSignalMessage = useCallback(async (message: SignalingMessage) => {
+    if (!message.payload) return;
+
+    let parsed: WebRTCSignalPayload | undefined;
+    try {
+      parsed = JSON.parse(message.payload);
+    } catch (error) {
+      if (debug) {
+        console.warn('[WebRTC Host] Failed to parse signaling message:', error);
+      }
+      return;
+    }
+
+    if (!parsed || typeof parsed !== 'object' || !('kind' in parsed)) return;
+
+    try {
+      if (parsed.kind === 'webrtc-offer') {
         if (!message.clientId) return;
 
         let clientConn = clientConnectionsRef.current.get(message.clientId);
@@ -197,7 +211,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
         const pc = clientConn.pc;
 
         if (debug) console.log(`[WebRTC Host] Received offer from client ${message.clientId}`);
-        await pc.setRemoteDescription(sdp);
+        await pc.setRemoteDescription(parsed.sdp);
 
         const answer = await pc.createAnswer({});
         await pc.setLocalDescription(answer);
@@ -207,22 +221,23 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
 
         // Add any pending ICE candidates for this client
         await clientConn.iceCandidateManager.addPendingCandidates(pc, message.clientId);
-      },
-      onAnswer: async (sdp, message) => {
+      } else if (parsed.kind === 'webrtc-answer') {
         // Host doesn't receive answers, only sends them
         if (debug) console.warn('[WebRTC Host] Unexpected answer received from client');
-      },
-      onIceCandidate: async (candidate, message) => {
+      } else if (parsed.kind === 'webrtc-ice') {
         if (!message.clientId) return;
 
         const clientConn = clientConnectionsRef.current.get(message.clientId);
         if (!clientConn) return;
 
-        await clientConn.iceCandidateManager.addCandidate(clientConn.pc, candidate, message.clientId);
-      },
-    }, debug),
-    [createClientConnection, sendSignal, debug]
-  );
+        await clientConn.iceCandidateManager.addCandidate(clientConn.pc, parsed.candidate, message.clientId);
+      }
+    } catch (error) {
+      if (debug) {
+        console.error(`[WebRTC Host] Error handling ${parsed.kind}:`, error);
+      }
+    }
+  }, [createClientConnection, sendSignal, debug]);
 
   const createOrEnsureConnection = useCallback(async () => {
     try {

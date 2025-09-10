@@ -237,7 +237,7 @@ export default function WebRTCDemoPage() {
                 <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
                   <div className="text-green-800 dark:text-green-200 font-medium">✅ IP Detection Working</div>
                   <div className="text-green-700 dark:text-green-300 text-xs mt-1">
-                    Successfully detected your public IP address. CORS errors in console are normal and don't affect functionality.
+                    Successfully detected your public IP address. CORS errors in console are normal and don&apos;t affect functionality.
                   </div>
                 </div>
               )}
@@ -245,7 +245,7 @@ export default function WebRTCDemoPage() {
                 <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-800">
                   <div className="text-orange-800 dark:text-orange-200 font-medium">🌐 IP Detection Limited</div>
                   <div className="text-orange-700 dark:text-orange-300 text-xs mt-1">
-                    External IP services blocked by CORS/browser security. This doesn't affect WebRTC functionality - connections will still work normally.
+                    External IP services blocked by CORS/browser security. This doesn&apos;t affect WebRTC functionality - connections will still work normally.
                   </div>
                 </div>
               )}

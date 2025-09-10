@@ -163,28 +163,41 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
     pcRef.current = pc;
   }, [iceServers, isChromeBrowser, debug, createWatchdog, config, sendSignal]);
 
-  const handleSignalMessage = useCallback(
-    createSignalingMessageHandler({
-      onOffer: async (sdp, message) => {
+  const handleSignalMessage = useCallback(async (message: SignalingMessage) => {
+    if (!message.payload) return;
+
+    let parsed: WebRTCSignalPayload | undefined;
+    try {
+      parsed = JSON.parse(message.payload);
+    } catch (error) {
+      if (debug) {
+        console.warn('[WebRTC Client] Failed to parse signaling message:', error);
+      }
+      return;
+    }
+
+    if (!parsed || typeof parsed !== 'object' || !('kind' in parsed)) return;
+
+    try {
+      if (parsed.kind === 'webrtc-offer') {
         const pc = pcRef.current;
         if (!pc) return;
 
         if (debug) console.log('[WebRTC Client] Received offer from host');
         connectedClientIdRef.current = message.clientId || null;
-        await pc.setRemoteDescription(sdp);
+        await pc.setRemoteDescription(parsed.sdp);
 
         const answer = await pc.createAnswer({});
         await pc.setLocalDescription(answer);
 
         if (debug) console.log('[WebRTC Client] Sending answer to host');
         await sendSignal({ kind: 'webrtc-answer', sdp: answer });
-      },
-      onAnswer: async (sdp, message) => {
+      } else if (parsed.kind === 'webrtc-answer') {
         const pc = pcRef.current;
         if (!pc) return;
 
         if (debug) console.log('[WebRTC Client] Received answer from host');
-        await pc.setRemoteDescription(sdp);
+        await pc.setRemoteDescription(parsed.sdp);
 
         // Add any pending ICE candidates
         await iceCandidateManagerRef.current?.addPendingCandidates(pc);
@@ -209,16 +222,18 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
             }
           }, 15000); // Increased timeout for cross-network connections
         }
-      },
-      onIceCandidate: async (candidate, message) => {
+      } else if (parsed.kind === 'webrtc-ice') {
         const pc = pcRef.current;
         if (!pc) return;
 
-        await iceCandidateManagerRef.current?.addCandidate(pc, candidate);
-      },
-    }, debug),
-    [debug, sendSignal]
-  );
+        await iceCandidateManagerRef.current?.addCandidate(pc, parsed.candidate);
+      }
+    } catch (error) {
+      if (debug) {
+        console.error(`[WebRTC Client] Error handling ${parsed.kind}:`, error);
+      }
+    }
+  }, [debug, sendSignal]);
 
   const createOrEnsureConnection = useCallback(async () => {
     try {
