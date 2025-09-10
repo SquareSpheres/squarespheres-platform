@@ -201,7 +201,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
                 if (debug) console.error('[WebRTC Client] ICE restart failed:', error);
               }
             }
-          }, 10000);
+          }, 15000); // Increased timeout for cross-network connections
         }
       },
       onIceCandidate: async (candidate, message) => {
@@ -249,8 +249,8 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
             const timeout = setTimeout(() => {
               if (debug) console.warn('[WebRTC Client] ICE gathering timeout, proceeding anyway');
               resolve();
-            }, iceGatheringTimeoutMs);
-            
+            }, iceGatheringTimeoutMs * 2); // Double timeout for cross-network
+
             const checkGathering = () => {
               if (pc.iceGatheringState === 'complete') {
                 clearTimeout(timeout);

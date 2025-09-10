@@ -224,9 +224,25 @@ export function isLocalhost(): boolean {
 }
 
 export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
+  // Primary STUN servers
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:global.stun.twilio.com:3478' },
+  // Additional STUN servers for better connectivity
+  { urls: 'stun:stun.cloudflare.com:3478' },
+  { urls: 'stun:stun.services.mozilla.com:3478' },
 ];
+
+export function createEnhancedIceServers(customServers?: RTCIceServer[]): RTCIceServer[] {
+  const baseServers = customServers || DEFAULT_ICE_SERVERS;
+
+  // Add TURN servers for production if needed
+  if (!isLocalhost()) {
+    // You can add TURN server URLs here for production
+    // Example: baseServers.push({ urls: 'turn:your-turn-server.com:3478', username: 'user', credential: 'pass' });
+  }
+
+  return baseServers;
+}
 
 export interface SignalingHandlers {
   onOffer: (sdp: RTCSessionDescriptionInit, message: SignalingMessage) => Promise<void>;
@@ -339,7 +355,7 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
         if (isChrome && pc.remoteDescription) {
           setTimeout(() => {
             if (pc.iceConnectionState === 'disconnected') {
-              if (debug) console.log(`${prefix} Chrome ICE still disconnected after 3s, attempting restart`);
+              if (debug) console.log(`${prefix} Chrome ICE still disconnected after 2s, attempting restart`);
               try {
                 pc.restartIce();
                 if (debug) console.log(`${prefix} ICE restart initiated successfully`);
@@ -349,7 +365,7 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
             } else {
               if (debug) console.log(`${prefix} ICE connection recovered, no restart needed`);
             }
-          }, 3000);
+          }, 2000); // Reduced from 3000ms to 2000ms for faster recovery
         }
       } else if (state === 'connected') {
         if (debug) console.log(`${prefix} ICE connection established!`);
