@@ -42,8 +42,14 @@ interface ClientConnection {
 
 export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
   const debug = config.debug ?? false;
-  const isChromeBrowser = isChrome();
-  
+
+  // Defer browser detection to avoid SSR issues
+  const [isChromeBrowser, setIsChromeBrowser] = useState(false);
+
+  useEffect(() => {
+    setIsChromeBrowser(isChrome());
+  }, []);
+
   const iceServers = config.iceServers ?? DEFAULT_ICE_SERVERS;
   const connectionTimeoutMs = config.connectionTimeoutMs ?? (isChromeBrowser ? 45000 : 30000);
   const iceGatheringTimeoutMs = config.iceGatheringTimeoutMs ?? (isChromeBrowser ? 20000 : 15000);
