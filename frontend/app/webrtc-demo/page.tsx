@@ -9,6 +9,11 @@ export default function WebRTCDemoPage() {
   const [activeTab, setActiveTab] = useState<'host' | 'client'>('host');
   const [outgoing, setOutgoing] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [connectionInfo, setConnectionInfo] = useState<{
+    localIP?: string;
+    publicIP?: string;
+    userAgent: string;
+  }>({ userAgent: navigator.userAgent });
 
   const hostPeer = useWebRTCPeer({
     role: 'host',
@@ -34,6 +39,38 @@ export default function WebRTCDemoPage() {
     if (d instanceof ArrayBuffer) return `ArrayBuffer(${d.byteLength})`;
     return `Blob(${(d as Blob).size})`;
   }
+
+  // Detect local IP address
+  useEffect(() => {
+    const detectIP = async () => {
+      try {
+        // Get local IP via WebRTC
+        const pc = new RTCPeerConnection({ iceServers: [] });
+        pc.createDataChannel('');
+        pc.createOffer().then(offer => pc.setLocalDescription(offer));
+
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            const ipMatch = event.candidate.candidate.match(/([0-9]{1,3}(\.[0-9]{1,3}){3})/);
+            if (ipMatch && ipMatch[1]) {
+              setConnectionInfo(prev => ({ ...prev, localIP: ipMatch[1] }));
+            }
+          }
+        };
+
+        // Get public IP
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        setConnectionInfo(prev => ({ ...prev, publicIP: data.ip }));
+
+        setTimeout(() => pc.close(), 1000);
+      } catch (error) {
+        console.warn('Could not detect IP addresses:', error);
+      }
+    };
+
+    detectIP();
+  }, []);
 
   useEffect(() => {
     // Track connection state changes
@@ -85,6 +122,22 @@ export default function WebRTCDemoPage() {
           <div className="flex border-b border-border">
             <button onClick={() => setActiveTab('host')} className={`flex-1 px-4 py-3 ${activeTab==='host'?'bg-primary/10 text-primary border-b-2 border-primary':'text-muted-foreground hover:bg-muted'}`}>Host</button>
             <button onClick={() => setActiveTab('client')} className={`flex-1 px-4 py-3 ${activeTab==='client'?'bg-primary/10 text-primary border-b-2 border-primary':'text-muted-foreground hover:bg-muted'}`}>Client</button>
+          </div>
+
+          {/* Connection Info */}
+          <div className="p-4 bg-muted/50 border-b border-border">
+            <h3 className="text-sm font-semibold mb-2 text-foreground">Network Info</h3>
+            <div className="text-xs text-muted-foreground space-y-1">
+              <div>Local IP: <span className="font-mono text-foreground">{connectionInfo.localIP || 'Detecting...'}</span></div>
+              <div>Public IP: <span className="font-mono text-foreground">{connectionInfo.publicIP || 'Detecting...'}</span></div>
+              <div>Browser: <span className="text-foreground">{connectionInfo.userAgent.includes('Chrome') ? 'Chrome' : 'Other'}</span></div>
+              <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+                <div className="text-yellow-800 dark:text-yellow-200 font-medium">⚠️ Same-Computer Testing Mode</div>
+                <div className="text-yellow-700 dark:text-yellow-300 text-xs mt-1">
+                  Both tabs share the same network. For real cross-network testing, use different devices/browsers/networks.
+                </div>
+              </div>
+            </div>
           </div>
           <div className="p-6 space-y-4">
             {activeTab === 'host' ? (
