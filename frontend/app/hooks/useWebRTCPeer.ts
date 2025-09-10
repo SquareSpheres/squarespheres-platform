@@ -23,9 +23,14 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
 
 export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
   const iceServers = useMemo(() => config.iceServers ?? DEFAULT_ICE_SERVERS, [config.iceServers]);
+  const connectionTimeoutMs = config.connectionTimeoutMs ?? 30000; // 30 seconds default
+  const iceGatheringTimeoutMs = config.iceGatheringTimeoutMs ?? 15000; // 15 seconds default
+  
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const connectedClientIdRef = useRef<string | null>(null);
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const iceGatheringTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>('new');
   const [dataChannelState, setDataChannelState] = useState<RTCDataChannelState>();
 
@@ -98,6 +103,24 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
       setConnectionState(state);
+      
+      // Clear timeouts when connection succeeds or fails
+      if (state === 'connected' || state === 'failed' || state === 'closed') {
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = null;
+        }
+        if (iceGatheringTimeoutRef.current) {
+          clearTimeout(iceGatheringTimeoutRef.current);
+          iceGatheringTimeoutRef.current = null;
+        }
+      }
+      
+      // Handle connection failure
+      if (state === 'failed') {
+        config.onConnectionFailed?.(new Error('WebRTC connection failed'));
+      }
+      
       config.onConnectionStateChange?.(state);
     };
 
@@ -155,6 +178,15 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
   const createOrEnsureConnection = useCallback(async () => {
     await ensurePeerConnection();
 
+    // Set connection timeout
+    connectionTimeoutRef.current = setTimeout(() => {
+      if (pcRef.current?.connectionState === 'connecting') {
+        console.warn(`[WebRTC ${config.role}] Connection timeout after ${connectionTimeoutMs}ms`);
+        config.onConnectionTimeout?.();
+        pcRef.current?.close();
+      }
+    }, connectionTimeoutMs);
+
     if (config.role === 'host') {
       if (!host.hostId) {
         await host.connect();
@@ -190,7 +222,7 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
         await sendSignal({ kind: 'webrtc-offer', sdp: offer });
       }
     }
-  }, [client, host, config, ensurePeerConnection, sendSignal]);
+  }, [client, host, config, ensurePeerConnection, sendSignal, connectionTimeoutMs]);
 
   const send = useCallback((data: string | ArrayBuffer | Blob) => {
     const dc = dcRef.current;
@@ -200,6 +232,16 @@ export function useWebRTCPeer(config: WebRTCPeerConfig): WebRTCPeerApi {
   }, []);
 
   const close = useCallback(() => {
+    // Clear timeouts
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
+    if (iceGatheringTimeoutRef.current) {
+      clearTimeout(iceGatheringTimeoutRef.current);
+      iceGatheringTimeoutRef.current = null;
+    }
+    
     dcRef.current?.close();
     pcRef.current?.close();
     dcRef.current = null;

@@ -4,6 +4,12 @@ using SignalingServer.Validation;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure WebSocket options
+builder.Services.Configure<WebSocketOptions>(options =>
+{
+    options.KeepAliveInterval = TimeSpan.FromSeconds(30); // Send keep-alive every 30 seconds
+});
+
 builder.Services.AddSingleton<IConnectionHandler, ConnectionHandler>();
 builder.Services.AddSingleton<IMessageHandler, MessageHandler>();
 builder.Services.AddSingleton<ISignalRegistry, SignalRegistry>();

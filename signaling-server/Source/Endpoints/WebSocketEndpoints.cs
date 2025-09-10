@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using SignalingServer.Services;
 using SignalingServer.Validation;
 
@@ -23,7 +24,12 @@ public static class WebSocketEndpoints
                         return;
                     }
 
-                    var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+                    var webSocketOptions = context.RequestServices.GetRequiredService<IOptions<WebSocketOptions>>();
+                    var acceptContext = new WebSocketAcceptContext
+                    {
+                        KeepAliveInterval = webSocketOptions.Value.KeepAliveInterval
+                    };
+                    var webSocket = await context.WebSockets.AcceptWebSocketAsync(acceptContext);
 
                     var connectionHandler =
                         context.RequestServices.GetRequiredService<IConnectionHandler>();

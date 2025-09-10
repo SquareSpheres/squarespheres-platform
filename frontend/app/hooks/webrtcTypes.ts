@@ -25,11 +25,16 @@ export interface WebRTCPeerConfig {
   hostId?: string;
   // STUN/TURN servers
   iceServers?: RTCIceServer[];
+  // Timeout configuration
+  connectionTimeoutMs?: number; // Default: 30000ms (30 seconds)
+  iceGatheringTimeoutMs?: number; // Default: 15000ms (15 seconds)
   // Optional callbacks
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
   onChannelMessage?: (data: string | ArrayBuffer | Blob) => void;
   onChannelOpen?: () => void;
   onChannelClose?: () => void;
+  onConnectionTimeout?: () => void;
+  onConnectionFailed?: (error: Error) => void;
 }
 
 

@@ -10,6 +10,9 @@ public class ConnectionHandler(
     ILogger<ConnectionHandler> logger
 ) : IConnectionHandler
 {
+    private static readonly int MaxMessageSize = int.Parse(Environment.GetEnvironmentVariable("WEBSOCKET_MAX_MESSAGE_SIZE") ?? "65536"); // 64KB default
+    private static readonly int ChunkSize = int.Parse(Environment.GetEnvironmentVariable("WEBSOCKET_CHUNK_SIZE") ?? "4096"); // 4KB default
+
     public event Action<WebSocket, DisconnectionType>? SocketDisconnected;
 
     public async Task HandleConnection(WebSocket socket, CancellationToken cancellationToken)
@@ -22,8 +25,9 @@ public class ConnectionHandler(
         {
             while (socket.State == WebSocketState.Open)
             {
-                // TODO read size limits from env, currently using defaults
                 var raw = await socket.ReceiveFullMessageAsync(
+                    maxSizeInBytes: MaxMessageSize,
+                    chunkSize: ChunkSize,
                     cancellationToken: cancellationToken
                 );
 
