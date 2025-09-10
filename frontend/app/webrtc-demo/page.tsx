@@ -13,7 +13,7 @@ export default function WebRTCDemoPage() {
     localIP?: string;
     publicIP?: string;
     userAgent: string;
-  }>({ userAgent: navigator.userAgent });
+  }>({ userAgent: '' });
 
   const hostPeer = useWebRTCPeer({
     role: 'host',
@@ -75,6 +75,13 @@ export default function WebRTCDemoPage() {
   useEffect(() => {
     // Track connection state changes
   }, [hostPeer.connectionState, hostPeer.dataChannelState, clientPeer.connectionState, clientPeer.dataChannelState]);
+
+  // Set user agent on client side
+  useEffect(() => {
+    if (typeof navigator !== 'undefined') {
+      setConnectionInfo(prev => ({ ...prev, userAgent: navigator.userAgent }));
+    }
+  }, []);
 
   const createHost = async () => {
     try {

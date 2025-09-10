@@ -212,8 +212,9 @@ export function createDataChannel(
 }
 
 export function isChrome(): boolean {
-  return typeof window !== 'undefined' && 
-    /Chrome/.test(navigator.userAgent) && 
+  return typeof window !== 'undefined' &&
+    typeof navigator !== 'undefined' &&
+    /Chrome/.test(navigator.userAgent) &&
     !/Edge|Edg/.test(navigator.userAgent);
 }
 
