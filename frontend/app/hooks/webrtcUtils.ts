@@ -230,6 +230,12 @@ export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   // Additional STUN servers for better connectivity
   { urls: 'stun:stun.cloudflare.com:3478' },
   { urls: 'stun:stun.services.mozilla.com:3478' },
+  // TURN server for same-network issues (free test server)
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  },
 ];
 
 export function createEnhancedIceServers(customServers?: RTCIceServer[]): RTCIceServer[] {
