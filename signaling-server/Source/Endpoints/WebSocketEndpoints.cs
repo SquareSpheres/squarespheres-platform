@@ -24,10 +24,12 @@ public static class WebSocketEndpoints
                         return;
                     }
 
-                    var webSocketOptions = context.RequestServices.GetRequiredService<IOptions<WebSocketOptions>>();
+                    var webSocketOptions = context.RequestServices.GetRequiredService<
+                        IOptions<WebSocketOptions>
+                    >();
                     var acceptContext = new WebSocketAcceptContext
                     {
-                        KeepAliveInterval = webSocketOptions.Value.KeepAliveInterval
+                        KeepAliveInterval = webSocketOptions.Value.KeepAliveInterval,
                     };
                     var webSocket = await context.WebSockets.AcceptWebSocketAsync(acceptContext);
 
