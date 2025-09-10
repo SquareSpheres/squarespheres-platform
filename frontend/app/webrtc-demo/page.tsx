@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useWebRTCPeer } from '../hooks/useWebRTCPeer';
+import { useWebRTCPeer, isHostPeer } from '../hooks/useWebRTCPeer';
 
 export default function WebRTCDemoPage() {
   const [hostIdInput, setHostIdInput] = useState('');
@@ -90,13 +90,13 @@ export default function WebRTCDemoPage() {
                 <button onClick={createHost} className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90">Create Host</button>
                 <div className="text-sm text-muted-foreground">Host ID: <span className="font-mono text-foreground">{hostPeer.peerId || 'n/a'}</span></div>
                 
-                {hostPeer.connectedClients && hostPeer.connectedClients.length > 0 && (
+                {isHostPeer(hostPeer) && hostPeer.connectedClients && hostPeer.connectedClients.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-medium text-foreground">Connected Clients ({hostPeer.connectedClients.length})</div>
                       <button 
                         onClick={() => {
-                          if (hostPeer.disconnectClient) {
+                          if (isHostPeer(hostPeer) && hostPeer.disconnectClient) {
                             hostPeer.connectedClients?.forEach(clientId => {
                               hostPeer.disconnectClient!(clientId);
                             });
@@ -111,7 +111,7 @@ export default function WebRTCDemoPage() {
                       </button>
                     </div>
                     <div className="space-y-1 max-h-32 overflow-y-auto">
-                      {hostPeer.connectedClients.map((clientId) => {
+                      {isHostPeer(hostPeer) && hostPeer.connectedClients.map((clientId) => {
                         const clientConn = hostPeer.clientConnections?.get(clientId);
                         return (
                           <div key={clientId} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
@@ -143,7 +143,7 @@ export default function WebRTCDemoPage() {
                               </button>
                               <button 
                                 onClick={() => {
-                                  if (hostPeer.disconnectClient) {
+                                  if (isHostPeer(hostPeer) && hostPeer.disconnectClient) {
                                     hostPeer.disconnectClient(clientId);
                                     setMessages((m) => [...m, `Disconnected client ${clientId}`]);
                                     if (selectedClientId === clientId) {
@@ -177,7 +177,7 @@ export default function WebRTCDemoPage() {
         <div className="bg-card rounded-lg shadow p-6 space-y-4 mb-4 border">
           <div className="text-sm text-muted-foreground">Host PC: {hostPeer.connectionState} | Client PC: {clientPeer.connectionState}</div>
           
-          {activeTab === 'host' && hostPeer.connectedClients && hostPeer.connectedClients.length > 0 && (
+          {activeTab === 'host' && isHostPeer(hostPeer) && hostPeer.connectedClients && hostPeer.connectedClients.length > 0 && (
             <div className="space-y-2">
               <div className="text-sm font-medium text-foreground">Send to:</div>
               <div className="flex gap-2 flex-wrap">
@@ -189,7 +189,7 @@ export default function WebRTCDemoPage() {
                 >
                   All Clients
                 </button>
-                {hostPeer.connectedClients.map((clientId) => (
+                {isHostPeer(hostPeer) && hostPeer.connectedClients.map((clientId) => (
                   <button 
                     key={clientId}
                     onClick={() => setSelectedClientId(clientId)}
