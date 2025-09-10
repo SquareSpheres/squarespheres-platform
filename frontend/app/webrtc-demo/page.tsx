@@ -58,14 +58,99 @@ export default function WebRTCDemoPage() {
           }
         };
 
-        // Get public IP
-        const response = await fetch('https://api.ipify.org?format=json');
-        const data = await response.json();
-        setConnectionInfo(prev => ({ ...prev, publicIP: data.ip }));
+        // Get public IP with multiple fallback services
+        const getPublicIP = async () => {
+          // Prioritize services that work well with CORS
+          const services = [
+            {
+              url: 'https://ipapi.co/json/',
+              parser: (data: any) => data.ip,
+              priority: 1 // Highest priority - known to work well
+            },
+            {
+              url: 'https://api64.ipify.org?format=json',
+              parser: (data: any) => data.ip,
+              priority: 2
+            },
+            {
+              url: 'https://api.ip.sb/jsonip',
+              parser: (data: any) => data.ip,
+              priority: 3
+            },
+            {
+              url: 'https://httpbin.org/ip',
+              parser: (data: any) => data.origin,
+              priority: 4
+            },
+          ];
+
+          // Sort by priority
+          services.sort((a, b) => a.priority - b.priority);
+
+          for (const service of services) {
+            try {
+              console.log(`Trying IP service (${service.priority}): ${service.url}`);
+
+              // Create AbortController for timeout
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 3000); // Reduced timeout
+
+              const response = await fetch(service.url, {
+                method: 'GET',
+                signal: controller.signal,
+                mode: 'cors',
+                headers: {
+                  'Accept': 'application/json',
+                },
+              });
+
+              clearTimeout(timeoutId);
+
+              if (!response.ok) {
+                console.warn(`HTTP ${response.status} from ${service.url}`);
+                continue;
+              }
+
+              const data = await response.json();
+              const ip = service.parser(data);
+
+              if (ip && typeof ip === 'string' && /^\d+\.\d+\.\d+\.\d+$/.test(ip)) {
+                console.log(`✅ Successfully got IP from ${service.url}: ${ip}`);
+                return ip;
+              } else {
+                console.warn(`Invalid IP format from ${service.url}:`, ip);
+              }
+            } catch (error) {
+              // Don't log CORS errors as they're expected and handled
+              if (error instanceof Error && error.name === 'AbortError') {
+                console.warn(`Timeout (${service.priority})`);
+              } else if (error instanceof Error && !error.message.includes('CORS') && !error.message.includes('Failed to fetch')) {
+                console.warn(`Error (${service.priority}):`, error.message);
+              }
+              continue;
+            }
+          }
+
+          console.info('ℹ️ IP detection completed - some services may be blocked by CORS but that\'s normal');
+          return null;
+        };
+
+        const publicIP = await getPublicIP();
+        if (publicIP) {
+          setConnectionInfo(prev => ({ ...prev, publicIP }));
+        } else {
+          console.warn('Could not detect public IP from any service, this is normal in restrictive environments');
+          setConnectionInfo(prev => ({ ...prev, publicIP: 'Unable to detect' }));
+        }
 
         setTimeout(() => pc.close(), 1000);
       } catch (error) {
         console.warn('Could not detect IP addresses:', error);
+        setConnectionInfo(prev => ({
+          ...prev,
+          localIP: 'Unable to detect',
+          publicIP: 'Unable to detect'
+        }));
       }
     };
 
@@ -135,9 +220,35 @@ export default function WebRTCDemoPage() {
           <div className="p-4 bg-muted/50 border-b border-border">
             <h3 className="text-sm font-semibold mb-2 text-foreground">Network Info</h3>
             <div className="text-xs text-muted-foreground space-y-1">
-              <div>Local IP: <span className="font-mono text-foreground">{connectionInfo.localIP || 'Detecting...'}</span></div>
-              <div>Public IP: <span className="font-mono text-foreground">{connectionInfo.publicIP || 'Detecting...'}</span></div>
+              <div>Local IP: <span className={`font-mono ${connectionInfo.localIP === 'Unable to detect' ? 'text-red-500' : 'text-foreground'}`}>
+                {connectionInfo.localIP || 'Detecting...'}
+              </span></div>
+              <div>Public IP: <span className={`font-mono ${connectionInfo.publicIP === 'Unable to detect' ? 'text-red-500' : 'text-foreground'}`}>
+                {connectionInfo.publicIP || 'Detecting...'}
+              </span></div>
               <div>Browser: <span className="text-foreground">{connectionInfo.userAgent.includes('Chrome') ? 'Chrome' : 'Other'}</span></div>
+              <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                <div className="text-blue-800 dark:text-blue-200 font-medium">🔄 TURN Servers Enabled</div>
+                <div className="text-blue-700 dark:text-blue-300 text-xs mt-1">
+                  Using free TURN servers for relay connections. Check console for connection details.
+                </div>
+              </div>
+              {(connectionInfo.publicIP && connectionInfo.publicIP !== 'Unable to detect') && (
+                <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
+                  <div className="text-green-800 dark:text-green-200 font-medium">✅ IP Detection Working</div>
+                  <div className="text-green-700 dark:text-green-300 text-xs mt-1">
+                    Successfully detected your public IP address. CORS errors in console are normal and don't affect functionality.
+                  </div>
+                </div>
+              )}
+              {(connectionInfo.publicIP === 'Unable to detect') && (
+                <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-800">
+                  <div className="text-orange-800 dark:text-orange-200 font-medium">🌐 IP Detection Limited</div>
+                  <div className="text-orange-700 dark:text-orange-300 text-xs mt-1">
+                    External IP services blocked by CORS/browser security. This doesn't affect WebRTC functionality - connections will still work normally.
+                  </div>
+                </div>
+              )}
               <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
                 <div className="text-yellow-800 dark:text-yellow-200 font-medium">⚠️ Same-Computer Testing Mode</div>
                 <div className="text-yellow-700 dark:text-yellow-300 text-xs mt-1">

@@ -128,6 +128,17 @@ export function createPeerConnection(config: PeerConnectionConfig): RTCPeerConne
       isChrome: config.isChrome,
     });
 
+    // Log TURN server usage
+    const turnServers = pcConfig.iceServers?.filter(server =>
+      server.urls && typeof server.urls === 'string' && server.urls.startsWith('turn:')
+    ) || [];
+    if (turnServers.length > 0) {
+      console.log(`[WebRTC Utils] TURN servers configured: ${turnServers.length} server(s)`);
+      turnServers.forEach((server, index) => {
+        console.log(`[WebRTC Utils] TURN ${index + 1}: ${server.urls}`);
+      });
+    }
+
     // Add Chrome-specific debugging
     if (config.isChrome) {
       console.log('[WebRTC Utils] Chrome-specific config applied');
@@ -212,9 +223,9 @@ export function createDataChannel(
 }
 
 export function isChrome(): boolean {
-  return typeof window !== 'undefined' &&
+  return typeof window !== 'undefined' && 
     typeof navigator !== 'undefined' &&
-    /Chrome/.test(navigator.userAgent) &&
+    /Chrome/.test(navigator.userAgent) && 
     !/Edge|Edg/.test(navigator.userAgent);
 }
 
@@ -231,12 +242,33 @@ export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   // Additional STUN servers for better connectivity
   { urls: 'stun:stun.cloudflare.com:3478' },
   { urls: 'stun:stun.services.mozilla.com:3478' },
-  // TURN server for same-network issues (free test server)
+
+  // Free TURN servers for testing (use multiple for redundancy)
+  // Note: These are public test servers with rate limits - use commercial TURN for production
+  // More info: https://www.metered.ca/tools/openrelay/
   {
     urls: 'turn:openrelay.metered.ca:80',
     username: 'openrelayproject',
     credential: 'openrelayproject'
   },
+  {
+    urls: 'turn:openrelay.metered.ca:443',
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  },
+
+  // Alternative free TURN server (may have different availability)
+  // Uncomment if openrelay has issues:
+  // {
+  //   urls: 'turn:turn.anyfirewall.com:443?transport=tcp',
+  //   username: 'webrtc',
+  //   credential: 'webrtc'
+  // },
 ];
 
 export function createEnhancedIceServers(customServers?: RTCIceServer[]): RTCIceServer[] {
@@ -300,12 +332,20 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
     onIceCandidate: (candidate: RTCIceCandidateInit | null) => {
       if (candidate) {
         if (debug) {
+          const candidateType = candidate.candidate?.split(' ')[7] || 'unknown';
+          const isRelay = candidateType === 'relay';
+
           console.log(`${prefix} ICE candidate:`, {
             candidate: candidate.candidate,
             sdpMid: candidate.sdpMid,
             sdpMLineIndex: candidate.sdpMLineIndex,
-            type: candidate.candidate?.split(' ')[7] || 'unknown'
+            type: candidateType,
+            connectionType: isRelay ? '🔄 RELAY (TURN)' : '🔗 DIRECT'
           });
+
+          if (isRelay) {
+            console.log(`${prefix} Using TURN relay connection - this ensures connectivity in restrictive networks`);
+          }
         }
         sendSignal({ kind: 'webrtc-ice', candidate }, clientId);
       } else {
