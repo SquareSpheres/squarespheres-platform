@@ -6,11 +6,18 @@ import { WebRTCPeerConfig, WebRTCSignalPayload } from './webrtcTypes';
 import {
   createPeerConnection,
   attachEventHandlers,
+  createDataChannel,
+  createWebRTCEventHandlers,
+  setupDataChannel,
+  DataChannelConfig,
+  ICECandidateManager,
   ConnectionWatchdog,
-  ConnectionWatchdogConfig,
+  createConnectionWatchdog,
+  WatchdogConfig,
+  createSignalingMessageHandler,
+  SignalingHandlers,
   isChrome,
   DEFAULT_ICE_SERVERS,
-  EventHandlers,
 } from './webrtcUtils';
 
 export interface WebRTCHostPeerApi {
@@ -30,6 +37,7 @@ interface ClientConnection {
   pc: RTCPeerConnection;
   dc: RTCDataChannel | null;
   watchdog: ConnectionWatchdog;
+  iceCandidateManager: ICECandidateManager;
 }
 
 export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
@@ -45,7 +53,6 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
   const [clientConnections, setClientConnections] = useState<Map<string, { connectionState: RTCPeerConnectionState; dataChannelState: RTCDataChannelState | undefined }>>(new Map());
   
   const clientConnectionsRef = useRef<Map<string, ClientConnection>>(new Map());
-  const hostPendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
 
   const host = useSignalHost({
     onMessage: (message: SignalingMessage) => handleSignalMessage(message),
@@ -73,11 +80,10 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       debug,
     });
 
-    const watchdogConfig: ConnectionWatchdogConfig = {
+    const watchdogConfig: WatchdogConfig = {
       connectionTimeoutMs,
       iceGatheringTimeoutMs,
-      maxRetries: isChromeBrowser ? 1 : 2,
-      retryDelayMs: isChromeBrowser ? 8000 : 3000,
+      isChrome: isChromeBrowser,
       onConnectionTimeout: () => {
         if (debug) console.warn(`[WebRTC Host] Connection timeout for client ${clientId}`);
         config.onConnectionTimeout?.();
@@ -89,13 +95,18 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       debug,
     };
 
-    const watchdog = new ConnectionWatchdog(watchdogConfig);
+    const watchdog = createConnectionWatchdog(watchdogConfig);
 
-    const eventHandlers: EventHandlers = {
+    const iceCandidateManager = new ICECandidateManager(isChromeBrowser, debug, 'host', clientId);
+
+    const eventHandlers = createWebRTCEventHandlers({
+      role: 'host',
+      clientId,
+      watchdog,
+      sendSignal: (payload, targetClientId) => sendSignal(payload, targetClientId || clientId),
       onConnectionStateChange: (state) => {
         if (debug) console.log(`[WebRTC Host] Client ${clientId} connection state: ${state}`);
-        watchdog.handleConnectionStateChange(state);
-        
+
         setClientConnections(prev => {
           const newMap = new Map(prev);
           const clientConn = clientConnectionsRef.current.get(clientId);
@@ -114,73 +125,12 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
 
         config.onConnectionStateChange?.(state);
       },
-      onDataChannelStateChange: (state) => {
-        setDataChannelState(state);
-        setClientConnections(prev => {
-          const newMap = new Map(prev);
-          const clientConn = clientConnectionsRef.current.get(clientId);
-          newMap.set(clientId, {
-            connectionState: clientConn?.pc.connectionState || 'new',
-            dataChannelState: state
-          });
-          return newMap;
-        });
-      },
-      onChannelOpen: () => {
-        if (debug) console.log(`[WebRTC Host] Data channel opened with client ${clientId}`);
-        config.onChannelOpen?.();
-      },
-      onChannelClose: () => {
-        if (debug) console.log(`[WebRTC Host] Data channel closed with client ${clientId}`);
-        config.onChannelClose?.();
-      },
-      onChannelMessage: (data) => {
-        config.onChannelMessage?.(data);
-      },
-      onIceCandidate: (candidate) => {
-        if (candidate) {
-          if (debug) console.log(`[WebRTC Host] Sending ICE candidate to client ${clientId}:`, candidate.candidate);
-          sendSignal({ kind: 'webrtc-ice', candidate }, clientId);
-        } else {
-          if (debug) console.log(`[WebRTC Host] ICE gathering completed for client ${clientId} - sending end-of-candidates`);
-          sendSignal({ kind: 'webrtc-ice', candidate: null as any }, clientId);
-        }
-      },
-      onIceGatheringStateChange: (state) => {
-        if (debug) console.log(`[WebRTC Host] ICE gathering state for client ${clientId}: ${state}`);
-      },
-      onIceConnectionStateChange: (state) => {
-        if (debug) console.log(`[WebRTC Host] ICE connection state for client ${clientId}: ${state}`);
-        
-        if (state === 'failed') {
-          if (debug) console.warn(`[WebRTC Host] ICE connection failed for client ${clientId}, attempting restart`);
-          const clientConn = clientConnectionsRef.current.get(clientId);
-          if (clientConn?.pc.remoteDescription) {
-            try {
-              clientConn.pc.restartIce();
-              if (debug) console.log(`[WebRTC Host] ICE restart initiated for client ${clientId}`);
-            } catch (error) {
-              if (debug) console.error(`[WebRTC Host] ICE restart failed for client ${clientId}:`, error);
-            }
-          }
-        } else if (state === 'disconnected') {
-          if (debug) console.warn(`[WebRTC Host] ICE connection disconnected for client ${clientId}, waiting for reconnection...`);
-          const clientConn = clientConnectionsRef.current.get(clientId);
-          setTimeout(() => {
-            if (clientConn?.pc.iceConnectionState === 'disconnected' && clientConn.pc.remoteDescription) {
-              if (debug) console.log(`[WebRTC Host] ICE still disconnected for client ${clientId}, attempting restart`);
-              try {
-                clientConn.pc.restartIce();
-              } catch (error) {
-                if (debug) console.error(`[WebRTC Host] ICE restart failed for client ${clientId}:`, error);
-              }
-            }
-          }, isChromeBrowser ? 3000 : 2000);
-        } else if (state === 'connected') {
-          if (debug) console.log(`[WebRTC Host] ICE connection established for client ${clientId}!`);
-        }
-      },
-    };
+      onChannelOpen: config.onChannelOpen,
+      onChannelClose: config.onChannelClose,
+      onChannelMessage: config.onChannelMessage,
+      isChrome: isChromeBrowser,
+      debug,
+    });
 
     attachEventHandlers(pc, eventHandlers, debug);
 
@@ -192,138 +142,79 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       if (currentConn) {
         currentConn.dc = dc;
       }
-      
+
       if (debug) console.log(`[WebRTC Host] Data channel received from client ${clientId}: ${dc.readyState}`);
-      
-      setClientConnections(prev => {
-        const newMap = new Map(prev);
-        newMap.set(clientId, {
-          connectionState: pc.connectionState,
-          dataChannelState: dc.readyState
-        });
-        return newMap;
+
+      setupDataChannel(dc, {
+        onOpen: (readyState) => {
+          setClientConnections(prev => {
+            const newMap = new Map(prev);
+            newMap.set(clientId, {
+              connectionState: pc.connectionState,
+              dataChannelState: readyState
+            });
+            return newMap;
+          });
+        },
+        onClose: (readyState) => {
+          setClientConnections(prev => {
+            const newMap = new Map(prev);
+            newMap.set(clientId, {
+              connectionState: pc.connectionState,
+              dataChannelState: readyState
+            });
+            return newMap;
+          });
+        },
+        onMessage: config.onChannelMessage,
+        debug,
+        role: 'host',
+        clientId,
       });
-      
-      dc.onopen = () => {
-        if (debug) console.log(`[WebRTC Host] Data channel opened with client ${clientId}`);
-        setClientConnections(prev => {
-          const newMap = new Map(prev);
-          newMap.set(clientId, {
-            connectionState: pc.connectionState,
-            dataChannelState: dc.readyState
-          });
-          return newMap;
-        });
-        config.onChannelOpen?.();
-      };
-      
-      dc.onclose = () => {
-        if (debug) console.log(`[WebRTC Host] Data channel closed with client ${clientId}`);
-        setClientConnections(prev => {
-          const newMap = new Map(prev);
-          newMap.set(clientId, {
-            connectionState: pc.connectionState,
-            dataChannelState: dc.readyState
-          });
-          return newMap;
-        });
-        config.onChannelClose?.();
-      };
-      
-      dc.onmessage = (e) => {
-        config.onChannelMessage?.(e.data);
-      };
     };
 
-    return { pc, dc: null, watchdog };
+    return { pc, dc: null, watchdog, iceCandidateManager };
   }, [iceServers, isChromeBrowser, debug, connectionTimeoutMs, iceGatheringTimeoutMs, config, sendSignal]);
 
-  const handleOfferMessage = useCallback(async (message: SignalingMessage, sdp: RTCSessionDescriptionInit) => {
-    if (!message.clientId) return;
-
-    let clientConn = clientConnectionsRef.current.get(message.clientId);
-    if (!clientConn) {
-      clientConn = createClientConnection(message.clientId);
-      clientConnectionsRef.current.set(message.clientId, clientConn);
-    }
-
-    const pc = clientConn.pc;
-    
-    if (debug) console.log(`[WebRTC Host] Received offer from client ${message.clientId}`);
-    await pc.setRemoteDescription(sdp);
-    
-    const answer = await pc.createAnswer({});
-    await pc.setLocalDescription(answer);
-    
-    if (debug) console.log(`[WebRTC Host] Sending answer to client ${message.clientId}`);
-    await sendSignal({ kind: 'webrtc-answer', sdp: answer }, message.clientId);
-    
-    // Add any pending ICE candidates for this client
-    const pendingCandidates = hostPendingIceCandidatesRef.current.get(message.clientId) || [];
-    for (const candidate of pendingCandidates) {
-      try {
-        if (debug) console.log(`[WebRTC Host] Adding pending ICE candidate for client ${message.clientId}:`, candidate.candidate);
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (error) {
-        if (debug) console.warn(`[WebRTC Host] Failed to add pending ICE candidate for client ${message.clientId}:`, error);
-      }
-    }
-    hostPendingIceCandidatesRef.current.delete(message.clientId);
-  }, [createClientConnection, sendSignal, debug]);
-
-  const handleIceCandidateMessage = useCallback(async (message: SignalingMessage, candidate: RTCIceCandidateInit | null) => {
-    if (!message.clientId) return;
-
-    const clientConn = clientConnectionsRef.current.get(message.clientId);
-    if (!clientConn) return;
-
-    const pc = clientConn.pc;
-
-    if (candidate !== null && candidate !== undefined) {
-      try {
-        if (debug) console.log(`[WebRTC Host] Adding ICE candidate from client ${message.clientId}:`, candidate.candidate);
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (error) {
-        if (debug) console.warn(`[WebRTC Host] Failed to add ICE candidate for client ${message.clientId}:`, error);
-        
-        if (pc.remoteDescription === null) {
-          if (debug) console.log(`[WebRTC Host] Storing ICE candidate as pending for client ${message.clientId}`);
-          if (!hostPendingIceCandidatesRef.current.has(message.clientId)) {
-            hostPendingIceCandidatesRef.current.set(message.clientId, []);
-          }
-          hostPendingIceCandidatesRef.current.get(message.clientId)!.push(candidate);
-        } else if (isChromeBrowser && (error as Error).name === 'OperationError') {
-          if (debug) console.log(`[WebRTC Host] Chrome ICE candidate error (likely duplicate), ignoring`);
-        } else {
-          if (debug) console.warn(`[WebRTC Host] ICE candidate addition failed but remote description is set - this might be normal`);
-        }
-      }
-    } else {
-      if (debug) console.log(`[WebRTC Host] Received end-of-candidates from client ${message.clientId}`);
-    }
-  }, [isChromeBrowser, debug]);
-
   const handleSignalMessage = useCallback(
-    async (message: SignalingMessage) => {
-      if (!message.payload) return;
-      
-      let parsed: WebRTCSignalPayload | undefined;
-      try {
-        parsed = JSON.parse(message.payload);
-      } catch (error) {
-        if (debug) console.warn('[WebRTC Host] Failed to parse signaling message:', error);
-        return;
-      }
+    createSignalingMessageHandler({
+      onOffer: async (sdp, message) => {
+        if (!message.clientId) return;
 
-      if (!parsed || typeof parsed !== 'object' || !('kind' in parsed)) return;
+        let clientConn = clientConnectionsRef.current.get(message.clientId);
+        if (!clientConn) {
+          clientConn = createClientConnection(message.clientId);
+          clientConnectionsRef.current.set(message.clientId, clientConn);
+        }
 
-      if (parsed.kind === 'webrtc-offer') {
-        await handleOfferMessage(message, parsed.sdp);
-      } else if (parsed.kind === 'webrtc-ice') {
-        await handleIceCandidateMessage(message, parsed.candidate);
-      }
-    },
-    [debug, handleOfferMessage, handleIceCandidateMessage]
+        const pc = clientConn.pc;
+
+        if (debug) console.log(`[WebRTC Host] Received offer from client ${message.clientId}`);
+        await pc.setRemoteDescription(sdp);
+
+        const answer = await pc.createAnswer({});
+        await pc.setLocalDescription(answer);
+
+        if (debug) console.log(`[WebRTC Host] Sending answer to client ${message.clientId}`);
+        await sendSignal({ kind: 'webrtc-answer', sdp: answer }, message.clientId);
+
+        // Add any pending ICE candidates for this client
+        await clientConn.iceCandidateManager.addPendingCandidates(pc, message.clientId);
+      },
+      onAnswer: async (sdp, message) => {
+        // Host doesn't receive answers, only sends them
+        if (debug) console.warn('[WebRTC Host] Unexpected answer received from client');
+      },
+      onIceCandidate: async (candidate, message) => {
+        if (!message.clientId) return;
+
+        const clientConn = clientConnectionsRef.current.get(message.clientId);
+        if (!clientConn) return;
+
+        await clientConn.iceCandidateManager.addCandidate(clientConn.pc, candidate, message.clientId);
+      },
+    }, debug),
+    [createClientConnection, sendSignal, debug]
   );
 
   const createOrEnsureConnection = useCallback(async () => {
@@ -358,6 +249,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     const clientConn = clientConnectionsRef.current.get(clientId);
     if (clientConn) {
       clientConn.watchdog.clearTimeouts();
+      clientConn.iceCandidateManager.clear(clientId);
       clientConn.dc?.close();
       clientConn.pc.close();
       clientConnectionsRef.current.delete(clientId);
@@ -373,12 +265,12 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
   const close = useCallback(() => {
     clientConnectionsRef.current.forEach((clientConn) => {
       clientConn.watchdog.clearTimeouts();
+      clientConn.iceCandidateManager.clear();
       clientConn.dc?.close();
       clientConn.pc.close();
     });
     clientConnectionsRef.current.clear();
     setClientConnections(new Map());
-    hostPendingIceCandidatesRef.current.clear();
   }, []);
 
   useEffect(() => () => close(), [close]);
