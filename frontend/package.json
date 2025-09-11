@@ -13,6 +13,8 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.31.10",
+    "@clerk/themes": "^2.4.18",
     "@tailwindcss/postcss": "^4.1.13",
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",

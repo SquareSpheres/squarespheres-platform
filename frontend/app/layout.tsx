@@ -6,9 +6,16 @@ import './globals.css'
 import Link from 'next/link'
 import React from 'react'
 import StaticBackground from './StaticBackground'
-import { Share2, ArrowUpCircle, ArrowDownCircle, Wifi, Zap, Activity } from 'lucide-react'
+import { Share2, ArrowUpCircle, ArrowDownCircle, Wifi, Zap, Activity, LogIn } from 'lucide-react'
 import { ThemeProvider } from './Provider'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
+import {
+  SignInButton,
+  SignedIn,
+  SignedOut,
+  UserButton,
+} from "@clerk/nextjs"
+import { ClerkThemeProvider } from "./components/ClerkThemeProvider"
 
 const inter = Inter({ subsets: ['latin'] })
 const poppins = Poppins({
@@ -34,6 +41,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} ${poppins.variable} bg-background text-foreground relative`}>
         <ThemeProvider>
+          <ClerkThemeProvider>
           <Analytics />
           <SpeedInsights />
           <div className="fixed inset-0 z-0 bg-gradient-to-b from-background via-muted to-background">
@@ -77,13 +85,27 @@ export default function RootLayout({
                     <span className="hidden lg:inline font-medium text-sm">Status</span>
                   </Link>
                 </nav>
-                <ThemeSwitcher />
+                <div className="flex items-center space-x-2">
+                  <SignedOut>
+                    <SignInButton mode="modal">
+                      <button className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-sm font-medium cursor-pointer" title="Sign In">
+                        <LogIn className="h-5 w-5" />
+                        <span className="hidden lg:inline">Sign In</span>
+                      </button>
+                    </SignInButton>
+                  </SignedOut>
+                  <SignedIn>
+                    <UserButton />
+                  </SignedIn>
+                  <ThemeSwitcher />
+                </div>
               </div>
             </header>
             <main className="flex-grow flex items-center justify-center mt-4 md:mt-8">
               {children}
             </main>
           </div>
+          </ClerkThemeProvider>
         </ThemeProvider>
       </body>
     </html>

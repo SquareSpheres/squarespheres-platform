@@ -26,7 +26,7 @@ interface HealthStatus {
 
 async function checkSignalingServer(): Promise<HealthStatus['services']['signalingServer']> {
   const startTime = Date.now()
-  const signalingUrl = process.env.NEXT_PUBLIC_SIGNALING_SERVER_URL || 'ws://localhost:5052'
+  const signalingUrl = process.env.NEXT_PUBLIC_SIGNAL_SERVER || 'ws://localhost:5052'
   
   try {
     // Convert WebSocket URL to HTTP URL for health endpoint
