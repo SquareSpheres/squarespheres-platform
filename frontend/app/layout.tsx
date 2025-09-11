@@ -6,7 +6,7 @@ import './globals.css'
 import Link from 'next/link'
 import React from 'react'
 import StaticBackground from './StaticBackground'
-import { Share2, ArrowUpCircle, ArrowDownCircle, Wifi, Zap } from 'lucide-react'
+import { Share2, ArrowUpCircle, ArrowDownCircle, Wifi, Zap, Activity } from 'lucide-react'
 import { ThemeProvider } from './Provider'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
 
@@ -22,8 +22,6 @@ export const metadata: Metadata = {
   description: 'Share files securely with WebRTC',
   icons: {
     icon: '/icon.svg',
-    shortcut: '/icon.svg',
-    apple: '/icon.svg',
   },
 }
 
@@ -73,6 +71,10 @@ export default function RootLayout({
                   <Link href="/webrtc-demo" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="WebRTC Demo">
                     <Zap className="h-5 w-5" />
                     <span className="hidden lg:inline font-medium text-sm">WebRTC</span>
+                  </Link>
+                  <Link href="/status" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="System Status">
+                    <Activity className="h-5 w-5" />
+                    <span className="hidden lg:inline font-medium text-sm">Status</span>
                   </Link>
                 </nav>
                 <ThemeSwitcher />
