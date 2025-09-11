@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useWebRTCPeer, isHostPeer } from '../hooks/useWebRTCPeer';
+import { DEFAULT_ICE_SERVERS } from '../hooks/webrtcUtils';
 
 export default function WebRTCDemoPage() {
   const [hostIdInput, setHostIdInput] = useState('');
@@ -14,10 +15,13 @@ export default function WebRTCDemoPage() {
     publicIP?: string;
     userAgent: string;
   }>({ userAgent: '' });
+  // Using STUN-only configuration for simplicity
+  const iceServers = useMemo(() => DEFAULT_ICE_SERVERS, []);
 
   const hostPeer = useWebRTCPeer({
     role: 'host',
     debug: true,
+    iceServers,
     onConnectionStateChange: (s) => setMessages((m) => [...m, `Host PC state: ${s}`]),
     onChannelOpen: () => setMessages((m) => [...m, 'Host data channel open']),
     onChannelClose: () => setMessages((m) => [...m, 'Host data channel closed']),
@@ -28,6 +32,7 @@ export default function WebRTCDemoPage() {
     role: 'client',
     hostId: hostIdInput || undefined,
     debug: true,
+    iceServers,
     onConnectionStateChange: (s) => setMessages((m) => [...m, `Client PC state: ${s}`]),
     onChannelOpen: () => setMessages((m) => [...m, 'Client data channel open']),
     onChannelClose: () => setMessages((m) => [...m, 'Client data channel closed']),
@@ -39,6 +44,9 @@ export default function WebRTCDemoPage() {
     if (d instanceof ArrayBuffer) return `ArrayBuffer(${d.byteLength})`;
     return `Blob(${(d as Blob).size})`;
   }
+
+  // TODO: Add TURN server testing function when TURN servers are needed
+  // This would test TURN server connectivity and relay candidate generation
 
   // Detect local IP address
   useEffect(() => {
@@ -228,9 +236,16 @@ export default function WebRTCDemoPage() {
               </span></div>
               <div>Browser: <span className="text-foreground">{connectionInfo.userAgent.includes('Chrome') ? 'Chrome' : 'Other'}</span></div>
               <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
-                <div className="text-blue-800 dark:text-blue-200 font-medium">🔄 TURN Servers Enabled</div>
+                <div className="text-blue-800 dark:text-blue-200 font-medium">🌐 STUN-Only Configuration</div>
                 <div className="text-blue-700 dark:text-blue-300 text-xs mt-1">
-                  Using free TURN servers for relay connections. Check console for connection details.
+                  Using reliable STUN servers for NAT traversal. Most connections work fine with STUN-only.
+                </div>
+                <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+                  <div className="text-yellow-800 dark:text-yellow-200 font-medium text-xs">💡 TURN Servers for Production</div>
+                  <div className="text-yellow-700 dark:text-yellow-300 text-xs mt-1">
+                    For restrictive networks (corporate firewalls), consider adding TURN servers. 
+                    Commercial options: Twilio, Xirsys, or self-hosted CoTURN.
+                  </div>
                 </div>
               </div>
               {(connectionInfo.publicIP && connectionInfo.publicIP !== 'Unable to detect') && (

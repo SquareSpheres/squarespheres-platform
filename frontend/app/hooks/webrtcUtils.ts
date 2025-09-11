@@ -109,10 +109,9 @@ export function createPeerConnection(config: PeerConnectionConfig): RTCPeerConne
     iceCandidatePoolSize: 0, // Set to 0 for all browsers to prevent overwhelming signaling
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
-    ...(config.isChrome && {
-      iceTransportPolicy: 'all',
-      // Remove sdpSemantics as it's deprecated and can cause issues
-    }),
+    // Always use 'all' to ensure TURN servers are used when available
+    // TODO: When TURN servers are added, this will automatically use them for restrictive networks
+    iceTransportPolicy: 'all',
   };
 
   const pc = new RTCPeerConnection(pcConfig);
@@ -124,24 +123,22 @@ export function createPeerConnection(config: PeerConnectionConfig): RTCPeerConne
       bundlePolicy: pcConfig.bundlePolicy,
       rtcpMuxPolicy: pcConfig.rtcpMuxPolicy,
       iceTransportPolicy: pcConfig.iceTransportPolicy,
-      // sdpSemantics: pcConfig.sdpSemantics, // Commented out as it's not in RTCConfiguration type
       isChrome: config.isChrome,
     });
 
-    // Log TURN server usage
+    // Log ICE server configuration
+    const stunServers = pcConfig.iceServers?.filter(server =>
+      server.urls && typeof server.urls === 'string' && server.urls.startsWith('stun:')
+    ) || [];
     const turnServers = pcConfig.iceServers?.filter(server =>
       server.urls && typeof server.urls === 'string' && server.urls.startsWith('turn:')
     ) || [];
+    
+    console.log(`[WebRTC Utils] STUN servers configured: ${stunServers.length} server(s)`);
     if (turnServers.length > 0) {
       console.log(`[WebRTC Utils] TURN servers configured: ${turnServers.length} server(s)`);
-      turnServers.forEach((server, index) => {
-        console.log(`[WebRTC Utils] TURN ${index + 1}: ${server.urls}`);
-      });
-    }
-
-    // Add Chrome-specific debugging
-    if (config.isChrome) {
-      console.log('[WebRTC Utils] Chrome-specific config applied');
+    } else {
+      console.log('[WebRTC Utils] ℹ️ Using STUN-only configuration - TURN servers can be added for restrictive networks');
     }
   }
 
@@ -236,52 +233,41 @@ export function isLocalhost(): boolean {
 }
 
 export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
-  // Primary STUN servers
+  // Reliable STUN servers for NAT traversal
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:global.stun.twilio.com:3478' },
-  // Additional STUN servers for better connectivity
   { urls: 'stun:stun.cloudflare.com:3478' },
   { urls: 'stun:stun.services.mozilla.com:3478' },
-
-  // Free TURN servers for testing (use multiple for redundancy)
-  // Note: These are public test servers with rate limits - use commercial TURN for production
-  // More info: https://www.metered.ca/tools/openrelay/
-  {
-    urls: 'turn:openrelay.metered.ca:80',
-    username: 'openrelayproject',
-    credential: 'openrelayproject'
-  },
-  {
-    urls: 'turn:openrelay.metered.ca:443',
-    username: 'openrelayproject',
-    credential: 'openrelayproject'
-  },
-  {
-    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-    username: 'openrelayproject',
-    credential: 'openrelayproject'
-  },
-
-  // Alternative free TURN server (may have different availability)
-  // Uncomment if openrelay has issues:
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  
+  // TODO: Add TURN servers for production use when needed
+  // TURN servers are required for connections in restrictive networks (corporate firewalls, etc.)
+  // Consider using commercial TURN services like Twilio, Xirsys, or self-hosted CoTURN
+  // Example TURN server configuration:
   // {
-  //   urls: 'turn:turn.anyfirewall.com:443?transport=tcp',
-  //   username: 'webrtc',
-  //   credential: 'webrtc'
-  // },
+  //   urls: 'turn:your-turn-server.com:3478',
+  //   username: 'your-username',
+  //   credential: 'your-password'
+  // }
 ];
 
 export function createEnhancedIceServers(customServers?: RTCIceServer[]): RTCIceServer[] {
   const baseServers = customServers || DEFAULT_ICE_SERVERS;
 
-  // Add TURN servers for production if needed
+  // TODO: Add TURN servers for production use when needed
+  // TURN servers are required for connections in restrictive networks (corporate firewalls, etc.)
+  // Consider using commercial TURN services like Twilio, Xirsys, or self-hosted CoTURN
   if (!isLocalhost()) {
-    // You can add TURN server URLs here for production
     // Example: baseServers.push({ urls: 'turn:your-turn-server.com:3478', username: 'user', credential: 'pass' });
   }
 
   return baseServers;
 }
+
+// TODO: Add TURN server validation function when TURN servers are needed
+// This function would test TURN server connectivity and relay candidate generation
+// For now, we're using STUN-only configuration for simplicity
 
 export interface SignalingHandlers {
   onOffer: (sdp: RTCSessionDescriptionInit, message: SignalingMessage) => Promise<void>;
@@ -333,18 +319,33 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
       if (candidate) {
         if (debug) {
           const candidateType = candidate.candidate?.split(' ')[7] || 'unknown';
+          const isHost = candidateType === 'host';
+          const isSrflx = candidateType === 'srflx';
           const isRelay = candidateType === 'relay';
+
+          let connectionType = '🔗 DIRECT';
+          if (isRelay) {
+            connectionType = '🔄 RELAY (TURN)';
+          } else if (isHost) {
+            connectionType = '🏠 HOST (Local)';
+          } else if (isSrflx) {
+            connectionType = '🌐 SRFLX (STUN)';
+          }
 
           console.log(`${prefix} ICE candidate:`, {
             candidate: candidate.candidate,
             sdpMid: candidate.sdpMid,
             sdpMLineIndex: candidate.sdpMLineIndex,
             type: candidateType,
-            connectionType: isRelay ? '🔄 RELAY (TURN)' : '🔗 DIRECT'
+            connectionType
           });
 
           if (isRelay) {
-            console.log(`${prefix} Using TURN relay connection - this ensures connectivity in restrictive networks`);
+            console.log(`${prefix} ✅ TURN relay candidate - works in restrictive networks`);
+          } else if (isSrflx) {
+            console.log(`${prefix} 📡 STUN reflexive candidate - direct connection through NAT`);
+          } else if (isHost) {
+            console.log(`${prefix} 🏠 Host candidate - local network connection`);
           }
         }
         sendSignal({ kind: 'webrtc-ice', candidate }, clientId);
@@ -372,12 +373,7 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
       if (state === 'failed') {
         if (debug) {
           console.warn(`${prefix} ICE connection failed`);
-          console.log(`${prefix} ICE failure stats:`, {
-            hasRemoteDescription: !!pc.remoteDescription,
-            signalingState: pc.signalingState,
-            iceGatheringState: pc.iceGatheringState,
-            connectionState: pc.connectionState
-          });
+          logIceConnectionDiagnostics(pc, prefix, debug);
         }
         // For Chrome, attempt ICE restart on failure
         if (isChrome && pc.remoteDescription) {
@@ -392,11 +388,7 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
       } else if (state === 'disconnected') {
         if (debug) {
           console.warn(`${prefix} ICE connection disconnected, waiting for reconnection...`);
-          console.log(`${prefix} Disconnect stats:`, {
-            hasRemoteDescription: !!pc.remoteDescription,
-            signalingState: pc.signalingState,
-            iceGatheringState: pc.iceGatheringState
-          });
+          logIceConnectionDiagnostics(pc, prefix, debug);
         }
         // For Chrome, attempt ICE restart after a short delay on disconnect
         if (isChrome && pc.remoteDescription) {
@@ -415,7 +407,10 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
           }, 2000); // Reduced from 3000ms to 2000ms for faster recovery
         }
       } else if (state === 'connected') {
-        if (debug) console.log(`${prefix} ICE connection established!`);
+        if (debug) {
+          console.log(`${prefix} ICE connection established!`);
+          logIceConnectionDiagnostics(pc, prefix, debug);
+        }
       }
     },
   };
@@ -564,4 +559,40 @@ export function createSignalingMessageHandler(
       }
     }
   };
+}
+
+export function logIceConnectionDiagnostics(pc: RTCPeerConnection, prefix: string, debug = false): void {
+  if (!debug) return;
+
+  console.log(`${prefix} ICE Connection Diagnostics:`, {
+    iceConnectionState: pc.iceConnectionState,
+    iceGatheringState: pc.iceGatheringState,
+    connectionState: pc.connectionState,
+    signalingState: pc.signalingState,
+    hasLocalDescription: !!pc.localDescription,
+    hasRemoteDescription: !!pc.remoteDescription,
+    localDescriptionType: pc.localDescription?.type,
+    remoteDescriptionType: pc.remoteDescription?.type,
+  });
+
+  // Check ICE candidate types
+  if (pc.localDescription) {
+    const sdp = pc.localDescription.sdp;
+    const relayCandidates = sdp.match(/candidate:.*typ relay/g) || [];
+    const hostCandidates = sdp.match(/candidate:.*typ host/g) || [];
+    const srflxCandidates = sdp.match(/candidate:.*typ srflx/g) || [];
+
+    console.log(`${prefix} ICE Candidate Summary:`, {
+      relay: relayCandidates.length,
+      host: hostCandidates.length,
+      srflx: srflxCandidates.length,
+      total: relayCandidates.length + hostCandidates.length + srflxCandidates.length
+    });
+
+    if (relayCandidates.length === 0) {
+      console.log(`${prefix} ℹ️ Using STUN-only configuration - TURN servers can be added for restrictive networks`);
+    } else {
+      console.log(`${prefix} ✅ Found ${relayCandidates.length} TURN relay candidate(s) - works in restrictive networks`);
+    }
+  }
 }
