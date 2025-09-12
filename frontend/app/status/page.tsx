@@ -40,9 +40,17 @@ async function checkSignalingServer(): Promise<HealthStatus['services']['signali
     const baseUrl = signalingUrl.replace('ws://', 'http://').replace('wss://', 'https://').replace(/\/ws$/, '')
     const httpUrl = baseUrl + '/health'
     
+    console.log('🔍 Health check details:')
+    console.log('  Original signaling URL:', signalingUrl)
+    console.log('  Base URL after conversion:', baseUrl)
+    console.log('  Final health URL:', httpUrl)
+    console.log('  Environment:', process.env.NODE_ENV)
+    console.log('  Vercel URL:', process.env.VERCEL_URL)
+    
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
     
+    console.log('🚀 Making request to signaling server...')
     const response = await fetch(httpUrl, {
       method: 'GET',
       signal: controller.signal,
@@ -51,20 +59,28 @@ async function checkSignalingServer(): Promise<HealthStatus['services']['signali
       },
     })
     
+    console.log('📡 Response received:')
+    console.log('  Status:', response.status)
+    console.log('  Status Text:', response.statusText)
+    console.log('  Headers:', Object.fromEntries(response.headers.entries()))
+    
     clearTimeout(timeoutId)
     const responseTime = Date.now() - startTime
     
     if (response.ok) {
       const responseText = await response.text()
+      console.log('✅ Success! Response body:', responseText)
       
       // Check if the response is the expected "OK"
       if (responseText.trim() === 'OK') {
+        console.log('✅ Health check passed!')
         return {
           status: 'online',
           responseTime,
           lastChecked: new Date().toISOString(),
         }
       } else {
+        console.log('⚠️ Unexpected response content')
         return {
           status: 'error',
           responseTime,
@@ -73,6 +89,16 @@ async function checkSignalingServer(): Promise<HealthStatus['services']['signali
         }
       }
     } else {
+      console.log('❌ Request failed with status:', response.status)
+      
+      // Try to get response body for more details
+      try {
+        const errorBody = await response.text()
+        console.log('❌ Error response body:', errorBody)
+      } catch (e) {
+        console.log('❌ Could not read error response body')
+      }
+      
       // Handle CORS/403 errors specially for external signaling server
       if (response.status === 403) {
         return {
@@ -92,8 +118,10 @@ async function checkSignalingServer(): Promise<HealthStatus['services']['signali
     }
   } catch (error) {
     const responseTime = Date.now() - startTime
+    console.log('💥 Exception during health check:', error)
     
     if (error instanceof Error && error.name === 'AbortError') {
+      console.log('⏰ Request timed out after 5 seconds')
       return {
         status: 'offline',
         responseTime,
@@ -102,6 +130,7 @@ async function checkSignalingServer(): Promise<HealthStatus['services']['signali
       }
     }
     
+    console.log('💥 Unexpected error:', error instanceof Error ? error.message : 'Unknown error')
     return {
       status: 'offline',
       responseTime,
