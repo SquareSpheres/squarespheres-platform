@@ -26,11 +26,13 @@ interface HealthStatus {
 
 async function checkSignalingServer(): Promise<HealthStatus['services']['signalingServer']> {
   const startTime = Date.now()
-  const signalingUrl = process.env.NEXT_PUBLIC_SIGNAL_SERVER || 'ws://localhost:5052'
+  const signalingUrl = process.env.NEXT_PUBLIC_SIGNAL_SERVER || 'ws://localhost:5052/ws'
   
   try {
     // Convert WebSocket URL to HTTP URL for health endpoint
-    const httpUrl = signalingUrl.replace('ws://', 'http://').replace('wss://', 'https://') + '/health'
+    // Remove /ws suffix if present before adding /health
+    const baseUrl = signalingUrl.replace('ws://', 'http://').replace('wss://', 'https://').replace(/\/ws$/, '')
+    const httpUrl = baseUrl + '/health'
     
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
