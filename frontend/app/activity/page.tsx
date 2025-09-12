@@ -74,7 +74,7 @@ export default function ActivityPage() {
   const { getToken, isSignedIn, isLoaded } = useAuth()
   
   const { data: activity, error, isLoading, mutate } = useSWR<UserActivity>(
-    isSignedIn && isLoaded ? '/api/user-activity' : null,
+    isSignedIn && isLoaded ? '/api/user-activity/' : null,
     async (url: string) => {
       const token = await getToken()
       return fetcher(url, token || '')
@@ -91,7 +91,7 @@ export default function ActivityPage() {
     
     try {
       const token = await getToken()
-      await fetch('/api/user-activity', {
+      await fetch('/api/user-activity/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
