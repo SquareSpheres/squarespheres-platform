@@ -6,7 +6,7 @@ import './globals.css'
 import Link from 'next/link'
 import React from 'react'
 import StaticBackground from './StaticBackground'
-import { Share2, ArrowUpCircle, ArrowDownCircle, Wifi, Zap, Activity, LogIn } from 'lucide-react'
+import { Share2, ArrowUpCircle, ArrowDownCircle, Wifi, Zap, Activity, LogIn, BarChart3 } from 'lucide-react'
 import { ThemeProvider } from './Provider'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
 import {
@@ -84,6 +84,10 @@ export default function RootLayout({
                     <Link href="/status" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="System Status">
                       <Activity className="h-5 w-5" />
                       <span className="hidden lg:inline font-medium text-sm">Status</span>
+                    </Link>
+                    <Link href="/activity" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Activity Dashboard">
+                      <BarChart3 className="h-5 w-5" />
+                      <span className="hidden lg:inline font-medium text-sm">Activity</span>
                     </Link>
                   </SignedIn>
                 </nav>
