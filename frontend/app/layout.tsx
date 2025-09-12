@@ -80,10 +80,12 @@ export default function RootLayout({
                     <Zap className="h-5 w-5" />
                     <span className="hidden lg:inline font-medium text-sm">WebRTC</span>
                   </Link>
-                  <Link href="/status" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="System Status">
-                    <Activity className="h-5 w-5" />
-                    <span className="hidden lg:inline font-medium text-sm">Status</span>
-                  </Link>
+                  <SignedIn>
+                    <Link href="/status" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="System Status">
+                      <Activity className="h-5 w-5" />
+                      <span className="hidden lg:inline font-medium text-sm">Status</span>
+                    </Link>
+                  </SignedIn>
                 </nav>
                 <div className="flex items-center space-x-2">
                   <SignedOut>

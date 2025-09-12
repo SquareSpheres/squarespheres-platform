@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import { auth } from '@clerk/nextjs/server'
 
 export const metadata: Metadata = {
   title: 'System Status - SquareSpheres Share',
@@ -141,6 +142,10 @@ function formatTimestamp(timestamp: string): string {
 }
 
 export default async function StatusPage() {
+  const { isAuthenticated, redirectToSignIn } = await auth()
+  
+  if (!isAuthenticated) return redirectToSignIn()
+
   const healthStatus = await getHealthStatus()
   
   return (
