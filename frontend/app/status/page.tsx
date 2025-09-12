@@ -73,6 +73,16 @@ async function checkSignalingServer(): Promise<HealthStatus['services']['signali
         }
       }
     } else {
+      // Handle CORS/403 errors specially for external signaling server
+      if (response.status === 403) {
+        return {
+          status: 'error',
+          responseTime,
+          lastChecked: new Date().toISOString(),
+          error: `CORS/Access denied (${response.status}): Server may be protected`,
+        }
+      }
+      
       return {
         status: 'error',
         responseTime,
