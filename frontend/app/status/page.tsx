@@ -31,7 +31,10 @@ interface HealthStatus {
 
 async function getHealthStatus(): Promise<HealthStatus> {
   try {
-    const response = await fetch(`${process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : 'http://localhost:3000'}/api/health`, {
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : 'http://localhost:3000'
+    const response = await fetch(`${baseUrl}/api/health`, {
       cache: 'no-store', // Always fetch fresh data for status page
     })
     
