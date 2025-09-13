@@ -13,7 +13,7 @@
 
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { UserButton } from '@clerk/nextjs'
 import { useSearchParams } from 'next/navigation'
@@ -97,9 +97,7 @@ function checkAdminAccess(user: any): boolean {
   return true // SKELETON: Change to `isAdmin` when ready to enforce admin-only access
 }
 
-export default function AdminPage() {
-  const { isLoaded } = useAuth()
-  const { user } = useUser()
+function AdminContent() {
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<'activity' | 'health'>('activity')
 
@@ -110,17 +108,6 @@ export default function AdminPage() {
       setActiveTab(tabParam)
     }
   }, [searchParams])
-
-  // Show loading while Clerk loads user data
-  if (!isLoaded) {
-    return <LoadingSkeleton />
-  }
-
-  // Future admin access check - skeleton implementation
-  // Note: Basic authentication is handled by middleware
-  if (!checkAdminAccess(user)) {
-    return <AdminAccessSkeleton />
-  }
 
   return (
     <div className="w-full max-w-4xl mx-auto p-6">
@@ -169,5 +156,27 @@ export default function AdminPage() {
         {activeTab === 'health' && <HealthTab />}
       </div>
     </div>
+  )
+}
+
+export default function AdminPage() {
+  const { isLoaded } = useAuth()
+  const { user } = useUser()
+
+  // Show loading while Clerk loads user data
+  if (!isLoaded) {
+    return <LoadingSkeleton />
+  }
+
+  // Future admin access check - skeleton implementation
+  // Note: Basic authentication is handled by middleware
+  if (!checkAdminAccess(user)) {
+    return <AdminAccessSkeleton />
+  }
+
+  return (
+    <Suspense fallback={<LoadingSkeleton />}>
+      <AdminContent />
+    </Suspense>
   )
 }
