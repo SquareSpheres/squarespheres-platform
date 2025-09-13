@@ -10,6 +10,8 @@ export default function WebRTCDemoPage() {
   const [activeTab, setActiveTab] = useState<'host' | 'client'>('host');
   const [outgoing, setOutgoing] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [isCreatingHost, setIsCreatingHost] = useState(false);
+  const [isJoiningClient, setIsJoiningClient] = useState(false);
   const [connectionInfo, setConnectionInfo] = useState<{
     localIP?: string;
     publicIP?: string;
@@ -177,22 +179,50 @@ export default function WebRTCDemoPage() {
   }, []);
 
   const createHost = async () => {
+    if (isCreatingHost) return;
+    
+    setIsCreatingHost(true);
     try {
       await hostPeer.createOrEnsureConnection();
     } catch (error) {
       console.error('[Demo] Failed to create host:', error);
       setMessages((m) => [...m, `Error creating host: ${error}`]);
+    } finally {
+      setIsCreatingHost(false);
+    }
+  };
+
+  const disconnectHost = () => {
+    try {
+      hostPeer.disconnect();
+      setMessages((m) => [...m, '✅ Host disconnected successfully']);
+    } catch (error) {
+      console.error('Error disconnecting host:', error);
+      setMessages((m) => [...m, `❌ Error disconnecting host: ${error}`]);
+    }
+  };
+
+  const disconnectClient = () => {
+    try {
+      clientPeer.disconnect();
+      setMessages((m) => [...m, '✅ Client disconnected successfully']);
+    } catch (error) {
+      console.error('Error disconnecting client:', error);
+      setMessages((m) => [...m, `❌ Error disconnecting client: ${error}`]);
     }
   };
 
   const joinAsClient = async () => {
-    if (!hostIdInput) return;
+    if (!hostIdInput || isJoiningClient) return;
     
+    setIsJoiningClient(true);
     try {
       await clientPeer.createOrEnsureConnection();
     } catch (error) {
       console.error('[Demo] Failed to join as client:', error);
       setMessages((m) => [...m, `Error joining as client: ${error}`]);
+    } finally {
+      setIsJoiningClient(false);
     }
   };
 
@@ -275,7 +305,31 @@ export default function WebRTCDemoPage() {
           <div className="p-6 space-y-4">
             {activeTab === 'host' ? (
               <div className="space-y-3">
-                <button onClick={createHost} className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90">Create Host</button>
+                {hostPeer.peerId ? (
+                  <button 
+                    onClick={disconnectHost}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Disconnect Host
+                  </button>
+                ) : (
+                  <button 
+                    onClick={createHost} 
+                    disabled={isCreatingHost}
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isCreatingHost && (
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    )}
+                    {isCreatingHost ? 'Creating...' : 'Create Host'}
+                  </button>
+                )}
                 <div className="text-sm text-muted-foreground">Host ID: <span className="font-mono text-foreground">{hostPeer.peerId || 'n/a'}</span></div>
                 
                 {isHostPeer(hostPeer) && hostPeer.connectedClients && hostPeer.connectedClients.length > 0 && (
@@ -354,8 +408,34 @@ export default function WebRTCDemoPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                <input value={hostIdInput} onChange={(e)=>setHostIdInput(e.target.value)} placeholder="Enter Host ID" className="px-3 py-2 border border-border rounded w-full text-foreground bg-background" />
-                <button onClick={joinAsClient} disabled={!hostIdInput} className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50">Join Host</button>
+                {clientPeer.peerId ? (
+                  <button 
+                    onClick={disconnectClient}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Disconnect Client
+                  </button>
+                ) : (
+                  <>
+                    <input value={hostIdInput} onChange={(e)=>setHostIdInput(e.target.value)} placeholder="Enter Host ID" className="px-3 py-2 border border-border rounded w-full text-foreground bg-background" />
+                    <button 
+                      onClick={joinAsClient} 
+                      disabled={!hostIdInput || isJoiningClient} 
+                      className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isJoiningClient && (
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      )}
+                      {isJoiningClient ? 'Joining...' : 'Join Host'}
+                    </button>
+                  </>
+                )}
                 <div className="text-sm text-muted-foreground">Client ID: <span className="font-mono text-foreground">{clientPeer.peerId || 'n/a'}</span></div>
               </div>
             )}

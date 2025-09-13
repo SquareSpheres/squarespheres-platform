@@ -26,6 +26,7 @@ export interface WebRTCHostPeerApi {
   send: (data: string | ArrayBuffer | Blob, clientId?: string) => void;
   createOrEnsureConnection: () => Promise<void>;
   close: () => void;
+  disconnect: () => void;
   disconnectClient: (clientId: string) => void;
   role: 'host';
   peerId?: string;
@@ -295,6 +296,12 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     setClientConnections(new Map());
   }, []);
 
+  const disconnect = useCallback(() => {
+    close();
+    host.disconnect();
+    if (debug) console.log('[WebRTC Host] Fully disconnected - WebRTC and signaling');
+  }, [close, host, debug]);
+
   useEffect(() => () => close(), [close]);
 
   return {
@@ -303,6 +310,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     send,
     createOrEnsureConnection,
     close,
+    disconnect,
     disconnectClient,
     role: 'host' as const,
     peerId: host.hostId,

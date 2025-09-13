@@ -177,6 +177,7 @@ function useWebSocketConnection(config: SignalingClientConfig) {
       wsRef.current.close();
       wsRef.current = null;
     }
+    setIsConnected(false);
   }, []);
 
   const sendMessage = useCallback((message: SignalingMessage) => {
@@ -288,7 +289,13 @@ export function useSignalHost(config: SignalingClientConfig = {}): SignalHost {
   }, [config]);
 
   const enhancedConfig = { ...config, onMessage: handleMessage };
-  const { connect, disconnect, sendMessage, request, sendRequest, isConnected } = useWebSocketConnection(enhancedConfig);
+  const { connect, disconnect: baseDisconnect, sendMessage, request, sendRequest, isConnected } = useWebSocketConnection(enhancedConfig);
+
+  const disconnect = useCallback(() => {
+    baseDisconnect();
+    setHostId(undefined);
+    setConnectedClients([]);
+  }, [baseDisconnect]);
 
   const registerHost = useCallback(async (): Promise<string> => {
     const msg: SignalingMessage = { type: 'host' };
@@ -326,8 +333,13 @@ export interface SignalClient {
 }
 
 export function useSignalClient(config: SignalingClientConfig = {}): SignalClient {
-  const { connect, disconnect, sendMessage, request, sendRequest, isConnected } = useWebSocketConnection(config);
+  const { connect, disconnect: baseDisconnect, sendMessage, request, sendRequest, isConnected } = useWebSocketConnection(config);
   const [clientId, setClientId] = useState<string>();
+
+  const disconnect = useCallback(() => {
+    baseDisconnect();
+    setClientId(undefined);
+  }, [baseDisconnect]);
 
   const joinHost = useCallback(async (hostId: string): Promise<string> => {
     const message: JoinHostRequest = { type: 'join-host', hostId };

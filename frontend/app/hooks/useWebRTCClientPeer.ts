@@ -26,6 +26,7 @@ export interface WebRTCClientPeerApi {
   send: (data: string | ArrayBuffer | Blob) => void;
   createOrEnsureConnection: () => Promise<void>;
   close: () => void;
+  disconnect: () => void;
   role: 'client';
   peerId?: string;
 }
@@ -319,6 +320,12 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
     pcRef.current = null;
   }, []);
 
+  const disconnect = useCallback(() => {
+    close();
+    client.disconnect();
+    if (debug) console.log('[WebRTC Client] Fully disconnected - WebRTC and signaling');
+  }, [close, client, debug]);
+
   useEffect(() => () => close(), [close]);
 
   return {
@@ -327,6 +334,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
     send,
     createOrEnsureConnection,
     close,
+    disconnect,
     role: 'client' as const,
     peerId: client.clientId,
   };
