@@ -67,31 +67,35 @@ const getUserActivityData = (userId: string, userAgent: string): UserActivity =>
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth()
-    
-    if (!userId) {
+    // Middleware already guarantees the request is authenticated
+    const { userId, sessionClaims } = await auth()
+
+    // Optional: add authorization (roles/permissions)
+    const role = sessionClaims?.metadata?.role
+    if (role !== "admin") {
       return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
+        { error: "Forbidden" },
+        { status: 403 }
       )
     }
 
-    const userAgent = request.headers.get('user-agent') || 'Unknown'
+    const userAgent = request.headers.get("user-agent") || "Unknown"
     const activityData = getUserActivityData(userId, userAgent)
-    
+
     return NextResponse.json(activityData, {
       headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      }
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+      },
     })
   } catch (error) {
-    console.error('Failed to fetch user activity:', error)
+    console.error("Failed to fetch user activity:", error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     )
   }
 }
+
 
 export async function POST(request: NextRequest) {
   try {
