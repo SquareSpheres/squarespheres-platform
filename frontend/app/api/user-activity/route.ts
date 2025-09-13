@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 
+interface PublicMetadata {
+  role?: string;
+}
+
 interface UserActivity {
   userId: string
   username?: string
@@ -71,7 +75,7 @@ export async function GET(request: NextRequest) {
     const { userId, sessionClaims } = await auth()
 
     // Optional: add authorization (roles/permissions)
-    const role = sessionClaims?.metadata?.role
+    const role = (sessionClaims?.metadata as PublicMetadata)?.role
     if (role !== "admin") {
       return NextResponse.json(
         { error: "Forbidden" },
@@ -80,7 +84,7 @@ export async function GET(request: NextRequest) {
     }
 
     const userAgent = request.headers.get("user-agent") || "Unknown"
-    const activityData = getUserActivityData(userId, userAgent)
+    const activityData = getUserActivityData(userId!, userAgent)
 
     return NextResponse.json(activityData, {
       headers: {
