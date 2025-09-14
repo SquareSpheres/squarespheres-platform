@@ -32,7 +32,11 @@ public class SignalRegistryTests
             {
                 Assert.That(id, Has.Length.EqualTo(6));
                 Assert.That(ids.Contains(id), Is.False);
-                Assert.That(id, Does.Match(@"^[A-Z0-9]{6}$"), "ID should only contain uppercase letters and numbers");
+                Assert.That(
+                    id,
+                    Does.Match(@"^[A-Z0-9]{6}$"),
+                    "ID should only contain uppercase letters and numbers"
+                );
             });
             ids.Add(id);
         }
@@ -49,7 +53,11 @@ public class SignalRegistryTests
             {
                 Assert.That(id, Has.Length.EqualTo(6));
                 Assert.That(ids.Contains(id), Is.False);
-                Assert.That(id, Does.Match(@"^[A-Z0-9]{6}$"), "ID should only contain uppercase letters and numbers");
+                Assert.That(
+                    id,
+                    Does.Match(@"^[A-Z0-9]{6}$"),
+                    "ID should only contain uppercase letters and numbers"
+                );
             });
             ids.Add(id);
         }
