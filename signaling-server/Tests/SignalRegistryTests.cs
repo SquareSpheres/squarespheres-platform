@@ -22,7 +22,7 @@ public class SignalRegistryTests
     private static WebSocket CreateSocket() => new TestWebSocket();
 
     [Test]
-    public async Task GenerateUniqueHostIdAsync_ReturnsUnique12CharId()
+    public async Task GenerateUniqueHostIdAsync_ReturnsUnique6CharUppercaseAlphanumericId()
     {
         var ids = new HashSet<string>();
         for (var i = 0; i < 20; i++)
@@ -30,15 +30,16 @@ public class SignalRegistryTests
             var id = await _registry.GenerateUniqueHostIdAsync();
             Assert.Multiple(() =>
             {
-                Assert.That(id, Has.Length.EqualTo(12));
+                Assert.That(id, Has.Length.EqualTo(6));
                 Assert.That(ids.Contains(id), Is.False);
+                Assert.That(id, Does.Match(@"^[A-Z0-9]{6}$"), "ID should only contain uppercase letters and numbers");
             });
             ids.Add(id);
         }
     }
 
     [Test]
-    public async Task GenerateUniqueClientIdAsync_ReturnsUnique12CharId()
+    public async Task GenerateUniqueClientIdAsync_ReturnsUnique6CharUppercaseAlphanumericId()
     {
         var ids = new HashSet<string>();
         for (var i = 0; i < 20; i++)
@@ -46,8 +47,9 @@ public class SignalRegistryTests
             var id = await _registry.GenerateUniqueClientIdAsync();
             Assert.Multiple(() =>
             {
-                Assert.That(id, Has.Length.EqualTo(12));
+                Assert.That(id, Has.Length.EqualTo(6));
                 Assert.That(ids.Contains(id), Is.False);
+                Assert.That(id, Does.Match(@"^[A-Z0-9]{6}$"), "ID should only contain uppercase letters and numbers");
             });
             ids.Add(id);
         }

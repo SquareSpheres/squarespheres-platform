@@ -12,13 +12,14 @@ public class SignalRegistry(ILogger<SignalRegistry> logger) : ISignalRegistry
     private readonly BiDirectionalConcurrentDictionary<string, WebSocket> _clients = new();
     private readonly ConcurrentDictionary<WebSocket, string> _clientHostMap = new();
     private readonly ConcurrentDictionary<WebSocket, byte> _allSockets = new();
+    private const string IdAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     public async Task<string> GenerateUniqueHostIdAsync()
     {
         string id;
         do
         {
-            id = await Nanoid.GenerateAsync(size: 12);
+            id = await Nanoid.GenerateAsync(alphabet: IdAlphabet, size: 6);
         } while (_hosts.ContainsKey(id));
         return id;
     }
@@ -28,7 +29,7 @@ public class SignalRegistry(ILogger<SignalRegistry> logger) : ISignalRegistry
         string id;
         do
         {
-            id = await Nanoid.GenerateAsync(size: 12);
+            id = await Nanoid.GenerateAsync(alphabet: IdAlphabet, size: 6);
         } while (_clients.ContainsKey(id));
         return id;
     }
