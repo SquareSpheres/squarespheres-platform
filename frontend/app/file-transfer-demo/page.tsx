@@ -114,8 +114,29 @@ export default function FileTransferDemoPage() {
   };
 
   const downloadReceivedFile = () => {
-    const fileToDownload = activeTab === 'client' ? clientFileTransfer.receivedFile : hostFileTransfer.receivedFile;
-    const fileName = activeTab === 'client' ? clientFileTransfer.receivedFileName : hostFileTransfer.receivedFileName;
+    if (activeTab === 'client') {
+      // For client, check if file was saved to disk or needs download
+      if (clientFileTransfer.receivedFileHandle) {
+        addLog(`File already saved to disk: ${clientFileTransfer.receivedFileName}`);
+        return;
+      } else if (clientFileTransfer.receivedFile) {
+        // Fallback: Download the blob
+        const url = URL.createObjectURL(clientFileTransfer.receivedFile);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = clientFileTransfer.receivedFileName || 'received_file';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        addLog(`Downloaded received file: ${clientFileTransfer.receivedFileName || 'received_file'}`);
+        return;
+      }
+    }
+    
+    // For host, download the blob
+    const fileToDownload = hostFileTransfer.receivedFile;
+    const fileName = hostFileTransfer.receivedFileName;
     
     if (!fileToDownload) return;
     
@@ -144,12 +165,15 @@ export default function FileTransferDemoPage() {
         <h1 className="text-3xl font-bold mb-6 text-foreground">File Transfer Demo</h1>
         
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-6 border border-blue-200 dark:border-blue-800">
-          <div className="text-blue-800 dark:text-blue-200 font-medium mb-2">📁 How File Transfer Works</div>
+          <div className="text-blue-800 dark:text-blue-200 font-medium mb-2">🚀 Streaming File Transfer with StreamSaver.js</div>
           <div className="text-blue-700 dark:text-blue-300 text-sm space-y-1">
-            <div>• <strong>Host:</strong> Select a file and click "Send File" to transfer to connected clients</div>
-            <div>• <strong>Client:</strong> Files are automatically received and stored in memory</div>
-            <div>• <strong>Download:</strong> Click "Download File" to save received files to your computer</div>
-            <div>• <strong>Debug:</strong> Check browser console for detailed transfer logs</div>
+            <div>• <strong>Host:</strong> Select any size file and click "Send File" - uses backpressure handling</div>
+            <div>• <strong>Client:</strong> Files streamed directly to disk using File System Access API or StreamSaver.js</div>
+            <div>• <strong>Chrome/Edge:</strong> File System Access API - user chooses save location</div>
+            <div>• <strong>Firefox/Safari:</strong> StreamSaver.js - progressive download to default location</div>
+            <div>• <strong>Large Files:</strong> Supports files of any size (10GB+ files work fine)</div>
+            <div>• <strong>No Memory Limits:</strong> Files stream directly to disk, never stored in memory</div>
+            <div>• <strong>Debug:</strong> Check browser console for detailed streaming logs</div>
           </div>
         </div>
 
@@ -326,6 +350,12 @@ export default function FileTransferDemoPage() {
                     <div className="text-green-700 dark:text-green-300 text-xs mt-1">
                       Size: {formatFileSize(clientFileTransfer.receivedFile.size)}
                     </div>
+                    <div className="text-green-700 dark:text-green-300 text-xs mt-1">
+                      {clientFileTransfer.receivedFileHandle 
+                        ? 'Location: Saved to disk (File System Access API)' 
+                        : 'Location: Saved to disk (StreamSaver.js)'
+                      }
+                    </div>
                   </div>
                 )}
                 
@@ -401,7 +431,10 @@ export default function FileTransferDemoPage() {
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Download File
+                {activeTab === 'client' 
+                  ? 'File Already Saved to Disk' 
+                  : 'Download File'
+                }
               </button>
             </div>
           </div>
