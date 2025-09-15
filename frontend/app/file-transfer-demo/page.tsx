@@ -339,17 +339,19 @@ export default function FileTransferDemoPage() {
                 </div>
 
                 <div className="text-sm text-muted-foreground">
-                  Status: {clientFileTransfer.receivedFile ? 'File received!' : 'Waiting for file...'}
+                  Status: {(clientFileTransfer.receivedFile || clientFileTransfer.receivedFileName) ? 'File received!' : 'Waiting for file...'}
                 </div>
                 
-                {clientFileTransfer.receivedFile && (
+                {(clientFileTransfer.receivedFile || clientFileTransfer.receivedFileName) && (
                   <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
                     <div className="text-green-800 dark:text-green-200 font-medium text-sm">
                       ✅ File Received: {clientFileTransfer.receivedFileName}
                     </div>
-                    <div className="text-green-700 dark:text-green-300 text-xs mt-1">
-                      Size: {formatFileSize(clientFileTransfer.receivedFile.size)}
-                    </div>
+                    {clientFileTransfer.receivedFile && (
+                      <div className="text-green-700 dark:text-green-300 text-xs mt-1">
+                        Size: {formatFileSize(clientFileTransfer.receivedFile.size)}
+                      </div>
+                    )}
                     <div className="text-green-700 dark:text-green-300 text-xs mt-1">
                       {clientFileTransfer.receivedFileHandle 
                         ? 'Location: Saved to disk (File System Access API)' 
@@ -411,19 +413,23 @@ export default function FileTransferDemoPage() {
         )}
 
         {/* Received File */}
-        {((activeTab === 'client' && clientFileTransfer.receivedFile) || (activeTab === 'host' && hostFileTransfer.receivedFile)) && (
+        {((activeTab === 'client' && (clientFileTransfer.receivedFile || clientFileTransfer.receivedFileName)) || (activeTab === 'host' && hostFileTransfer.receivedFile)) && (
           <div className="bg-card rounded-lg shadow p-6 mb-4 border">
             <h2 className="text-lg font-semibold mb-4 text-foreground">Received File</h2>
             <div className="space-y-3">
               <div className="text-sm text-foreground">
                 <strong>File:</strong> {activeTab === 'client' ? clientFileTransfer.receivedFileName : hostFileTransfer.receivedFileName}
               </div>
-              <div className="text-sm text-foreground">
-                <strong>Size:</strong> {formatFileSize((activeTab === 'client' ? clientFileTransfer.receivedFile : hostFileTransfer.receivedFile)!.size)}
-              </div>
-              <div className="text-sm text-foreground">
-                <strong>Type:</strong> {(activeTab === 'client' ? clientFileTransfer.receivedFile : hostFileTransfer.receivedFile)!.type || 'Unknown'}
-              </div>
+              {(activeTab === 'client' ? clientFileTransfer.receivedFile : hostFileTransfer.receivedFile) && (
+                <div className="text-sm text-foreground">
+                  <strong>Size:</strong> {formatFileSize((activeTab === 'client' ? clientFileTransfer.receivedFile : hostFileTransfer.receivedFile)!.size)}
+                </div>
+              )}
+              {(activeTab === 'client' ? clientFileTransfer.receivedFile : hostFileTransfer.receivedFile) && (
+                <div className="text-sm text-foreground">
+                  <strong>Type:</strong> {(activeTab === 'client' ? clientFileTransfer.receivedFile : hostFileTransfer.receivedFile)!.type || 'Unknown'}
+                </div>
+              )}
               <button
                 onClick={downloadReceivedFile}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 flex items-center gap-2"
