@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import streamSaver from 'streamsaver'
 
 export interface StreamSaverWriter {
   write: (chunk: Uint8Array) => Promise<void>
@@ -14,56 +13,73 @@ export function useStreamSaver() {
   const [isInitialized, setIsInitialized] = useState(false)
   const writerRef = useRef<WritableStreamDefaultWriter<Uint8Array> | null>(null)
   const bytesWrittenRef = useRef(0)
+  const streamSaverRef = useRef<any>(null)
 
   // Initialize StreamSaver and handle service worker control issues
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      streamSaver.mitm = '/mitm.html'
+      // Dynamic import of StreamSaver to avoid SSR issues
+      import('streamsaver').then((streamSaverModule) => {
+        const streamSaver = streamSaverModule.default
+        streamSaverRef.current = streamSaver
+        streamSaver.mitm = '/mitm.html'
       
-      // Check if service worker is properly controlling the page
-      const checkAndFixServiceWorker = async () => {
-        if (!navigator.serviceWorker) {
-          setIsInitialized(true)
-          return
+        // Register service worker first
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker
+            .register('/sw.js')
+            .then(reg => console.log('SW registered at scope:', reg.scope))
+            .catch(err => console.error('SW registration failed:', err))
         }
 
-        try {
-          const registration = await navigator.serviceWorker.getRegistration('/')
-          
-          // If we have an active service worker but it's not controlling this page
-          if (registration && registration.active && !navigator.serviceWorker.controller) {
-            console.log('Service worker exists but not controlling page, attempting to fix...')
-            
-            // Try to claim control
-            registration.active.postMessage({ type: 'CLAIM_CLIENTS' })
-            
-            // Wait briefly for controller change
-            await new Promise(resolve => {
-              const timeout = setTimeout(resolve, 1000)
-              navigator.serviceWorker.addEventListener('controllerchange', () => {
-                clearTimeout(timeout)
-                resolve(undefined)
-              }, { once: true })
-            })
-            
-            // If still not controlling, this page load is problematic but we continue
-            if (!navigator.serviceWorker.controller) {
-              console.warn('Service worker could not claim control, downloads may fail until page refresh')
-            }
+        // Check if service worker is properly controlling the page
+        const checkAndFixServiceWorker = async () => {
+          if (!navigator.serviceWorker) {
+            setIsInitialized(true)
+            return
           }
-        } catch (error) {
-          console.warn('Error checking service worker:', error)
+
+          try {
+            const registration = await navigator.serviceWorker.getRegistration('/')
+            
+            // If we have an active service worker but it's not controlling this page
+            if (registration && registration.active && !navigator.serviceWorker.controller) {
+              console.log('Service worker exists but not controlling page, attempting to fix...')
+              
+              // Try to claim control
+              registration.active.postMessage({ type: 'CLAIM_CLIENTS' })
+              
+              // Wait briefly for controller change
+              await new Promise(resolve => {
+                const timeout = setTimeout(resolve, 1000)
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                  clearTimeout(timeout)
+                  resolve(undefined)
+                }, { once: true })
+              })
+              
+              // If still not controlling, this page load is problematic but we continue
+              if (!navigator.serviceWorker.controller) {
+                console.warn('Service worker could not claim control, downloads may fail until page refresh')
+              }
+            }
+          } catch (error) {
+            console.warn('Error checking service worker:', error)
+          }
+          
+          setIsInitialized(true)
         }
         
-        setIsInitialized(true)
-      }
-      
-      checkAndFixServiceWorker()
+        checkAndFixServiceWorker()
+      }).catch(error => {
+        console.error('Failed to load StreamSaver:', error)
+        setIsInitialized(true) // Still mark as initialized to prevent blocking
+      })
     }
   }, [])
 
   const createStream = async (filename: string, size?: number): Promise<StreamSaverWriter> => {
-    if (!isInitialized) {
+    if (!isInitialized || !streamSaverRef.current) {
       throw new Error('StreamSaver not initialized')
     }
 
@@ -76,7 +92,7 @@ export function useStreamSaver() {
     // Try to create stream with automatic retry for service worker issues
     const attemptCreateStream = async (attempt: number = 1): Promise<WritableStreamDefaultWriter<Uint8Array>> => {
       try {
-        const fileStream = streamSaver.createWriteStream(filename, { size })
+        const fileStream = streamSaverRef.current.createWriteStream(filename, { size })
         const writer = fileStream.getWriter()
         return writer
       } catch (error) {

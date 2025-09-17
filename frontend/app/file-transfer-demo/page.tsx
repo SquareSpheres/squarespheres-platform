@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useFileTransfer } from '../hooks/useFileTransfer';
 import { DEFAULT_ICE_SERVERS } from '../hooks/webrtcUtils';
 
+export const dynamic = 'force-dynamic'
+
 export default function FileTransferDemoPage() {
   const [hostIdInput, setHostIdInput] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);

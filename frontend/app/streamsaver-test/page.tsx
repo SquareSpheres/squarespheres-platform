@@ -1,13 +1,15 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import streamSaver from 'streamsaver'
 import { useStreamSaver } from '../hooks/useStreamSaver'
+
+export const dynamic = 'force-dynamic'
 
 export default function StreamSaverTest() {
   const [log, setLog] = useState<string[]>([])
   const [isDownloading, setIsDownloading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const streamSaverRef = useRef<any>(null)
   
   // Hook testing
   const { createStream, isInitialized: hookInitialized, isStreamActive, getBytesWritten } = useStreamSaver()
@@ -19,20 +21,31 @@ export default function StreamSaverTest() {
   }
 
   useEffect(() => {
-    // Configure StreamSaver to use our service worker and mitm
+    // Dynamic import of StreamSaver to avoid SSR issues
     if (typeof window !== 'undefined') {
-      streamSaver.mitm = '/mitm.html'
-      setLog(prev => [...prev, `${new Date().toLocaleTimeString()}: StreamSaver configured with custom mitm.html`])
+      import('streamsaver').then((streamSaverModule) => {
+        const streamSaver = streamSaverModule.default
+        streamSaverRef.current = streamSaver
+        streamSaver.mitm = '/mitm.html'
+        addLog('StreamSaver configured with custom mitm.html')
+      }).catch(error => {
+        addLog(`Failed to load StreamSaver: ${error}`)
+      })
     }
   }, [])
 
   // Test 1: Simple text download
   const testSimpleTextDownload = async () => {
+    if (!streamSaverRef.current) {
+      addLog('❌ StreamSaver not loaded yet')
+      return
+    }
+
     addLog('Starting simple text download test...')
     setIsDownloading(true)
 
     try {
-      const fileStream = streamSaver.createWriteStream('test-simple.txt', {
+      const fileStream = streamSaverRef.current.createWriteStream('test-simple.txt', {
         size: 26
       })
       
@@ -55,6 +68,11 @@ export default function StreamSaverTest() {
 
   // Test 2: Large file simulation (chunked download)
   const testLargeFileDownload = () => {
+    if (!streamSaverRef.current) {
+      addLog('❌ StreamSaver not loaded yet')
+      return
+    }
+
     addLog('Starting large file download test...')
     setIsDownloading(true)
 
@@ -64,7 +82,7 @@ export default function StreamSaverTest() {
       const totalChunks = 5
       const totalSize = chunkSize * totalChunks
 
-      const fileStream = streamSaver.createWriteStream(fileName, {
+      const fileStream = streamSaverRef.current.createWriteStream(fileName, {
         size: totalSize
       })
 
@@ -100,6 +118,11 @@ export default function StreamSaverTest() {
 
   // Test 3: JSON data download
   const testJSONDownload = () => {
+    if (!streamSaverRef.current) {
+      addLog('❌ StreamSaver not loaded yet')
+      return
+    }
+
     addLog('Starting JSON download test...')
     setIsDownloading(true)
 
@@ -122,7 +145,7 @@ export default function StreamSaverTest() {
       const jsonString = JSON.stringify(testData, null, 2)
       const jsonBlob = new TextEncoder().encode(jsonString)
 
-      const fileStream = streamSaver.createWriteStream('test-data.json', {
+      const fileStream = streamSaverRef.current.createWriteStream('test-data.json', {
         size: jsonBlob.byteLength
       })
 
@@ -140,6 +163,11 @@ export default function StreamSaverTest() {
 
   // Test 4: Binary data download
   const testBinaryDownload = () => {
+    if (!streamSaverRef.current) {
+      addLog('❌ StreamSaver not loaded yet')
+      return
+    }
+
     addLog('Starting binary download test...')
     setIsDownloading(true)
 
@@ -152,7 +180,7 @@ export default function StreamSaverTest() {
         binaryData[i] = i % 256
       }
 
-      const fileStream = streamSaver.createWriteStream('test-binary.bin', {
+      const fileStream = streamSaverRef.current.createWriteStream('test-binary.bin', {
         size: size
       })
 
@@ -180,7 +208,7 @@ export default function StreamSaverTest() {
     setIsDownloading(true)
 
     try {
-      const fileStream = streamSaver.createWriteStream(`redownload-${file.name}`, {
+      const fileStream = streamSaverRef.current.createWriteStream(`redownload-${file.name}`, {
         size: file.size
       })
 
@@ -209,12 +237,17 @@ export default function StreamSaverTest() {
 
   // Test 6: Stream with custom headers
   const testCustomHeaders = () => {
+    if (!streamSaverRef.current) {
+      addLog('❌ StreamSaver not loaded yet')
+      return
+    }
+
     addLog('Starting custom headers test...')
     setIsDownloading(true)
 
     try {
       // StreamSaver doesn't support headers in the options - they need to be handled via the service worker
-      const fileStream = streamSaver.createWriteStream('test-headers.txt', {
+      const fileStream = streamSaverRef.current.createWriteStream('test-headers.txt', {
         size: 50
       })
 
@@ -389,16 +422,20 @@ export default function StreamSaverTest() {
       return
     }
 
-    addLog(`✅ StreamSaver version: ${streamSaver.version || 'unknown'}`)
-    addLog(`✅ ReadableStream supported: ${!!window.ReadableStream}`)
-    addLog(`✅ WritableStream supported: ${!!window.WritableStream}`)
-    addLog(`✅ Service Worker supported: ${!!navigator.serviceWorker}`)
-    addLog(`✅ MessageChannel supported: ${!!window.MessageChannel}`)
-    
-    if (streamSaver.mitm) {
-      addLog(`✅ MITM URL configured: ${streamSaver.mitm}`)
+    if (streamSaverRef.current) {
+      addLog(`✅ StreamSaver version: ${streamSaverRef.current.version || 'unknown'}`)
+      addLog(`✅ ReadableStream supported: ${!!window.ReadableStream}`)
+      addLog(`✅ WritableStream supported: ${!!window.WritableStream}`)
+      addLog(`✅ Service Worker supported: ${!!navigator.serviceWorker}`)
+      addLog(`✅ MessageChannel supported: ${!!window.MessageChannel}`)
+      
+      if (streamSaverRef.current.mitm) {
+        addLog(`✅ MITM URL configured: ${streamSaverRef.current.mitm}`)
+      } else {
+        addLog('ℹ️ Using default MITM configuration')
+      }
     } else {
-      addLog('ℹ️ Using default MITM configuration')
+      addLog('❌ StreamSaver not loaded yet')
     }
 
     // Check service worker status

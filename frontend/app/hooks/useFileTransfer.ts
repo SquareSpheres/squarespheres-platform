@@ -1,11 +1,9 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { useWebRTCHostPeer } from './useWebRTCHostPeer';
 import { useWebRTCClientPeer } from './useWebRTCClientPeer';
 import { WebRTCPeerConfig } from './webrtcTypes';
-// @ts-ignore - StreamSaver.js doesn't have TypeScript definitions
-import streamSaver from 'streamsaver';
 
 export interface FileTransferProgress {
   fileName: string;
@@ -238,6 +236,9 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   // Create logger instance
   const logger = createLogger(config.role, config.debug);
   
+  // StreamSaver ref for dynamic import
+  const streamSaverRef = useRef<any>(null);
+  
   // Streaming state
   const streamingWritersRef = useRef<Map<string, FileSystemWritableFileStream>>(new Map());
   const streamSaverWritersRef = useRef<Map<string, WritableStream>>(new Map());
@@ -256,6 +257,19 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   const retryQueueRef = useRef<Map<string, { chunkIndex: number; retryCount: number; maxRetries: number }>>(new Map());
   const MAX_RETRIES = 3;
   const RETRY_DELAY = 1000; // 1 second delay between retries
+
+  // Initialize StreamSaver dynamically to avoid SSR issues
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !streamSaverRef.current) {
+      import('streamsaver').then((streamSaverModule) => {
+        streamSaverRef.current = streamSaverModule.default;
+        streamSaverRef.current.mitm = '/mitm.html';
+        logger.log('StreamSaver loaded and configured');
+      }).catch(error => {
+        logger.error('Failed to load StreamSaver:', error);
+      });
+    }
+  }, [logger]);
 
   // Throttled progress update function with callbacks
   const updateProgressThrottled = useCallback((updateFn: (prev: FileTransferProgress | null) => FileTransferProgress | null) => {
@@ -370,7 +384,10 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
               console.log(`[FileTransfer Client] Created file handle for streaming (binary)`);
             } else {
               // Fallback to StreamSaver.js (Firefox/Safari)
-              const stream = streamSaver.createWriteStream(fileName, {
+              if (!streamSaverRef.current) {
+                throw new Error('StreamSaver not loaded yet');
+              }
+              const stream = streamSaverRef.current.createWriteStream(fileName, {
                 size: fileSize
               });
               
@@ -608,9 +625,11 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
                 
                 try {
                   // Set up StreamSaver.js
-                  streamSaver.mitm = 'https://jimmywarting.github.io/StreamSaver.js/mitm.html';
-                  
-                  const fileStream = streamSaver.createWriteStream(fileName, {
+                  if (!streamSaverRef.current) {
+                    throw new Error('StreamSaver not loaded yet');
+                  }
+
+                  const fileStream = streamSaverRef.current.createWriteStream(fileName, {
                     size: fileSize,
                     writableStrategy: {
                       highWaterMark: 64 * 1024 // 64KB buffer
