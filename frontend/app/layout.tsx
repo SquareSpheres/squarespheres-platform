@@ -6,7 +6,7 @@ import './globals.css'
 import Link from 'next/link'
 import React from 'react'
 import StaticBackground from './StaticBackground'
-import { Share2, ArrowUpCircle, ArrowDownCircle, Wifi, Zap } from 'lucide-react'
+import { Share2, ArrowUpCircle, ArrowDownCircle, Wifi, Zap, Download } from 'lucide-react'
 import { ThemeProvider } from './Provider'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
 import { ClerkThemeProvider } from "./components/ClerkThemeProvider"
@@ -73,6 +73,10 @@ export default function RootLayout({
                   <Link href="/webrtc-demo" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="WebRTC Demo">
                     <Zap className="h-5 w-5" />
                     <span className="hidden lg:inline font-medium text-sm">WebRTC</span>
+                  </Link>
+                  <Link href="/streamsaver-test" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="StreamSaver Test">
+                    <Download className="h-5 w-5" />
+                    <span className="hidden lg:inline font-medium text-sm">StreamSaver</span>
                   </Link>
                 </nav>
                 <div className="flex items-center space-x-2">

@@ -1,35 +1,86 @@
 /* global self ReadableStream Response */
 
-// Version 1.0.3 - Fix Firefox fetch handler
-console.log('Service worker script loaded');
+// Version 1.0.7 - Firefox debugging
+console.log('Service worker script loaded - Firefox debugging enabled');
+console.log('User agent:', navigator.userAgent);
 
-self.addEventListener('install', () => {
+self.addEventListener('install', (event) => {
     console.log('Service worker installing...');
+    // Always skip waiting to ensure immediate activation
     self.skipWaiting()
   })
   
   self.addEventListener('activate', event => {
     console.log('Service worker activating...');
-    event.waitUntil(self.clients.claim())
+    event.waitUntil(
+      self.clients.claim().then(() => {
+        console.log('Service worker now controlling all clients');
+      }).catch(error => {
+        console.error('Failed to claim clients during activation:', error);
+      })
+    )
   })
   
   const map = new Map()
   
+  // Debug message events
+  console.log('Setting up message handlers...');
+  
   // Test message handler
   self.addEventListener('message', (event) => {
-    console.log('Service worker received message via addEventListener:', event.data);
+    console.log('🔥 FIREFOX: Service worker received message via addEventListener:', event.data);
+    console.log('🔥 FIREFOX: Event source:', event.source);
+    console.log('🔥 FIREFOX: Event ports:', event.ports);
+    
+    // Handle CLAIM_CLIENTS message to force control of all clients
+    if (event.data && event.data.type === 'CLAIM_CLIENTS') {
+      console.log('Claiming all clients...');
+      event.waitUntil(self.clients.claim().then(() => {
+        console.log('Successfully claimed all clients');
+      }).catch(error => {
+        console.error('Failed to claim clients:', error);
+      }));
+      return;
+    }
+    
+    // Handle test messages
+    if (event.data && event.data.type === 'TEST_MESSAGE') {
+      console.log('🔥 FIREFOX: Received test message via addEventListener:', event.data.message);
+      return;
+    }
+    
+    // Firefox sometimes uses addEventListener for StreamSaver messages
+    // Handle download messages here too for Firefox compatibility
+    if (event.data && event.ports && event.ports.length > 0) {
+      console.log('🔥 FIREFOX: Processing download via addEventListener (Firefox compatibility)');
+      processDownloadRequest(event);
+    }
   });
   
-  // This should be called once per download
-  // Each event has a dataChannel that the data will be piped through
-  self.onmessage = event => {
-    console.log('Service worker received message via onmessage:', event.data);
-    // We send a heartbeat every x second to keep the
-    // service worker alive if a transferable stream is not sent
-    if (event.data === 'ping') {
-      return
-    }
+  console.log('addEventListener message handler set up');
   
+  // Firefox fallback - sometimes the message event doesn't work in dev mode
+  // Set up a polling mechanism as a backup
+  if (navigator.userAgent.toLowerCase().includes('firefox')) {
+    console.log('🔥 FIREFOX: Setting up Firefox-specific message polling fallback');
+    
+    // Check for messages via BroadcastChannel as fallback
+    try {
+      const channel = new BroadcastChannel('streamsaver-firefox-fallback');
+      channel.onmessage = (event) => {
+        console.log('🔥 FIREFOX: Received message via BroadcastChannel:', event.data);
+        if (event.data.type === 'TEST_MESSAGE') {
+          console.log('🔥 FIREFOX: Test message received via BroadcastChannel');
+        }
+      };
+      console.log('🔥 FIREFOX: BroadcastChannel fallback set up');
+    } catch (error) {
+      console.log('🔥 FIREFOX: BroadcastChannel not available:', error);
+    }
+  }
+  
+  // Extract download processing logic for reuse
+  function processDownloadRequest(event) {
     const data = event.data
     const downloadUrl = data.url || self.registration.scope + Math.random() + '/' + (typeof data === 'string' ? data : data.filename)
     const port = event.ports[0]
@@ -60,8 +111,41 @@ self.addEventListener('install', () => {
       metadata[0] = createStream(port)
     }
   
+    console.log('Storing in map - URL:', downloadUrl, 'Metadata:', metadata);
     map.set(downloadUrl, metadata)
+    console.log('Map after storing:', Array.from(map.keys()));
     port.postMessage({ download: downloadUrl })
+  }
+
+  // This should be called once per download
+  // Each event has a dataChannel that the data will be piped through
+  self.onmessage = event => {
+    console.log('Service worker received message via onmessage:', event.data);
+    // We send a heartbeat every x second to keep the
+    // service worker alive if a transferable stream is not sent
+    if (event.data === 'ping') {
+      return
+    }
+    
+    // Handle test messages and other non-download messages
+    if (event.data && typeof event.data === 'object') {
+      if (event.data.type === 'TEST_MESSAGE') {
+        console.log('Received test message:', event.data.message);
+        return
+      }
+      if (event.data.type === 'CLAIM_CLIENTS') {
+        // Already handled in addEventListener above
+        return
+      }
+    }
+    
+    // Only process actual download messages (must have ports for MessageChannel)
+    if (!event.ports || event.ports.length === 0) {
+      console.log('Ignoring message without ports:', event.data);
+      return
+    }
+
+    processDownloadRequest(event)
   }
   
   function createStream (port) {
@@ -100,8 +184,13 @@ self.addEventListener('install', () => {
   
     const hijacke = map.get(url)
     console.log('Looking for hijack for URL:', url, 'Found:', !!hijacke);
-  
-    if (!hijacke) return
+    console.log('Current map keys:', Array.from(map.keys()));
+    console.log('Map size:', map.size);
+
+    if (!hijacke) {
+      console.log('No hijack found, returning 404');
+      return
+    }
   
     const [ stream, data, port ] = hijacke
   

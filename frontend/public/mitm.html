@@ -38,28 +38,66 @@
     
     function registerWorker() {
       return navigator.serviceWorker.getRegistration('/').then(swReg => {
-        if (swReg) {
-          console.log('Found existing service worker registration');
-          return swReg;
+        if (swReg && swReg.active) {
+          console.log('Found active service worker registration');
+          scope = swReg.scope
+          sw = swReg.active
+          console.log('Using existing active service worker:', sw);
+          return sw
         }
+        
         console.log('Registering new service worker');
-        return navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        return navigator.serviceWorker.register('/sw.js', { 
+          scope: '/',
+          updateViaCache: 'none' // Prevent aggressive caching in dev mode
+        });
       }).then(swReg => {
-        const swRegTmp = swReg.installing || swReg.waiting
-    
         scope = swReg.scope
-    
-        return (sw = swReg.active) || new Promise(resolve => {
+        
+        // If already active, use it immediately
+        if (swReg.active) {
+          sw = swReg.active
+          console.log('Service worker ready:', sw);
+          return sw
+        }
+        
+        // Wait for installation and activation
+        const swToActivate = swReg.installing || swReg.waiting
+        if (!swToActivate) {
+          console.warn('No service worker installing or waiting');
+          return null
+        }
+        
+        return new Promise((resolve, reject) => {
           console.log('Waiting for service worker to activate...');
-          swRegTmp.addEventListener('statechange', fn = () => {
-            console.log('Service worker state changed to:', swRegTmp.state);
-            if (swRegTmp.state === 'activated') {
-              swRegTmp.removeEventListener('statechange', fn)
+          
+          const timeout = setTimeout(() => {
+            reject(new Error('Service worker activation timeout'))
+          }, 10000) // 10 second timeout
+          
+          const handleStateChange = () => {
+            console.log('Service worker state:', swToActivate.state);
+            if (swToActivate.state === 'activated') {
+              clearTimeout(timeout)
+              swToActivate.removeEventListener('statechange', handleStateChange)
               sw = swReg.active
-              console.log('Service worker activated:', sw);
-              resolve()
+              console.log('Service worker activated successfully:', sw);
+              resolve(sw)
+            } else if (swToActivate.state === 'redundant') {
+              clearTimeout(timeout)
+              swToActivate.removeEventListener('statechange', handleStateChange)
+              reject(new Error('Service worker became redundant'))
             }
-          })
+          }
+          
+          swToActivate.addEventListener('statechange', handleStateChange)
+          
+          // Check current state in case we missed the event
+          if (swToActivate.state === 'activated') {
+            clearTimeout(timeout)
+            sw = swReg.active
+            resolve(sw)
+          }
         })
       })
     }
@@ -133,12 +171,13 @@
       let org = origin.replace(/(^\w+:|^)\/\//, '')
     
       // set the absolute pathname to the download url.
-      // Fix: scope already includes the full URL, so we don't need to add org again
-      data.url = new URL(`${data.pathname}`, scope).toString()
+      // Use origin as base URL since scope might not be a complete URL
+      data.url = new URL(data.pathname, origin).toString()
       console.log('Generated download URL:', data.url);
     
-      if (!data.url.startsWith(scope)) {
-        throw new TypeError('[StreamSaver] bad `data.pathname`')
+      // Validate URL is within our origin (security check)
+      if (!data.url.startsWith(origin)) {
+        throw new TypeError('[StreamSaver] bad `data.pathname` - URL must be within current origin')
       }
     
       // This sends the message data as well as transferring
