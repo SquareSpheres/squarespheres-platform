@@ -167,7 +167,7 @@ export default function FileTransferDemoPage() {
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-6 border border-blue-200 dark:border-blue-800">
           <div className="text-blue-800 dark:text-blue-200 font-medium mb-2">🚀 Streaming File Transfer with StreamSaver.js</div>
           <div className="text-blue-700 dark:text-blue-300 text-sm space-y-1">
-            <div>• <strong>Host:</strong> Select any size file and click "Send File" - uses backpressure handling</div>
+            <div>• <strong>Host:</strong> Select any size file and click &quot;Send File&quot; - uses backpressure handling</div>
             <div>• <strong>Client:</strong> Files streamed directly to disk using File System Access API or StreamSaver.js</div>
             <div>• <strong>Chrome/Edge:</strong> File System Access API - user chooses save location</div>
             <div>• <strong>Firefox/Safari:</strong> StreamSaver.js - progressive download to default location</div>

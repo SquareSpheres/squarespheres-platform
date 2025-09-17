@@ -786,7 +786,7 @@ export default function StreamSaverTest() {
             <div>
               <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Test Instructions:</h4>
               <ul className="text-blue-800 dark:text-blue-200 space-y-1">
-                <li>• Start with "Check Support" to verify functionality</li>
+                <li>• Start with &quot;Check Support&quot; to verify functionality</li>
                 <li>• Downloads appear in your default downloads folder</li>
                 <li>• Large file test shows chunked streaming progress</li>
                 <li>• File re-download test works with any uploaded file</li>
@@ -806,7 +806,7 @@ export default function StreamSaverTest() {
           <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded">
             <h4 className="font-medium text-orange-900 dark:text-orange-100 mb-1">⚠️ Firefox Development Mode Known Issue:</h4>
             <p className="text-orange-800 dark:text-orange-200 text-sm">
-              Firefox service workers don't work reliably with Next.js development mode. 
+              Firefox service workers don&apos;t work reliably with Next.js development mode. 
               StreamSaver works properly in Firefox in production builds. 
               For development testing in Firefox, use Chrome or build for production.
             </p>
