@@ -48,6 +48,7 @@ export interface FileTransferApi {
 
 const CHUNK_SIZE = 16 * 1024; // 16KB chunks for small files
 const STREAM_CHUNK_SIZE = 65536; // 64KB chunks for streaming (as per WebRTC docs)
+const LARGE_FILE_THRESHOLD = 100 * 1024 * 1024; // 100MB threshold for streaming vs memory
 
 // Binary message format constants
 const MESSAGE_TYPES = {
@@ -236,13 +237,8 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   // Create logger instance
   const logger = createLogger(config.role, config.debug);
   
-  // StreamSaver ref for dynamic import
-  const streamSaverRef = useRef<any>(null);
-  
-  // Streaming state
+  // File System Access API writers for large files
   const streamingWritersRef = useRef<Map<string, FileSystemWritableFileStream>>(new Map());
-  const streamSaverWritersRef = useRef<Map<string, WritableStream>>(new Map());
-  const streamSaverWriterRefs = useRef<Map<string, WritableStreamDefaultWriter>>(new Map());
   const streamingChunksRef = useRef<Map<string, { chunks: Uint8Array[], totalChunks: number, receivedChunks: number }>>(new Map());
   const fileResolversRef = useRef<Map<string, { resolve: (blob: Blob) => void; reject: (error: Error) => void }>>(new Map());
   
@@ -258,18 +254,10 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   const MAX_RETRIES = 3;
   const RETRY_DELAY = 1000; // 1 second delay between retries
 
-  // Initialize StreamSaver dynamically to avoid SSR issues
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !streamSaverRef.current) {
-      import('streamsaver').then((streamSaverModule) => {
-        streamSaverRef.current = streamSaverModule.default;
-        streamSaverRef.current.mitm = '/mitm.html';
-        logger.log('StreamSaver loaded and configured');
-      }).catch(error => {
-        logger.error('Failed to load StreamSaver:', error);
-      });
-    }
-  }, [logger]);
+  // Check if File System Access API is supported
+  const hasFileSystemAccess = useCallback(() => {
+    return typeof window !== 'undefined' && 'showSaveFilePicker' in window;
+  }, []);
 
   // Throttled progress update function with callbacks
   const updateProgressThrottled = useCallback((updateFn: (prev: FileTransferProgress | null) => FileTransferProgress | null) => {
@@ -366,39 +354,43 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
           chunkSize: STREAM_CHUNK_SIZE
         });
         
-        // For client, set up file system access
+        // For client, set up storage based on file size and browser support
         if (config.role === 'client') {
-          try {
-            // Try File System Access API first (Chrome/Edge)
-            if ((window as any).showSaveFilePicker) {
-              const fileHandle = await (window as any).showSaveFilePicker({
-                suggestedName: fileName,
-                types: [{
-                  description: 'Files',
-                  accept: { '*/*': [] }
-                }]
-              });
-              
-              const writable = await fileHandle.createWritable();
-              streamingWritersRef.current.set(transferId, writable);
-              console.log(`[FileTransfer Client] Created file handle for streaming (binary)`);
-            } else {
-              // Fallback to StreamSaver.js (Firefox/Safari)
-              if (!streamSaverRef.current) {
-                throw new Error('StreamSaver not loaded yet');
+          const isLargeFile = fileSize >= LARGE_FILE_THRESHOLD;
+          const hasFS = hasFileSystemAccess();
+          
+          if (isLargeFile) {
+            if (hasFS) {
+              try {
+                console.log(`[FileTransfer Client] Large file detected (${Math.round(fileSize / 1024 / 1024)}MB), using File System Access API`);
+                const fileHandle = await (window as any).showSaveFilePicker({
+                  suggestedName: fileName,
+                  types: [{
+                    description: 'Files',
+                    accept: { '*/*': [] }
+                  }]
+                });
+                
+                const writable = await fileHandle.createWritable();
+                streamingWritersRef.current.set(transferId, writable);
+                console.log(`[FileTransfer Client] Created file handle for streaming large file`);
+              } catch (error) {
+                console.error(`[FileTransfer Client] User cancelled file save or error:`, error);
+                // Send error back to host
+                return;
               }
-              const stream = streamSaverRef.current.createWriteStream(fileName, {
-                size: fileSize
-              });
-              
-              streamSaverWritersRef.current.set(transferId, stream);
-              const writer = stream.getWriter();
-              streamSaverWriterRefs.current.set(transferId, writer);
-              console.log(`[FileTransfer Client] Created StreamSaver stream for streaming (binary)`);
+            } else {
+              // Warn user about memory usage
+              const sizeInMB = Math.round(fileSize / 1024 / 1024);
+              const proceed = confirm(`Large file detected (${sizeInMB}MB). This will use significant RAM as your browser doesn't support direct disk streaming. Continue?`);
+              if (!proceed) {
+                console.log(`[FileTransfer Client] User cancelled large file transfer`);
+                return;
+              }
+              console.log(`[FileTransfer Client] User accepted large file transfer to memory`);
             }
-          } catch (error) {
-            console.error(`[FileTransfer Client] Failed to create file handle:`, error);
-            // Continue with memory-based fallback
+          } else {
+            console.log(`[FileTransfer Client] Small file (${Math.round(fileSize / 1024)}KB), using memory storage`);
           }
         }
         return;
@@ -449,24 +441,16 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
             chunksArrayLength: streamingState.chunks.length
           });
           
-          // Write chunk directly to file system (client only)
+          // Write chunk directly to file system (client only, for large files)
           if (config.role === 'client') {
             const writer = streamingWritersRef.current.get(pendingMetadata.transferId);
-            const streamSaverWriter = streamSaverWriterRefs.current.get(pendingMetadata.transferId);
             
             if (writer) {
               try {
                 await writer.write(chunkUint8);
-                console.log(`[FileTransfer Client] Wrote chunk ${pendingMetadata.chunkIndex + 1} to disk (File System Access - Binary)`);
+                console.log(`[FileTransfer Client] Wrote chunk ${pendingMetadata.chunkIndex + 1} to disk (File System Access)`);
               } catch (error) {
                 console.error(`[FileTransfer Client] Failed to write chunk:`, error);
-              }
-            } else if (streamSaverWriter) {
-              try {
-                await streamSaverWriter.write(chunkUint8);
-                console.log(`[FileTransfer Client] Wrote chunk ${pendingMetadata.chunkIndex + 1} to stream (StreamSaver - Binary)`);
-              } catch (error) {
-                console.error(`[FileTransfer Client] Failed to write chunk to stream:`, error);
               }
             }
           }
@@ -511,17 +495,17 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
             
             if (config.role === 'client') {
               const writer = streamingWritersRef.current.get(pendingMetadata.transferId);
-              const streamSaverWriter = streamSaverWriterRefs.current.get(pendingMetadata.transferId);
               
               if (writer) {
                 await writer.close();
                 streamingWritersRef.current.delete(pendingMetadata.transferId);
-                console.log(`[FileTransfer Client] File saved to disk via File System Access API (Binary)`);
-              } else if (streamSaverWriter) {
-                await streamSaverWriter.close();
-                streamSaverWritersRef.current.delete(pendingMetadata.transferId);
-                streamSaverWriterRefs.current.delete(pendingMetadata.transferId);
-                console.log(`[FileTransfer Client] File saved via StreamSaver.js (Binary)`);
+                console.log(`[FileTransfer Client] File saved to disk via File System Access API`);
+              } else {
+                // For small files or unsupported browsers, create blob from chunks
+                const allChunks = streamingState.chunks.filter(chunk => chunk !== undefined);
+                const fileBlob = new Blob(allChunks);
+                setReceivedFile(fileBlob);
+                console.log(`[FileTransfer Client] File assembled in memory`);
               }
             }
             
@@ -601,56 +585,45 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
             chunkSize: STREAM_CHUNK_SIZE
           });
           
-          // For client, set up file system access
+          // For client, set up storage based on file size and browser support
           if (config.role === 'client') {
-            try {
-              // Check if File System Access API is available
-              if ('showSaveFilePicker' in window) {
-                const fileHandle = await (window as any).showSaveFilePicker({
-                  suggestedName: fileName,
-                  types: [{
-                    description: 'Files',
-                    accept: { '*/*': ['.*'] }
-                  }]
-                });
-                
-                const writable = await fileHandle.createWritable();
-                streamingWritersRef.current.set(transferId, writable);
-                setReceivedFileHandle(fileHandle);
-                
-                console.log(`[FileTransfer Client] File handle created for:`, fileName);
-              } else {
-                // Fallback: Use StreamSaver.js for progressive download
-                console.log(`[FileTransfer Client] File System Access API not available, using StreamSaver.js`);
-                
+            const isLargeFile = fileSize >= LARGE_FILE_THRESHOLD;
+            const hasFS = hasFileSystemAccess();
+            
+            if (isLargeFile) {
+              if (hasFS) {
                 try {
-                  // Set up StreamSaver.js
-                  if (!streamSaverRef.current) {
-                    throw new Error('StreamSaver not loaded yet');
-                  }
-
-                  const fileStream = streamSaverRef.current.createWriteStream(fileName, {
-                    size: fileSize,
-                    writableStrategy: {
-                      highWaterMark: 64 * 1024 // 64KB buffer
-                    }
+                  console.log(`[FileTransfer Client] Large file detected (${Math.round(fileSize / 1024 / 1024)}MB), using File System Access API`);
+                  const fileHandle = await (window as any).showSaveFilePicker({
+                    suggestedName: fileName,
+                    types: [{
+                      description: 'Files',
+                      accept: { '*/*': [] }
+                    }]
                   });
                   
-                  // Get the writer once and store it
-                  const writer = fileStream.getWriter();
-                  streamSaverWritersRef.current.set(transferId, fileStream);
-                  streamSaverWriterRefs.current.set(transferId, writer);
-                  
-                  console.log(`[FileTransfer Client] StreamSaver stream and writer created for:`, fileName);
-                } catch (streamError) {
-                  console.error(`[FileTransfer Client] Failed to create StreamSaver stream:`, streamError);
-                  // Final fallback: Store in memory
-                  console.log(`[FileTransfer Client] Using memory fallback`);
+                  const writable = await fileHandle.createWritable();
+                  streamingWritersRef.current.set(transferId, writable);
+                  setReceivedFileHandle(fileHandle);
+                  console.log(`[FileTransfer Client] Created file handle for streaming large file`);
+                } catch (error) {
+                  console.error(`[FileTransfer Client] User cancelled file save or error:`, error);
+                  setTransferProgress(prev => prev ? { ...prev, status: 'error', error: 'User cancelled file save' } : null);
+                  return;
                 }
+              } else {
+                // Warn user about memory usage
+                const sizeInMB = Math.round(fileSize / 1024 / 1024);
+                const proceed = confirm(`Large file detected (${sizeInMB}MB). This will use significant RAM as your browser doesn't support direct disk streaming. Continue?`);
+                if (!proceed) {
+                  console.log(`[FileTransfer Client] User cancelled large file transfer`);
+                  setTransferProgress(prev => prev ? { ...prev, status: 'error', error: 'User cancelled large file transfer' } : null);
+                  return;
+                }
+                console.log(`[FileTransfer Client] User accepted large file transfer to memory`);
               }
-            } catch (error) {
-              console.error(`[FileTransfer Client] Failed to create file handle:`, error);
-              setTransferProgress(prev => prev ? { ...prev, status: 'error', error: 'User cancelled file save' } : null);
+            } else {
+              console.log(`[FileTransfer Client] Small file (${Math.round(fileSize / 1024)}KB), using memory storage`);
             }
           }
         } else if (message.type === 'file-chunk') {
@@ -691,30 +664,19 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
             
             console.log(`[FileTransfer ${config.role}] About to process chunk...`);
             
-            // Write chunk directly to file system (client only)
+            // Write chunk directly to file system (client only, for large files)
             if (config.role === 'client') {
               const writer = streamingWritersRef.current.get(transferId);
-              const streamSaverWriter = streamSaverWriterRefs.current.get(transferId);
               
               if (writer) {
-                // File System Access API
                 try {
                   await writer.write(chunkUint8);
                   console.log(`[FileTransfer Client] Wrote chunk ${chunkIndex + 1} to disk (File System Access)`);
                 } catch (error) {
                   console.error(`[FileTransfer Client] Failed to write chunk:`, error);
                 }
-              } else if (streamSaverWriter) {
-                // StreamSaver.js - use the stored writer
-                try {
-                  await streamSaverWriter.write(chunkUint8);
-                  console.log(`[FileTransfer Client] Wrote chunk ${chunkIndex + 1} to stream (StreamSaver)`);
-                } catch (error) {
-                  console.error(`[FileTransfer Client] Failed to write chunk to stream:`, error);
-                }
               } else {
-                // Fallback: Store chunks in memory for later download
-                console.log(`[FileTransfer Client] No file writer, storing chunk in memory`);
+                console.log(`[FileTransfer Client] Storing chunk ${chunkIndex + 1} in memory`);
               }
             }
             
@@ -784,46 +746,28 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
               console.log(`[FileTransfer ${config.role}] All chunks received, finalizing file...`);
               
               if (config.role === 'client') {
-                // Close the file writer
                 const writer = streamingWritersRef.current.get(transferId);
-                const streamSaverWriter = streamSaverWriterRefs.current.get(transferId);
                 
                 if (writer) {
-                  // File System Access API
+                  // File System Access API - large file saved to disk
                   try {
                     await writer.close();
-                    console.log(`[FileTransfer Client] File saved to disk successfully (File System Access)`);
+                    console.log(`[FileTransfer Client] Large file saved to disk successfully (File System Access)`);
+                    streamingWritersRef.current.delete(transferId);
+                    setReceivedFileName(transferProgress?.fileName || 'received_file');
+                    setReceivedFileHandle(null); // File was saved to disk, not in memory
                   } catch (error) {
                     console.error(`[FileTransfer Client] Failed to close file:`, error);
                   }
-                  streamingWritersRef.current.delete(transferId);
-                  
-                  // Set received file state for UI
-                  setReceivedFileName(transferProgress?.fileName || 'received_file');
-                  setReceivedFileHandle(null); // File was saved to disk, not in memory
-                } else if (streamSaverWriter) {
-                  // StreamSaver.js - use the stored writer
-                  try {
-                    await streamSaverWriter.close();
-                    console.log(`[FileTransfer Client] File saved to disk successfully (StreamSaver)`);
-                  } catch (error) {
-                    console.error(`[FileTransfer Client] Failed to close stream:`, error);
-                  }
-                  streamSaverWritersRef.current.delete(transferId);
-                  streamSaverWriterRefs.current.delete(transferId);
-                  
-                  // Set received file state for UI
-                  setReceivedFileName(transferProgress?.fileName || 'received_file');
-                  setReceivedFileHandle(null); // File was saved to disk, not in memory
                 } else {
-                  // Fallback: Create blob for download
+                  // Small file or unsupported browser - create blob
                   const allChunks = streamingState.chunks.filter(chunk => chunk !== undefined);
                   const fileBlob = new Blob(allChunks);
                   setReceivedFile(fileBlob);
-                  console.log(`[FileTransfer Client] File assembled in memory for download`);
+                  console.log(`[FileTransfer Client] File assembled in memory`);
                 }
               } else {
-                // For host, create blob for display purposes only
+                // For host, create blob for display purposes only (should not happen)
                 const allChunks = streamingState.chunks.filter(chunk => chunk !== undefined);
                 const fileBlob = new Blob(allChunks);
                 setReceivedFile(fileBlob);
@@ -840,7 +784,6 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
           
           // Clean up streaming state
           const writer = streamingWritersRef.current.get(transferId);
-          const streamSaverWriter = streamSaverWriterRefs.current.get(transferId);
           
           if (writer) {
             try {
@@ -849,16 +792,6 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
               console.error('Error closing writer on error:', e);
             }
             streamingWritersRef.current.delete(transferId);
-          }
-          
-          if (streamSaverWriter) {
-            try {
-              await streamSaverWriter.close();
-            } catch (e) {
-              console.error('Error closing StreamSaver writer on error:', e);
-            }
-            streamSaverWritersRef.current.delete(transferId);
-            streamSaverWriterRefs.current.delete(transferId);
           }
           
           streamingChunksRef.current.delete(transferId);
@@ -1311,18 +1244,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       }
     });
     
-    // Close any open StreamSaver writers
-    streamSaverWriterRefs.current.forEach(async (writer, transferId) => {
-      try {
-        await writer.close();
-      } catch (error) {
-        console.error(`Error closing StreamSaver writer for ${transferId}:`, error);
-      }
-    });
-    
     streamingWritersRef.current.clear();
-    streamSaverWritersRef.current.clear();
-    streamSaverWriterRefs.current.clear();
     streamingChunksRef.current.clear();
     fileResolversRef.current.clear();
     

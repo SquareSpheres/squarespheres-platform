@@ -74,10 +74,6 @@ export default function RootLayout({
                     <Zap className="h-5 w-5" />
                     <span className="hidden lg:inline font-medium text-sm">WebRTC</span>
                   </Link>
-                  <Link href="/streamsaver-test" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="StreamSaver Test">
-                    <Download className="h-5 w-5" />
-                    <span className="hidden lg:inline font-medium text-sm">StreamSaver</span>
-                  </Link>
                 </nav>
                 <div className="flex items-center space-x-2">
                   <ThemeSwitcher />
