@@ -1,8 +1,16 @@
+using Serilog;
 using SignalingServer.Endpoints;
 using SignalingServer.Services;
 using SignalingServer.Validation;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog(
+    (context, configuration) =>
+    {
+        configuration.ReadFrom.Configuration(context.Configuration);
+    }
+);
 
 // Configure WebSocket options
 builder.Services.Configure<WebSocketOptions>(options =>

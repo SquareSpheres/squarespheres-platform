@@ -6,10 +6,12 @@ namespace SignalingServer.Endpoints;
 
 public static class WebSocketEndpoints
 {
+    private const string WebSocketPath = "/ws";
+
     public static IEndpointRouteBuilder MapWebSocketEndpoints(this IEndpointRouteBuilder app)
     {
         app.Map(
-            "/ws",
+            WebSocketPath,
             async context =>
             {
                 if (context.WebSockets.IsWebSocketRequest)
