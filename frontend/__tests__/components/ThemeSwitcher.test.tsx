@@ -2,7 +2,7 @@ import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ThemeSwitcher } from '../../app/components/ThemeSwitcher'
 
-// Mock next-themes with a more detailed implementation
+// Mock next-themes
 const mockSetTheme = jest.fn()
 const mockUseTheme = jest.fn()
 
@@ -71,5 +71,4 @@ describe('ThemeSwitcher', () => {
     
     expect(mockSetTheme).toHaveBeenCalledWith('light')
   })
-
 })

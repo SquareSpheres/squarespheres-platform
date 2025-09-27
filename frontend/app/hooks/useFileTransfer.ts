@@ -503,7 +503,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
               } else {
                 // For small files or unsupported browsers, create blob from chunks
                 const allChunks = streamingState.chunks.filter(chunk => chunk !== undefined);
-                const fileBlob = new Blob(allChunks);
+                const fileBlob = new Blob(allChunks as BlobPart[]);
                 setReceivedFile(fileBlob);
                 console.log(`[FileTransfer Client] File assembled in memory`);
               }
@@ -762,14 +762,14 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
                 } else {
                   // Small file or unsupported browser - create blob
                   const allChunks = streamingState.chunks.filter(chunk => chunk !== undefined);
-                  const fileBlob = new Blob(allChunks);
+                  const fileBlob = new Blob(allChunks as BlobPart[]);
                   setReceivedFile(fileBlob);
                   console.log(`[FileTransfer Client] File assembled in memory`);
                 }
               } else {
                 // For host, create blob for display purposes only (should not happen)
                 const allChunks = streamingState.chunks.filter(chunk => chunk !== undefined);
-                const fileBlob = new Blob(allChunks);
+                const fileBlob = new Blob(allChunks as BlobPart[]);
                 setReceivedFile(fileBlob);
               }
               
