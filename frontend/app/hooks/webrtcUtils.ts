@@ -429,8 +429,11 @@ export function setupDataChannel(dc: RTCDataChannel, config: DataChannelConfig):
   const { onOpen, onClose, onMessage, debug, role = 'client', clientId } = config;
   const prefix = role === 'host' ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ''}` : '[WebRTC Client]';
 
+  // Set binary type to ArrayBuffer for consistent binary data handling
+  dc.binaryType = 'arraybuffer';
+
   dc.onopen = () => {
-    if (debug) console.log(`${prefix} Data channel opened`);
+    if (debug) console.log(`${prefix} Data channel opened (binaryType: ${dc.binaryType})`);
     onOpen?.(dc.readyState);
   };
 

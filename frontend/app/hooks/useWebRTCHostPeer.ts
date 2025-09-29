@@ -122,6 +122,22 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
             connectionState: state,
             dataChannelState: clientConn?.dc?.readyState
           });
+          
+          // Update host's overall connection state based on client connections
+          const connectedClients = Array.from(newMap.values()).filter(conn => conn.connectionState === 'connected');
+          if (connectedClients.length > 0) {
+            setConnectionState('connected');
+          } else {
+            const connectingClients = Array.from(newMap.values()).filter(conn => conn.connectionState === 'connecting');
+            if (connectingClients.length > 0) {
+              setConnectionState('connecting');
+            } else if (newMap.size === 0) {
+              setConnectionState('new');
+            } else {
+              setConnectionState('disconnected');
+            }
+          }
+          
           return newMap;
         });
 
@@ -279,6 +295,22 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       setClientConnections(prev => {
         const newMap = new Map(prev);
         newMap.delete(clientId);
+        
+        // Update host's overall connection state based on remaining client connections
+        const connectedClients = Array.from(newMap.values()).filter(conn => conn.connectionState === 'connected');
+        if (connectedClients.length > 0) {
+          setConnectionState('connected');
+        } else {
+          const connectingClients = Array.from(newMap.values()).filter(conn => conn.connectionState === 'connecting');
+          if (connectingClients.length > 0) {
+            setConnectionState('connecting');
+          } else if (newMap.size === 0) {
+            setConnectionState('new');
+          } else {
+            setConnectionState('disconnected');
+          }
+        }
+        
         return newMap;
       });
       if (debug) console.log(`[WebRTC Host] Disconnected client ${clientId}`);
