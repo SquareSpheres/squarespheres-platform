@@ -138,7 +138,13 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                     && signalRegistry.TryGetClientId(socket, out clientId)
                 )
                 {
-                    logger.LogInformation("Client {ClientId} → Host [{HostId}]", clientId, hostId);
+                    logger.LogInformation(
+                        "Client {ClientId} → Host [{HostId}] [{MessageType}] {Payload}",
+                        clientId,
+                        hostId,
+                        msg.Type,
+                        msg.Payload.TruncateForLogging()
+                    );
 
                     var forward = new SignalMessage
                     {
@@ -167,9 +173,11 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                     if (signalRegistry.TryGetClientSocket(msg.ClientId, out var clientSocket))
                     {
                         logger.LogInformation(
-                            "Host {HostId} → Client {ClientId}",
+                            "Host {HostId} → Client {ClientId} [{MessageType}] {Payload}",
                             hostId,
-                            msg.ClientId
+                            msg.ClientId,
+                            msg.Type,
+                            msg.Payload.TruncateForLogging()
                         );
 
                         var forward = new SignalMessage
