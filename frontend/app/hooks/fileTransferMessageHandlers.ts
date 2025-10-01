@@ -18,6 +18,7 @@ interface MessageHandlerContext {
   onRequestChunks: (transferId: string, missingChunks: number[]) => void;
   onUpdateTotalChunks?: (transferId: string, actualTotalChunks: number) => void;
   hasActiveTransfer?: (transferId: string) => boolean;
+  onChunkSizeNegotiation?: (clientId: string, chunkSize: number) => void;
   dataChannel?: RTCDataChannel;
 }
 
@@ -373,6 +374,28 @@ export function useFileTransferMessageHandlers(context: MessageHandlerContext) {
         initializingTransfersRef.current.delete(binaryMessage.transferId);
         
         context.onFileError(binaryMessage.transferId, errorMessage);
+        break;
+      }
+      
+      case MESSAGE_TYPES.CHUNK_SIZE_NEGOTIATION: {
+        logger.log('Received chunk size negotiation message');
+        
+        try {
+          const negotiationData = JSON.parse(new TextDecoder().decode(binaryMessage.data));
+          const { chunkSize, deviceType } = negotiationData;
+          
+          logger.log('Chunk size negotiation received:', { chunkSize, deviceType });
+          
+          // Only hosts handle chunk size negotiation
+          if (context.role === 'host' && context.onChunkSizeNegotiation) {
+            // Extract client ID from the connection (this is a bit hacky but works)
+            const clientId = 'default'; // For now, use default client ID
+            context.onChunkSizeNegotiation(clientId, chunkSize);
+          }
+          
+        } catch (parseError) {
+          logger.error('Failed to parse chunk size negotiation:', parseError);
+        }
         break;
       }
       

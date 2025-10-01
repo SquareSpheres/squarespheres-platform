@@ -1,7 +1,7 @@
 // Mobile-friendly chunk size for WebRTC data channels
 // Research shows 16KB is safe for desktop, 8KB is better for mobile
 export const DEFAULT_CHUNK_SIZE = 8192; // 8KB chunks - mobile optimized
-export const DESKTOP_CHUNK_SIZE = 8192; // 16KB chunks - desktop optimized TODO CHANGE TO 65536
+export const DESKTOP_CHUNK_SIZE = 65536; // 16KB chunks - desktop optimized
 export const STREAM_CHUNK_SIZE = DEFAULT_CHUNK_SIZE; // Backwards compatibility
 
 // Device detection for optimal chunk sizing
@@ -44,6 +44,7 @@ export const MESSAGE_TYPES = {
   FILE_CHUNK: 0x02,
   FILE_END: 0x03,
   FILE_ERROR: 0x04,
+  CHUNK_SIZE_NEGOTIATION: 0x05,
 } as const;
 
 // Binary message header format (little-endian):

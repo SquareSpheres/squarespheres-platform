@@ -42,6 +42,9 @@ export function useFileTransferCore(
   // Device-optimized chunk size - mobile-friendly
   const FIXED_CHUNK_SIZE = getOptimalChunkSize();
   
+  // Track negotiated chunk sizes per client (for host) or global (for client)
+  const [negotiatedChunkSizes, setNegotiatedChunkSizes] = useState<Map<string, number>>(new Map());
+  
   // Log chunk size for debugging
   if (config.debug) {
     const deviceType = isMobileDevice() ? 'mobile' : 'desktop';
@@ -295,6 +298,26 @@ export function useFileTransferCore(
   const handleHasActiveTransfer = useCallback((transferId: string) => {
     return storageManager.hasActiveTransfer(transferId);
   }, [storageManager]);
+
+  // Handle chunk size negotiation
+  const handleChunkSizeNegotiation = useCallback((clientId: string, chunkSize: number) => {
+    logger.log(`Chunk size negotiation: client ${clientId} requests ${chunkSize} bytes`);
+    mobileDebug(`Chunk size negotiated: ${chunkSize} bytes for client ${clientId}`);
+    
+    setNegotiatedChunkSizes(prev => {
+      const newMap = new Map(prev);
+      newMap.set(clientId, chunkSize);
+      return newMap;
+    });
+  }, [logger]);
+
+  // Get chunk size for a specific client (host) or global (client)
+  const getChunkSizeForClient = useCallback((clientId?: string): number => {
+    if (config.role === 'host' && clientId) {
+      return negotiatedChunkSizes.get(clientId) || FIXED_CHUNK_SIZE;
+    }
+    return FIXED_CHUNK_SIZE;
+  }, [config.role, negotiatedChunkSizes, FIXED_CHUNK_SIZE]);
   
   // Message handlers
   const messageHandlers = useFileTransferMessageHandlers({
@@ -306,7 +329,8 @@ export function useFileTransferCore(
     onFileError: handleFileError,
     onRequestChunks: handleRequestChunks,
     onUpdateTotalChunks: handleUpdateTotalChunks,
-    hasActiveTransfer: handleHasActiveTransfer
+    hasActiveTransfer: handleHasActiveTransfer,
+    onChunkSizeNegotiation: handleChunkSizeNegotiation
     // dataChannel will be passed when handling messages
   });
   
@@ -316,6 +340,22 @@ export function useFileTransferCore(
     onChannelMessage: messageHandlers.handleMessage,
     onDataChannelReady: (maxMessageSize: number) => {
       logger.log(`WebRTC data channel ready, maxMessageSize: ${maxMessageSize} bytes`);
+      
+      // Client sends its preferred chunk size to host
+      if (config.role === 'client') {
+        const preferredChunkSize = getOptimalChunkSize();
+        logger.log(`Sending chunk size negotiation: ${preferredChunkSize} bytes`);
+        
+        const negotiationData = JSON.stringify({
+          chunkSize: preferredChunkSize,
+          deviceType: isMobileDevice() ? 'mobile' : 'desktop'
+        });
+        const negotiationBytes = new TextEncoder().encode(negotiationData);
+        const negotiationMessage = encodeBinaryMessage(MESSAGE_TYPES.CHUNK_SIZE_NEGOTIATION, 'negotiation', negotiationBytes);
+        
+        clientPeer.send(negotiationMessage);
+        mobileDebug(`Sent chunk size negotiation: ${preferredChunkSize} bytes`);
+      }
     },
   });
   
@@ -324,6 +364,22 @@ export function useFileTransferCore(
     onChannelMessage: messageHandlers.handleMessage,
     onDataChannelReady: (maxMessageSize: number) => {
       logger.log(`WebRTC data channel ready, maxMessageSize: ${maxMessageSize} bytes`);
+      
+      // Client sends its preferred chunk size to host
+      if (config.role === 'client') {
+        const preferredChunkSize = getOptimalChunkSize();
+        logger.log(`Sending chunk size negotiation: ${preferredChunkSize} bytes`);
+        
+        const negotiationData = JSON.stringify({
+          chunkSize: preferredChunkSize,
+          deviceType: isMobileDevice() ? 'mobile' : 'desktop'
+        });
+        const negotiationBytes = new TextEncoder().encode(negotiationData);
+        const negotiationMessage = encodeBinaryMessage(MESSAGE_TYPES.CHUNK_SIZE_NEGOTIATION, 'negotiation', negotiationBytes);
+        
+        clientPeer.send(negotiationMessage);
+        mobileDebug(`Sent chunk size negotiation: ${preferredChunkSize} bytes`);
+      }
     },
   });
 
@@ -399,8 +455,9 @@ export function useFileTransferCore(
 
     const transferId = `transfer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Use fixed chunk size
-    const totalChunks = Math.ceil(file.size / FIXED_CHUNK_SIZE);
+    // Use negotiated chunk size for this client
+    const chunkSize = getChunkSizeForClient(clientId);
+    const totalChunks = Math.ceil(file.size / chunkSize);
     
     logger.log('Starting file transfer:', {
       fileName: file.name,
@@ -437,14 +494,14 @@ export function useFileTransferCore(
       
       logger.log('Sent binary file start message with integrity checks:', { fileName: file.name, fileSize: file.size, transferId });
 
-      // Send file chunks using fixed chunk size
+      // Send file chunks using negotiated chunk size
       let bytesTransferred = 0;
       let chunkIndex = 0;
       
       while (bytesTransferred < file.size) {
-        // Calculate chunk boundaries with fixed size
+        // Calculate chunk boundaries with negotiated size
         const start = bytesTransferred;
-        const end = Math.min(start + FIXED_CHUNK_SIZE, file.size);
+        const end = Math.min(start + chunkSize, file.size);
         const actualChunkSize = end - start;
           
         // Stream read chunk from file
@@ -461,7 +518,7 @@ export function useFileTransferCore(
           totalChunks: totalChunks,
           dataLength: chunk.length,
           chunkHash: chunkHash,
-          chunkSize: FIXED_CHUNK_SIZE
+          chunkSize: chunkSize
         });
         const metadataBytes = new TextEncoder().encode(chunkMetadata);
 
@@ -485,8 +542,8 @@ export function useFileTransferCore(
         } catch (error: any) {
           // Handle WebRTC maxMessageSize errors
           if (error?.message?.includes('maxMessageSize') || error?.message?.includes('Message size')) {
-            logger.error(`WebRTC message size limit exceeded (${binaryChunkMessage.byteLength} bytes). This should not happen with fixed chunk size.`);
-            throw new Error(`Chunk size ${FIXED_CHUNK_SIZE} exceeds WebRTC data channel limit`);
+            logger.error(`WebRTC message size limit exceeded (${binaryChunkMessage.byteLength} bytes). This should not happen with negotiated chunk size.`);
+            throw new Error(`Chunk size ${chunkSize} exceeds WebRTC data channel limit`);
           } else {
             throw error; // Re-throw other errors
           }
@@ -568,7 +625,7 @@ export function useFileTransferCore(
       
       progressManager.failTransfer(errorMessage);
     }
-  }, [config.role, logger, progressManager, hostPeer, handleBackpressure, FIXED_CHUNK_SIZE]);
+  }, [config.role, logger, progressManager, hostPeer, handleBackpressure, getChunkSizeForClient]);
   
   // Cancel transfer
   const cancelTransfer = useCallback((transferId?: string) => {
@@ -674,8 +731,10 @@ export function useFileTransferCore(
     getTransferMetrics: errorManager.getMetrics,
     getActiveTransfers: errorManager.getActiveTransfers,
     
-    // Fixed chunk size
+    // Negotiated chunk size
     getCurrentChunkSize: () => FIXED_CHUNK_SIZE,
+    getChunkSizeForClient: getChunkSizeForClient,
+    negotiatedChunkSizes: negotiatedChunkSizes,
     
     // Transfer resumption
     canResumeTransfer: storageManager.canResumeTransfer,
