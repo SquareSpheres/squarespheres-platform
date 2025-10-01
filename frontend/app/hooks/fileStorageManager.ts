@@ -47,7 +47,6 @@ export function useFileStorageManager(role: 'host' | 'client', debug: boolean = 
     options: {
       fileHash?: string;
       resumeIfPossible?: boolean;
-      adaptiveChunking?: boolean;
       currentChunkSize?: number;
     } = {}
   ): Promise<{ 
@@ -144,7 +143,6 @@ export function useFileStorageManager(role: 'host' | 'client', debug: boolean = 
             transferId, fileName, fileSize, totalChunks, {
               fileHash: options.fileHash,
               chunkSize: options.currentChunkSize,
-              adaptiveChunking: options.adaptiveChunking,
               storageMethod: 'filesystem',
               fileHandle: fileHandle
             }
@@ -177,14 +175,13 @@ export function useFileStorageManager(role: 'host' | 'client', debug: boolean = 
 
     // Create or update transfer state for persistence
     if (!isResuming) {
-      const transferState = persistenceManager.createTransferState(
-        transferId, fileName, fileSize, totalChunks, {
-          fileHash: options.fileHash,
-          chunkSize: options.currentChunkSize,
-          adaptiveChunking: options.adaptiveChunking,
-          storageMethod: 'memory'
-        }
-      );
+        const transferState = persistenceManager.createTransferState(
+          transferId, fileName, fileSize, totalChunks, {
+            fileHash: options.fileHash,
+            chunkSize: options.currentChunkSize,
+            storageMethod: 'memory'
+          }
+        );
       await persistenceManager.saveTransferState(transferState);
     } else if (resumedState) {
       await persistenceManager.saveTransferState(resumedState);
@@ -202,22 +199,17 @@ export function useFileStorageManager(role: 'host' | 'client', debug: boolean = 
     const streamingState = streamingChunksRef.current.get(transferId);
     
     if (!streamingState) {
-      logger.error(`❌ No streaming state found for transfer ${transferId}. This typically means the FILE_START message was not processed properly or failed. Ignoring chunk ${chunkIndex}.`);
+      logger.error(`No streaming state found for transfer ${transferId}. This typically means the FILE_START message was not processed properly or failed. Ignoring chunk ${chunkIndex}.`);
       return false;
     }
 
     // Check if this chunk was already received
     const wasAlreadyReceived = streamingState.chunks[chunkIndex] !== undefined;
     
-    if (wasAlreadyReceived) {
-      logger.log(`⚠️ Chunk ${chunkIndex} already received, skipping duplicate`);
-      return true; // Still return true since chunk exists
-    }
-    
     // Store chunk in memory
     streamingState.chunks[chunkIndex] = chunkData;
     
-    logger.log(`📦 Stored chunk ${chunkIndex} for transfer ${transferId} (${chunkData.length} bytes) - Total received: ${streamingState.receivedChunks + 1}/${streamingState.totalChunks}`);
+    logger.log(`Stored chunk ${chunkIndex} for transfer ${transferId} (${chunkData.length} bytes)`);
     
     // Write chunk directly to file system if using streaming storage
     const writer = streamingWritersRef.current.get(transferId);
@@ -228,18 +220,20 @@ export function useFileStorageManager(role: 'host' | 'client', debug: boolean = 
         const newView = new Uint8Array(newBuffer);
         newView.set(chunkData);
         await writer.write(newView);
-        logger.log(`💾 Wrote chunk ${chunkIndex} to disk (File System Access)`);
+        logger.log(`Wrote chunk ${chunkIndex + 1} to disk (File System Access)`);
       } catch (error) {
-        logger.error('❌ Failed to write chunk to disk:', error);
+        logger.error('Failed to write chunk:', error);
         return false;
       }
     }
 
     // Increment received chunks counter and update persistence
-    streamingState.receivedChunks++;
-    
-    // Update persistence state
-    await persistenceManager.markChunkReceived(transferId, chunkIndex, chunkData.length, true);
+    if (!wasAlreadyReceived) {
+      streamingState.receivedChunks++;
+      
+      // Update persistence state
+      await persistenceManager.markChunkReceived(transferId, chunkIndex, chunkData.length, true);
+    }
 
     return true;
   }, [logger, persistenceManager]);
@@ -269,21 +263,24 @@ export function useFileStorageManager(role: 'host' | 'client', debug: boolean = 
 
     // Check for missing chunks
     const missingChunks: number[] = [];
-    const receivedChunks: number[] = [];
-    
     for (let i = 0; i < streamingState.totalChunks; i++) {
       if (streamingState.chunks[i] === undefined) {
         missingChunks.push(i);
-      } else {
-        receivedChunks.push(i);
       }
     }
 
     if (missingChunks.length > 0) {
-      logger.error(`❌ Missing chunks detected (${missingChunks.length}/${streamingState.totalChunks}):`, missingChunks);
-      logger.log(`📊 Received chunks: ${streamingState.receivedChunks}, Total expected: ${streamingState.totalChunks}`);
-      logger.log(`✅ Actually received chunks:`, receivedChunks.slice(0, 10), receivedChunks.length > 10 ? `... and ${receivedChunks.length - 10} more` : '');
-      logger.log(`❌ Missing chunks:`, missingChunks);
+      logger.error(`Missing chunks detected (${missingChunks.length}/${streamingState.totalChunks}):`, missingChunks);
+      logger.log(`Received chunks: ${streamingState.receivedChunks}, Total expected: ${streamingState.totalChunks}`);
+      
+      // Log which chunks we DO have for debugging
+      const receivedChunks: number[] = [];
+      for (let i = 0; i < streamingState.totalChunks; i++) {
+        if (streamingState.chunks[i] !== undefined) {
+          receivedChunks.push(i);
+        }
+      }
+      logger.log(`Actually received chunks:`, receivedChunks.slice(0, 10), receivedChunks.length > 10 ? `... and ${receivedChunks.length - 10} more` : '');
       
       return { isComplete: false, missingChunks };
     }

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFileTransfer } from '../hooks/useFileTransfer';
 import { DEFAULT_ICE_SERVERS } from '../hooks/webrtcUtils';
-import type { NetworkMetrics } from '../hooks/networkPerformanceMonitor';
 import type { FileTransferError } from '../hooks/errorManager';
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +16,6 @@ export default function FileTransferDemoPage() {
   // receivedFile is now managed by the hook
   const [logs, setLogs] = useState<string[]>([]);
   const [showAdvancedMetrics, setShowAdvancedMetrics] = useState(false);
-  const [networkMetrics, setNetworkMetrics] = useState<NetworkMetrics | null>(null);
   const [errorHistory, setErrorHistory] = useState<FileTransferError[]>([]);
   const [resumableTransfers, setResumableTransfers] = useState<string[]>([]);
 
@@ -74,16 +72,6 @@ export default function FileTransferDemoPage() {
   };
 
   // Update network metrics periodically
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (activeFileTransfer.getNetworkMetrics) {
-        const metrics = activeFileTransfer.getNetworkMetrics();
-        setNetworkMetrics(metrics);
-      }
-    }, 2000); // Update every 2 seconds
-
-    return () => clearInterval(interval);
-  }, [activeFileTransfer]);
 
   // Check for resumable transfers on mount
   useEffect(() => {
@@ -456,68 +444,16 @@ export default function FileTransferDemoPage() {
           
           {showAdvancedMetrics && (
             <div className="mt-4 space-y-4">
-              {/* Network Performance Metrics */}
-              {networkMetrics && (
-                <div className="bg-muted rounded-lg p-4">
-                  <h3 className="font-medium text-foreground mb-3">🌐 Network Performance</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <div className="text-muted-foreground">Network Quality</div>
-                      <div className={`font-medium ${
-                        networkMetrics.networkQuality === 'excellent' ? 'text-green-600' :
-                        networkMetrics.networkQuality === 'good' ? 'text-blue-600' :
-                        networkMetrics.networkQuality === 'fair' ? 'text-yellow-600' :
-                        'text-red-600'
-                      }`}>
-                        {networkMetrics.networkQuality.toUpperCase()}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">RTT</div>
-                      <div className="font-medium text-foreground">{networkMetrics.averageRTT.toFixed(1)}ms</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Bandwidth</div>
-                      <div className="font-medium text-foreground">{(networkMetrics.estimatedBandwidth / 1024 / 1024).toFixed(2)} MB/s</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Jitter</div>
-                      <div className="font-medium text-foreground">{networkMetrics.jitter.toFixed(1)}ms</div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {/* Adaptive Chunk Sizing */}
+              {/* Fixed Chunk Size */}
               {activeFileTransfer.getCurrentChunkSize && (
                 <div className="bg-muted rounded-lg p-4">
-                  <h3 className="font-medium text-foreground mb-3">🧠 Adaptive Chunk Sizing</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <h3 className="font-medium text-foreground mb-3">📦 Chunk Size</h3>
+                  <div className="grid grid-cols-1 gap-4 text-sm">
                     <div>
-                      <div className="text-muted-foreground">Current Chunk Size</div>
+                      <div className="text-muted-foreground">Fixed Chunk Size</div>
                       <div className="font-medium text-foreground">{(activeFileTransfer.getCurrentChunkSize() / 1024).toFixed(1)} KB</div>
                     </div>
-                    {activeFileTransfer.getAdaptationStats && (() => {
-                      const stats = activeFileTransfer.getAdaptationStats();
-                      return (
-                        <>
-                          <div>
-                            <div className="text-muted-foreground">Adaptations Made</div>
-                            <div className="font-medium text-foreground">{stats.adaptationCount}</div>
-                          </div>
-                          <div>
-                            <div className="text-muted-foreground">Trend</div>
-                            <div className={`font-medium ${
-                              stats.trending === 'increasing' ? 'text-green-600' :
-                              stats.trending === 'decreasing' ? 'text-red-600' :
-                              'text-blue-600'
-                            }`}>
-                              {stats.trending}
-                            </div>
-                          </div>
-                        </>
-                      );
-                    })()}
                   </div>
                 </div>
               )}
@@ -748,29 +684,13 @@ export default function FileTransferDemoPage() {
             <div className="space-y-2 text-sm">
               <h3 className="font-medium text-foreground mb-2">Sprint 2 Features</h3>
               
-              {/* Network Metrics */}
-              {networkMetrics && (
-                <div className="text-muted-foreground">
-                  <strong>Network Quality:</strong> {networkMetrics.networkQuality} ({networkMetrics.averageRTT.toFixed(1)}ms RTT)
-                </div>
-              )}
-              
               {/* Chunk Size */}
               {activeFileTransfer.getCurrentChunkSize && (
                 <div className="text-muted-foreground">
-                  <strong>Current Chunk Size:</strong> {(activeFileTransfer.getCurrentChunkSize() / 1024).toFixed(1)} KB
+                  <strong>Fixed Chunk Size:</strong> {(activeFileTransfer.getCurrentChunkSize() / 1024).toFixed(1)} KB
                 </div>
               )}
               
-              {/* Adaptation Stats */}
-              {activeFileTransfer.getAdaptationStats && (() => {
-                const stats = activeFileTransfer.getAdaptationStats();
-                return (
-                  <div className="text-muted-foreground">
-                    <strong>Adaptations Made:</strong> {stats.adaptationCount} (trending: {stats.trending})
-                  </div>
-                );
-              })()}
               
               {/* Transfer Metrics */}
               <div className="text-muted-foreground">

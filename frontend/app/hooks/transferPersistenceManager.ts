@@ -22,7 +22,6 @@ export interface PersistedTransferState {
   
   // Chunk information
   chunkSize: number; // Last known chunk size
-  adaptiveChunking: boolean;
   
   // Network information (for resumption optimization)
   lastNetworkQuality?: string;
@@ -55,7 +54,6 @@ interface SerializedTransferState {
   lastUpdateTime: number;
   role: 'host' | 'client';
   chunkSize: number;
-  adaptiveChunking: boolean;
   lastNetworkQuality?: string;
   lastRTT?: number;
   lastBandwidth?: number;
@@ -146,7 +144,6 @@ export function useTransferPersistenceManager(
       lastUpdateTime: state.lastUpdateTime,
       role: state.role,
       chunkSize: state.chunkSize,
-      adaptiveChunking: state.adaptiveChunking,
       lastNetworkQuality: state.lastNetworkQuality,
       lastRTT: state.lastRTT,
       lastBandwidth: state.lastBandwidth,
@@ -172,7 +169,6 @@ export function useTransferPersistenceManager(
       lastUpdateTime: serialized.lastUpdateTime,
       role: serialized.role,
       chunkSize: serialized.chunkSize,
-      adaptiveChunking: serialized.adaptiveChunking,
       lastNetworkQuality: serialized.lastNetworkQuality,
       lastRTT: serialized.lastRTT,
       lastBandwidth: serialized.lastBandwidth,
@@ -527,7 +523,6 @@ export function useTransferPersistenceManager(
     options: {
       fileHash?: string;
       chunkSize?: number;
-      adaptiveChunking?: boolean;
       storageMethod?: 'memory' | 'filesystem';
       fileHandle?: FileSystemFileHandle;
     } = {}
@@ -544,7 +539,6 @@ export function useTransferPersistenceManager(
       lastUpdateTime: Date.now(),
       role,
       chunkSize: options.chunkSize || 64 * 1024,
-      adaptiveChunking: options.adaptiveChunking || false,
       storageMethod: options.storageMethod || 'memory',
       fileHandle: options.fileHandle,
       verifiedChunks: new Set(),

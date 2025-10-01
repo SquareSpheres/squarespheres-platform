@@ -7,7 +7,6 @@ import {
   createLogger,
   verifyChunkHash
 } from './fileTransferUtils';
-import { useNetworkPerformanceMonitor } from './networkPerformanceMonitor';
 
 interface MessageHandlerContext {
   role: 'host' | 'client';
@@ -19,7 +18,6 @@ interface MessageHandlerContext {
   onRequestChunks: (transferId: string, missingChunks: number[]) => void;
   onUpdateTotalChunks?: (transferId: string, actualTotalChunks: number) => void;
   hasActiveTransfer?: (transferId: string) => boolean;
-  networkMonitor?: ReturnType<typeof useNetworkPerformanceMonitor>;
   dataChannel?: RTCDataChannel;
 }
 
@@ -34,9 +32,28 @@ export function useFileTransferMessageHandlers(context: MessageHandlerContext) {
     chunkIndex: number;
     chunkData: Uint8Array;
     metadata: any;
+    timestamp: number;
   }>>>(new Map());
+  
+  // Clean up old pending messages (older than 30 seconds)
+  const cleanupOldPendingMessages = useCallback(() => {
+    const now = Date.now();
+    const maxAge = 30000; // 30 seconds
+    
+    const entries = Array.from(pendingChunksRef.current.entries());
+    for (const [transferId, chunks] of entries) {
+      const hasOldChunks = chunks.some((chunk: any) => now - chunk.timestamp > maxAge);
+      if (hasOldChunks) {
+        logger.warn(`Cleaning up old pending messages for transfer ${transferId}`);
+        pendingChunksRef.current.delete(transferId);
+      }
+    }
+  }, [logger]);
 
   const handleBinaryMessage = useCallback(async (data: ArrayBuffer) => {
+    // Clean up old pending messages periodically
+    cleanupOldPendingMessages();
+    
     const binaryMessage = decodeBinaryMessage(data);
     if (!binaryMessage) {
       logger.error('Failed to decode binary message');
@@ -94,14 +111,21 @@ export function useFileTransferMessageHandlers(context: MessageHandlerContext) {
           // Process any chunks that arrived during initialization
           const pendingChunks = pendingChunksRef.current.get(transferId);
           if (pendingChunks && pendingChunks.length > 0) {
-            logger.log(`Processing ${pendingChunks.length} queued chunks for transfer ${transferId}`);
+            logger.log(`Processing ${pendingChunks.length} queued messages for transfer ${transferId}`);
             
-            // Sort chunks by index to process in order
+            // Sort chunks by index to process in order (FILE_END has index -1, so it goes last)
             pendingChunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
             
             for (const chunk of pendingChunks) {
-              logger.log(`Processing queued chunk ${chunk.chunkIndex} for transfer ${transferId}`);
-              await context.onFileChunk(transferId, chunk.chunkIndex, chunk.chunkData);
+              if (chunk.chunkIndex === -1) {
+                // This is a queued FILE_END message
+                logger.log(`Processing queued FILE_END for transfer ${transferId}`);
+                await context.onFileComplete(transferId);
+              } else {
+                // This is a regular chunk
+                logger.log(`Processing queued chunk ${chunk.chunkIndex} for transfer ${transferId}`);
+                await context.onFileChunk(transferId, chunk.chunkIndex, chunk.chunkData);
+              }
             }
             
             // Clear processed chunks
@@ -187,7 +211,8 @@ export function useFileTransferMessageHandlers(context: MessageHandlerContext) {
             pendingChunks.push({
               chunkIndex,
               chunkData,
-              metadata
+              metadata,
+              timestamp: Date.now()
             });
             
             return; // Don't process now, will be processed after initialization
@@ -202,7 +227,8 @@ export function useFileTransferMessageHandlers(context: MessageHandlerContext) {
             const pendingChunks = [{
               chunkIndex,
               chunkData,
-              metadata
+              metadata,
+              timestamp: Date.now()
             }];
             pendingChunksRef.current.set(binaryMessage.transferId, pendingChunks);
             
@@ -218,7 +244,7 @@ export function useFileTransferMessageHandlers(context: MessageHandlerContext) {
             return;
           }
           
-          logger.log('🔄 Processing binary chunk:', { 
+          logger.log('Processing binary chunk:', { 
             transferId: binaryMessage.transferId, 
             chunkIndex, 
             totalChunks, 
@@ -227,8 +253,6 @@ export function useFileTransferMessageHandlers(context: MessageHandlerContext) {
           });
           
           await context.onFileChunk(binaryMessage.transferId, chunkIndex, chunkData);
-          
-          logger.log(`✅ Completed processing chunk ${chunkIndex} for transfer ${binaryMessage.transferId}`);
           
         } catch (parseError) {
           logger.error('Failed to parse chunk metadata:', parseError);
@@ -253,8 +277,24 @@ export function useFileTransferMessageHandlers(context: MessageHandlerContext) {
         const hasActiveTransfer = context.hasActiveTransfer ? context.hasActiveTransfer(transferId) : false;
         
         if (!hasInitializingTransfer && !hasPendingChunks && !hasActiveTransfer) {
-          logger.warn(`FILE_END received for unknown transfer ${transferId}. This may indicate FILE_START was never received or failed.`);
-          context.onFileError(transferId, 'FILE_END received but transfer was never initialized. FILE_START may have been lost or failed.');
+          // Instead of erroring, queue the FILE_END message and wait for FILE_START
+          logger.warn(`FILE_END received for unknown transfer ${transferId}. Queueing until FILE_START arrives.`);
+          
+          // Store the FILE_END message to process after FILE_START
+          if (!pendingChunksRef.current.has(transferId)) {
+            pendingChunksRef.current.set(transferId, []);
+          }
+          
+          // Add a special marker for FILE_END
+          const pendingChunks = pendingChunksRef.current.get(transferId);
+          if (pendingChunks) {
+            pendingChunks.push({
+              chunkIndex: -1, // Special marker for FILE_END
+              chunkData: new Uint8Array(0),
+              metadata: { type: 'FILE_END', actualTotalChunks, fileSize },
+              timestamp: Date.now()
+            });
+          }
           return;
         }
         
@@ -339,7 +379,7 @@ export function useFileTransferMessageHandlers(context: MessageHandlerContext) {
       default:
         logger.warn('Unknown binary message type:', binaryMessage.type);
     }
-  }, [context, logger]);
+  }, [context, logger, cleanupOldPendingMessages]);
 
 
 
@@ -354,9 +394,8 @@ export function useFileTransferMessageHandlers(context: MessageHandlerContext) {
     if (typeof data === 'string') {
       try {
         const parsed = JSON.parse(data);
-        if (context.networkMonitor && context.dataChannel && 
-            (parsed.type === 'ping' || parsed.type === 'pong')) {
-          context.networkMonitor.handlePingMessage(parsed, context.dataChannel);
+        // Ping/pong messages are no longer handled (network monitoring removed)
+        if (parsed.type === 'ping' || parsed.type === 'pong') {
           return;
         }
       } catch {
@@ -380,7 +419,7 @@ export function useFileTransferMessageHandlers(context: MessageHandlerContext) {
     } else {
       logger.error('Unsupported message format - only binary protocol and ping/pong supported:', typeof data);
     }
-  }, [handleBinaryMessage, logger, context.networkMonitor, context.dataChannel]);
+  }, [handleBinaryMessage, logger]);
 
   return {
     handleMessage

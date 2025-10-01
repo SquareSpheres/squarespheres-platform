@@ -41,10 +41,8 @@ export interface FileTransferApi {
   getTransferMetrics: (transferId: string) => any;
   getActiveTransfers: () => any[];
 
-  // Sprint 2: Network performance and adaptive chunking
-  getNetworkMetrics: () => any;
+  // Fixed chunk size
   getCurrentChunkSize: () => number;
-  getAdaptationStats: () => any;
 
   // Sprint 2: Transfer resumption
   canResumeTransfer: (transferId: string) => Promise<boolean>;

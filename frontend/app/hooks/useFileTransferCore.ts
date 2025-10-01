@@ -8,8 +8,6 @@ import { useFileStorageManager } from './fileStorageManager';
 import { useTransferRetryManager } from './transferRetryManager';
 import { useFileTransferMessageHandlers } from './fileTransferMessageHandlers';
 import { useErrorManager, FileTransferErrorType, ErrorSeverity } from './errorManager';
-import { useNetworkPerformanceMonitor } from './networkPerformanceMonitor';
-import { useAdaptiveChunkManager } from './adaptiveChunkManager';
 import { WebRTCPeerConfig } from './webrtcTypes';
 import { getDataChannelMaxMessageSize } from './webrtcUtils';
 import { DEFAULT_CHUNK_SIZE, createLogger, MESSAGE_TYPES, encodeBinaryMessage, calculateChunkHash, calculateFileHash } from './fileTransferUtils';
@@ -34,18 +32,15 @@ export function useFileTransferCore(
   // Decomposed hooks
   const progressManager = useTransferProgress({
     onProgress: config.onProgress,
-    onComplete: config.onComplete,
+    onComplete: undefined, // We'll handle completion directly to pass the file blob
     onError: config.onError
   });
   
   const storageManager = useFileStorageManager(config.role, config.debug);
   const retryManager = useTransferRetryManager(config.role, config.debug);
   const errorManager = useErrorManager(config.role, config.debug);
-  const networkMonitor = useNetworkPerformanceMonitor(config.role, config.debug);
-  
-  // Initialize chunk manager with WebRTC data channel size limits
-  // We'll update this when the data channel becomes available
-  const chunkManager = useAdaptiveChunkManager(config.role, config.debug);
+  // Fixed chunk size - no adaptive chunking
+  const FIXED_CHUNK_SIZE = DEFAULT_CHUNK_SIZE;
   
   // Message handler callbacks
   const handleFileStart = useCallback(async (transferId: string, fileName: string, fileSize: number, fileHash?: string) => {
@@ -68,16 +63,14 @@ export function useFileTransferCore(
         );
       }
       
-      const currentChunkSize = chunkManager.getCurrentChunkSize();
-      const totalChunks = Math.ceil(fileSize / currentChunkSize);
+      const totalChunks = Math.ceil(fileSize / FIXED_CHUNK_SIZE);
       errorManager.updateMetrics(transferId, { totalChunks });
       
-      const { fileHandle, isResuming, resumedState } = await storageManager.initializeStorage(
+        const { fileHandle, isResuming, resumedState } = await storageManager.initializeStorage(
         transferId, fileName, fileSize, totalChunks, {
           fileHash,
           resumeIfPossible: true,
-          adaptiveChunking: true,
-          currentChunkSize
+          currentChunkSize: FIXED_CHUNK_SIZE
         }
       );
       
@@ -123,7 +116,7 @@ export function useFileTransferCore(
       // Clean up any partially initialized storage state to prevent orphaned chunks
       await storageManager.cleanupStorage(transferId);
     }
-  }, [logger, progressManager, storageManager, errorManager, chunkManager]);
+  }, [logger, progressManager, storageManager, errorManager, FIXED_CHUNK_SIZE]);
   
   const handleFileComplete = useCallback(async (transferId: string) => {
     logger.log('Completing file transfer:', transferId);
@@ -170,6 +163,11 @@ export function useFileTransferCore(
       logger.log('File transfer completed (no integrity verification available)');
     }
     
+    // Call completion callback with the actual file blob
+    if (config.onComplete && result.fileName) {
+      config.onComplete(result.file || null, result.fileName);
+    }
+    
     progressManager.completeTransfer();
     
     // Complete transfer tracking with success metrics
@@ -178,10 +176,10 @@ export function useFileTransferCore(
     // Clean up
     await storageManager.cleanupStorage(transferId);
     retryManager.clearRetryQueue(transferId);
-  }, [logger, storageManager, progressManager, retryManager, errorManager]);
+  }, [logger, storageManager, progressManager, retryManager, errorManager, config]);
   
   const handleFileChunk = useCallback(async (transferId: string, chunkIndex: number, chunkData: Uint8Array) => {
-    logger.log(`Processing chunk ${chunkIndex} for transfer ${transferId} (${chunkData.length} bytes)`);
+    logger.log(`Processing chunk ${chunkIndex} for transfer ${transferId}`);
     
     try {
       const success = await storageManager.storeChunk(transferId, chunkIndex, chunkData);
@@ -189,7 +187,7 @@ export function useFileTransferCore(
       if (!success) {
         // If storage failed, it could mean FILE_START wasn't processed or failed
         // Log detailed error and potentially request FILE_START again
-        logger.error(`❌ FAILED to store chunk ${chunkIndex} for transfer ${transferId}. Storage may not be initialized.`);
+        logger.error(`Failed to store chunk ${chunkIndex} for transfer ${transferId}. Storage may not be initialized.`);
         
         // Track chunk failure
         errorManager.updateMetrics(transferId, {
@@ -206,8 +204,6 @@ export function useFileTransferCore(
         retryManager.addToRetryQueue(transferId, chunkIndex);
         return;
       }
-      
-      logger.log(`✅ Successfully stored chunk ${chunkIndex} for transfer ${transferId}`);
       
       // Update metrics for successful chunk storage
       errorManager.updateMetrics(transferId, { 
@@ -300,8 +296,7 @@ export function useFileTransferCore(
     onFileError: handleFileError,
     onRequestChunks: handleRequestChunks,
     onUpdateTotalChunks: handleUpdateTotalChunks,
-    hasActiveTransfer: handleHasActiveTransfer,
-    networkMonitor
+    hasActiveTransfer: handleHasActiveTransfer
     // dataChannel will be passed when handling messages
   });
   
@@ -311,7 +306,6 @@ export function useFileTransferCore(
     onChannelMessage: messageHandlers.handleMessage,
     onDataChannelReady: (maxMessageSize: number) => {
       logger.log(`WebRTC data channel ready, maxMessageSize: ${maxMessageSize} bytes`);
-      chunkManager.updateMaxChunkSize(maxMessageSize);
     },
   });
   
@@ -320,7 +314,6 @@ export function useFileTransferCore(
     onChannelMessage: messageHandlers.handleMessage,
     onDataChannelReady: (maxMessageSize: number) => {
       logger.log(`WebRTC data channel ready, maxMessageSize: ${maxMessageSize} bytes`);
-      chunkManager.updateMaxChunkSize(maxMessageSize);
     },
   });
 
@@ -393,9 +386,8 @@ export function useFileTransferCore(
 
     const transferId = `transfer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Start with current adaptive chunk size
-    let currentChunkSize = chunkManager.getCurrentChunkSize();
-    let totalChunks = Math.ceil(file.size / currentChunkSize);
+    // Use fixed chunk size
+    const totalChunks = Math.ceil(file.size / FIXED_CHUNK_SIZE);
     
     logger.log('Starting file transfer:', {
       fileName: file.name,
@@ -432,164 +424,70 @@ export function useFileTransferCore(
       
       logger.log('Sent binary file start message with integrity checks:', { fileName: file.name, fileSize: file.size, transferId });
 
-    // Send file chunks using adaptive sizing and streaming reads
-    let bytesTransferred = 0;
-    let chunkIndex = 0;
-    
-    while (bytesTransferred < file.size) {
-      // Measure RTT periodically to update network metrics
-      if (chunkIndex % 10 === 0) { // Every 10 chunks
+      // Send file chunks using fixed chunk size
+      let bytesTransferred = 0;
+      let chunkIndex = 0;
+      
+      while (bytesTransferred < file.size) {
+        // Calculate chunk boundaries with fixed size
+        const start = bytesTransferred;
+        const end = Math.min(start + FIXED_CHUNK_SIZE, file.size);
+        const actualChunkSize = end - start;
+          
+        // Stream read chunk from file
+        const fileSlice = file.slice(start, end);
+        const chunkArrayBuffer = await fileSlice.arrayBuffer();
+        const chunk = new Uint8Array(chunkArrayBuffer);
+
+        // Calculate chunk hash for integrity verification
+        const chunkHash = await calculateChunkHash(chunk);
+
+        // Create binary chunk message with metadata embedded including hash
+        const chunkMetadata = JSON.stringify({
+          chunkIndex: chunkIndex,
+          totalChunks: totalChunks,
+          dataLength: chunk.length,
+          chunkHash: chunkHash,
+          chunkSize: FIXED_CHUNK_SIZE
+        });
+        const metadataBytes = new TextEncoder().encode(chunkMetadata);
+
+        // Combine metadata + chunk data in single binary message
+        const combinedData = new Uint8Array(metadataBytes.length + 4 + chunk.length);
+        const metadataLengthView = new DataView(combinedData.buffer, 0, 4);
+        metadataLengthView.setUint32(0, metadataBytes.length, true); // little-endian
+        combinedData.set(metadataBytes, 4);
+        combinedData.set(chunk, 4 + metadataBytes.length);
+
+        const binaryChunkMessage = encodeBinaryMessage(MESSAGE_TYPES.FILE_CHUNK, transferId, combinedData);
+
+        logger.log(`Sending chunk ${chunkIndex + 1}/${totalChunks} (${chunk.length} bytes)`);
+
         try {
-          // Get data channel for RTT measurement
-          let dataChannel: RTCDataChannel | null = null;
           if (clientId) {
-            const clientConn = (hostPeer as any).clientConnectionsRef?.current?.get(clientId);
-            dataChannel = clientConn?.dc;
+            hostPeer.send(binaryChunkMessage, clientId);
           } else {
-            const clientConnections = (hostPeer as any).clientConnectionsRef?.current;
-            if (clientConnections) {
-              for (const [, conn] of clientConnections) {
-                if (conn.dc && conn.dc.readyState === 'open') {
-                  dataChannel = conn.dc;
-                  break;
-                }
-              }
-            }
+            hostPeer.send(binaryChunkMessage);
           }
-          
-          if (dataChannel) {
-            const rtt = await networkMonitor.measureRTT(dataChannel);
-            if (rtt > 0) {
-              networkMonitor.updateRTT(rtt);
-            }
-          }
-        } catch (error) {
-          logger.warn('RTT measurement failed:', error);
-        }
-      }
-      
-      // Update chunk size based on current network conditions
-      if (chunkIndex > 0 && chunkIndex % 5 === 0) { // Every 5 chunks after the first
-        const metrics = networkMonitor.getMetrics();
-        const recommendation = chunkManager.updateChunkSize(metrics);
-        currentChunkSize = recommendation.chunkSize;
-        
-        if (config.debug) {
-          logger.log(`Chunk size adapted: ${currentChunkSize} (${recommendation.reasoning})`);
-        }
-      }
-      
-      // Calculate chunk boundaries with current adaptive size
-      const start = bytesTransferred;
-      const end = Math.min(start + currentChunkSize, file.size);
-      const actualChunkSize = end - start;
-        
-      // Stream read chunk from file
-      const fileSlice = file.slice(start, end);
-      const chunkArrayBuffer = await fileSlice.arrayBuffer();
-      const chunk = new Uint8Array(chunkArrayBuffer);
-
-      // Record transfer timing for bandwidth estimation
-      const chunkStartTime = performance.now();
-
-      // Calculate chunk hash for integrity verification
-      const chunkHash = await calculateChunkHash(chunk);
-
-      // Recalculate total chunks with current position and chunk size
-      const remainingBytes = file.size - bytesTransferred;
-      const estimatedRemainingChunks = Math.ceil(remainingBytes / currentChunkSize);
-      const updatedTotalChunks = chunkIndex + estimatedRemainingChunks;
-
-      // Create binary chunk message with metadata embedded including hash
-      const chunkMetadata = JSON.stringify({
-        chunkIndex: chunkIndex,
-        totalChunks: updatedTotalChunks,
-        dataLength: chunk.length,
-        chunkHash: chunkHash,
-        adaptiveChunkSize: currentChunkSize
-      });
-      const metadataBytes = new TextEncoder().encode(chunkMetadata);
-
-      // Combine metadata + chunk data in single binary message
-      const combinedData = new Uint8Array(metadataBytes.length + 4 + chunk.length);
-      const metadataLengthView = new DataView(combinedData.buffer, 0, 4);
-      metadataLengthView.setUint32(0, metadataBytes.length, true); // little-endian
-      combinedData.set(metadataBytes, 4);
-      combinedData.set(chunk, 4 + metadataBytes.length);
-
-      const binaryChunkMessage = encodeBinaryMessage(MESSAGE_TYPES.FILE_CHUNK, transferId, combinedData);
-
-      logger.log(`Sending adaptive chunk ${chunkIndex + 1} (${chunk.length} bytes, size: ${currentChunkSize})`);
-
-      try {
-        if (clientId) {
-          hostPeer.send(binaryChunkMessage, clientId);
-        } else {
-          hostPeer.send(binaryChunkMessage);
-        }
-      } catch (error: any) {
-        // Handle WebRTC maxMessageSize errors
-        if (error?.message?.includes('maxMessageSize') || error?.message?.includes('Message size')) {
-          logger.log(`WebRTC message size limit exceeded (${binaryChunkMessage.byteLength} bytes), reducing chunk size`);
-          
-          // Reduce chunk size and retry
-          const newMaxSize = Math.floor(currentChunkSize * 0.8); // Reduce by 20%
-          chunkManager.updateMaxChunkSize(newMaxSize);
-          chunkManager.setChunkSize(newMaxSize);
-          
-          logger.log(`Chunk size reduced to ${newMaxSize}, retrying chunk ${chunkIndex + 1}`);
-          
-          // Recreate the chunk with the new size
-          const retryChunk = chunk.slice(0, newMaxSize);
-          const retryChunkHash = await calculateChunkHash(retryChunk);
-          const retryMetadataBytes = new TextEncoder().encode(JSON.stringify({
-            chunkIndex,
-            chunkSize: retryChunk.length,
-            chunkHash: retryChunkHash,
-            totalChunks: Math.ceil(file.size / newMaxSize)
-          }));
-          const retryChunkArrayBuffer = new Uint8Array(retryChunk);
-          const retryChunkBytes = new Uint8Array(retryMetadataBytes.length + 1 + retryChunkArrayBuffer.length);
-          retryChunkBytes.set(retryMetadataBytes, 0);
-          retryChunkBytes.set([0], retryMetadataBytes.length); // Null separator
-          retryChunkBytes.set(retryChunkArrayBuffer, retryMetadataBytes.length + 1);
-          const retryBinaryMessage = encodeBinaryMessage(MESSAGE_TYPES.FILE_CHUNK, transferId, retryChunkBytes);
-          
-          // Retry with smaller chunk
-          if (clientId) {
-            hostPeer.send(retryBinaryMessage, clientId);
+        } catch (error: any) {
+          // Handle WebRTC maxMessageSize errors
+          if (error?.message?.includes('maxMessageSize') || error?.message?.includes('Message size')) {
+            logger.error(`WebRTC message size limit exceeded (${binaryChunkMessage.byteLength} bytes). This should not happen with fixed chunk size.`);
+            throw new Error(`Chunk size ${FIXED_CHUNK_SIZE} exceeds WebRTC data channel limit`);
           } else {
-            hostPeer.send(retryBinaryMessage);
+            throw error; // Re-throw other errors
           }
-        } else {
-          throw error; // Re-throw other errors
         }
+
+        // Update progress
+        progressManager.updateBytesTransferred(chunk.length);
+        bytesTransferred += chunk.length;
+        chunkIndex++;
+
+        // Smart backpressure based on WebRTC buffer levels
+        await handleBackpressure(clientId);
       }
-
-      // Record chunk transfer timing and update network metrics
-      const chunkEndTime = performance.now();
-      const transferTime = chunkEndTime - chunkStartTime;
-      networkMonitor.recordChunkTransfer(chunk.length, transferTime);
-
-      // Record performance data for adaptive algorithm
-      const metrics = networkMonitor.getMetrics();
-      chunkManager.recordPerformance(
-        currentChunkSize,
-        metrics.currentRTT,
-        metrics.estimatedBandwidth,
-        metrics.averageBufferLevel,
-        true // transfer success
-      );
-
-      // Update progress
-      progressManager.updateBytesTransferred(chunk.length);
-      bytesTransferred += chunk.length;
-      chunkIndex++;
-
-      // Smart backpressure based on WebRTC buffer levels
-      await handleBackpressure(clientId);
-    }
-      
+        
       // Ensure all chunks are fully transmitted before sending FILE_END
       logger.log('All chunks sent, waiting for buffers to drain before FILE_END...');
       
@@ -657,7 +555,7 @@ export function useFileTransferCore(
       
       progressManager.failTransfer(errorMessage);
     }
-  }, [config.role, config.debug, logger, progressManager, hostPeer, handleBackpressure, chunkManager, networkMonitor]);
+  }, [config.role, logger, progressManager, hostPeer, handleBackpressure, FIXED_CHUNK_SIZE]);
   
   // Cancel transfer
   const cancelTransfer = useCallback((transferId?: string) => {
@@ -763,10 +661,8 @@ export function useFileTransferCore(
     getTransferMetrics: errorManager.getMetrics,
     getActiveTransfers: errorManager.getActiveTransfers,
     
-    // Network performance and adaptive chunking
-    getNetworkMetrics: networkMonitor.getMetrics,
-    getCurrentChunkSize: chunkManager.getCurrentChunkSize,
-    getAdaptationStats: chunkManager.getAdaptationStats,
+    // Fixed chunk size
+    getCurrentChunkSize: () => FIXED_CHUNK_SIZE,
     
     // Transfer resumption
     canResumeTransfer: storageManager.canResumeTransfer,
