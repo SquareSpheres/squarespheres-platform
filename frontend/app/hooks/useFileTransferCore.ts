@@ -34,7 +34,7 @@ export function useFileTransferCore(
   // Decomposed hooks
   const progressManager = useTransferProgress({
     onProgress: config.onProgress,
-    onComplete: undefined, // We'll handle completion directly to pass the file blob
+    onComplete: config.onComplete,
     onError: config.onError
   });
   
@@ -170,11 +170,6 @@ export function useFileTransferCore(
       logger.log('File transfer completed (no integrity verification available)');
     }
     
-    // Call completion callback with the actual file blob
-    if (config.onComplete && result.fileName) {
-      config.onComplete(result.file || null, result.fileName);
-    }
-    
     progressManager.completeTransfer();
     
     // Complete transfer tracking with success metrics
@@ -183,7 +178,7 @@ export function useFileTransferCore(
     // Clean up
     await storageManager.cleanupStorage(transferId);
     retryManager.clearRetryQueue(transferId);
-  }, [logger, storageManager, progressManager, retryManager, errorManager, config]);
+  }, [logger, storageManager, progressManager, retryManager, errorManager]);
   
   const handleFileChunk = useCallback(async (transferId: string, chunkIndex: number, chunkData: Uint8Array) => {
     logger.log(`Processing chunk ${chunkIndex} for transfer ${transferId}`);
