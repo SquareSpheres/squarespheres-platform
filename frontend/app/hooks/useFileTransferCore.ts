@@ -181,7 +181,7 @@ export function useFileTransferCore(
   }, [logger, storageManager, progressManager, retryManager, errorManager]);
   
   const handleFileChunk = useCallback(async (transferId: string, chunkIndex: number, chunkData: Uint8Array) => {
-    logger.log(`Processing chunk ${chunkIndex} for transfer ${transferId}`);
+    logger.log(`Processing chunk ${chunkIndex} for transfer ${transferId} (${chunkData.length} bytes)`);
     
     try {
       const success = await storageManager.storeChunk(transferId, chunkIndex, chunkData);
@@ -189,7 +189,7 @@ export function useFileTransferCore(
       if (!success) {
         // If storage failed, it could mean FILE_START wasn't processed or failed
         // Log detailed error and potentially request FILE_START again
-        logger.error(`Failed to store chunk ${chunkIndex} for transfer ${transferId}. Storage may not be initialized.`);
+        logger.error(`❌ FAILED to store chunk ${chunkIndex} for transfer ${transferId}. Storage may not be initialized.`);
         
         // Track chunk failure
         errorManager.updateMetrics(transferId, {
@@ -206,6 +206,8 @@ export function useFileTransferCore(
         retryManager.addToRetryQueue(transferId, chunkIndex);
         return;
       }
+      
+      logger.log(`✅ Successfully stored chunk ${chunkIndex} for transfer ${transferId}`);
       
       // Update metrics for successful chunk storage
       errorManager.updateMetrics(transferId, { 

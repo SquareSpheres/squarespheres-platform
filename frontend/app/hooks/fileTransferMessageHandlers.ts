@@ -218,7 +218,7 @@ export function useFileTransferMessageHandlers(context: MessageHandlerContext) {
             return;
           }
           
-          logger.log('Processing binary chunk:', { 
+          logger.log('🔄 Processing binary chunk:', { 
             transferId: binaryMessage.transferId, 
             chunkIndex, 
             totalChunks, 
@@ -227,6 +227,8 @@ export function useFileTransferMessageHandlers(context: MessageHandlerContext) {
           });
           
           await context.onFileChunk(binaryMessage.transferId, chunkIndex, chunkData);
+          
+          logger.log(`✅ Completed processing chunk ${chunkIndex} for transfer ${binaryMessage.transferId}`);
           
         } catch (parseError) {
           logger.error('Failed to parse chunk metadata:', parseError);
