@@ -1,6 +1,34 @@
-// Default chunk size for streaming (used as fallback and initial size)
-export const DEFAULT_CHUNK_SIZE = 65536; // 64KB chunks
+// Mobile-friendly chunk size for WebRTC data channels
+// Research shows 16KB is safe for desktop, 8KB is better for mobile
+export const DEFAULT_CHUNK_SIZE = 8192; // 8KB chunks - mobile optimized
+export const DESKTOP_CHUNK_SIZE = 16384; // 16KB chunks - desktop optimized
 export const STREAM_CHUNK_SIZE = DEFAULT_CHUNK_SIZE; // Backwards compatibility
+
+// Device detection for optimal chunk sizing
+export const isMobileDevice = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         (navigator.maxTouchPoints && navigator.maxTouchPoints > 2) ||
+         window.innerWidth <= 768;
+};
+
+// Get optimal chunk size based on device type
+export const getOptimalChunkSize = (): number => {
+  return isMobileDevice() ? DEFAULT_CHUNK_SIZE : DESKTOP_CHUNK_SIZE;
+};
+
+// Mobile debugging helper - logs to console and shows alert on mobile
+export const mobileDebug = (message: string, data?: any) => {
+  console.log(`[Mobile Debug] ${message}`, data);
+  
+  // On mobile, also show alert for critical errors (only in development)
+  if (isMobileDevice() && typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    if (message.includes('error') || message.includes('failed') || message.includes('Error')) {
+      alert(`Mobile Debug: ${message}`);
+    }
+  }
+};
 export const LARGE_FILE_THRESHOLD = 100 * 1024 * 1024; // 100MB threshold for streaming vs memory
 
 import * as mime from 'mime-types';

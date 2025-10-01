@@ -10,7 +10,7 @@ import { useFileTransferMessageHandlers } from './fileTransferMessageHandlers';
 import { useErrorManager, FileTransferErrorType, ErrorSeverity } from './errorManager';
 import { WebRTCPeerConfig } from './webrtcTypes';
 import { getDataChannelMaxMessageSize } from './webrtcUtils';
-import { DEFAULT_CHUNK_SIZE, createLogger, MESSAGE_TYPES, encodeBinaryMessage, calculateChunkHash, calculateFileHash } from './fileTransferUtils';
+import { DEFAULT_CHUNK_SIZE, getOptimalChunkSize, isMobileDevice, mobileDebug, createLogger, MESSAGE_TYPES, encodeBinaryMessage, calculateChunkHash, calculateFileHash } from './fileTransferUtils';
 
 interface FileTransferCallbacks {
   onProgress?: (progress: any) => void;
@@ -39,8 +39,15 @@ export function useFileTransferCore(
   const storageManager = useFileStorageManager(config.role, config.debug);
   const retryManager = useTransferRetryManager(config.role, config.debug);
   const errorManager = useErrorManager(config.role, config.debug);
-  // Fixed chunk size - no adaptive chunking
-  const FIXED_CHUNK_SIZE = DEFAULT_CHUNK_SIZE;
+  // Device-optimized chunk size - mobile-friendly
+  const FIXED_CHUNK_SIZE = getOptimalChunkSize();
+  
+  // Log chunk size for debugging
+  if (config.debug) {
+    const deviceType = isMobileDevice() ? 'mobile' : 'desktop';
+    logger.log('Using chunk size:', FIXED_CHUNK_SIZE, 'bytes for', deviceType, 'device');
+    mobileDebug(`File transfer initialized for ${deviceType} device with ${FIXED_CHUNK_SIZE} byte chunks`);
+  }
   
   // Message handler callbacks
   const handleFileStart = useCallback(async (transferId: string, fileName: string, fileSize: number, fileHash?: string) => {
@@ -246,6 +253,9 @@ export function useFileTransferCore(
   const handleFileError = useCallback((transferId: string, error: string) => {
     logger.error(`File transfer error for ${transferId}: ${error}`);
     
+    // Mobile debugging for errors
+    mobileDebug(`File transfer error: ${error}`, { transferId, deviceType: isMobileDevice() ? 'mobile' : 'desktop' });
+    
     // Create structured error with appropriate classification
     let errorType = FileTransferErrorType.PROTOCOL;
     if (error.includes('cancelled')) {
@@ -349,8 +359,9 @@ export function useFileTransferCore(
       return;
     }
     
-    const MAX_BUFFER_SIZE = 1024 * 1024; // 1MB buffer limit
-    const MIN_BUFFER_SIZE = MAX_BUFFER_SIZE * 0.25; // 256KB before resuming
+    // Mobile devices need smaller buffer limits
+    const MAX_BUFFER_SIZE = isMobileDevice() ? 256 * 1024 : 1024 * 1024; // 256KB mobile, 1MB desktop
+    const MIN_BUFFER_SIZE = MAX_BUFFER_SIZE * 0.25; // 25% before resuming
     
     // If buffer is getting full, wait for it to drain
     if (dataChannel.bufferedAmount > MAX_BUFFER_SIZE) {
@@ -362,7 +373,8 @@ export function useFileTransferCore(
             logger.log(`Buffer drained to ${Math.round((dataChannel?.bufferedAmount || 0) / 1024)}KB, resuming`);
             resolve();
           } else {
-            setTimeout(checkBuffer, 10); // Check every 10ms
+            // Mobile devices need more frequent checks due to slower processing
+            setTimeout(checkBuffer, isMobileDevice() ? 5 : 10); // 5ms mobile, 10ms desktop
           }
         };
         checkBuffer();
@@ -370,7 +382,8 @@ export function useFileTransferCore(
     } else {
       // Small adaptive delay based on current buffer level
       const bufferRatio = dataChannel.bufferedAmount / MAX_BUFFER_SIZE;
-      const delay = Math.floor(bufferRatio * 20); // 0-20ms delay based on buffer fullness
+      const maxDelay = isMobileDevice() ? 10 : 20; // Shorter delays for mobile
+      const delay = Math.floor(bufferRatio * maxDelay);
       
       if (delay > 0) {
         await new Promise(resolve => setTimeout(resolve, delay));

@@ -445,14 +445,18 @@ export default function FileTransferDemoPage() {
           {showAdvancedMetrics && (
             <div className="mt-4 space-y-4">
 
-              {/* Fixed Chunk Size */}
+              {/* Optimized Chunk Size */}
               {activeFileTransfer.getCurrentChunkSize && (
                 <div className="bg-muted rounded-lg p-4">
-                  <h3 className="font-medium text-foreground mb-3">📦 Chunk Size</h3>
+                  <h3 className="font-medium text-foreground mb-3">📦 Mobile-Optimized Chunk Size</h3>
                   <div className="grid grid-cols-1 gap-4 text-sm">
                     <div>
-                      <div className="text-muted-foreground">Fixed Chunk Size</div>
+                      <div className="text-muted-foreground">Chunk Size</div>
                       <div className="font-medium text-foreground">{(activeFileTransfer.getCurrentChunkSize() / 1024).toFixed(1)} KB</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Optimization</div>
+                      <div className="font-medium text-foreground">Mobile-friendly (8KB) / Desktop (16KB)</div>
                     </div>
                   </div>
                 </div>
@@ -687,7 +691,7 @@ export default function FileTransferDemoPage() {
               {/* Chunk Size */}
               {activeFileTransfer.getCurrentChunkSize && (
                 <div className="text-muted-foreground">
-                  <strong>Fixed Chunk Size:</strong> {(activeFileTransfer.getCurrentChunkSize() / 1024).toFixed(1)} KB
+                  <strong>Optimized Chunk Size:</strong> {(activeFileTransfer.getCurrentChunkSize() / 1024).toFixed(1)} KB (mobile-friendly)
                 </div>
               )}
               
