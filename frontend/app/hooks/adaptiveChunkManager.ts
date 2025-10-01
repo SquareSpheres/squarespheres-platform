@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useMemo } from 'react';
 import { NetworkMetrics, NetworkQuality } from './networkPerformanceMonitor';
 
 // Chunk size configuration
@@ -56,10 +56,19 @@ const DEFAULT_CONFIG: ChunkSizeConfig = {
 export function useAdaptiveChunkManager(
   role: 'host' | 'client',
   debug: boolean = false,
-  config: Partial<ChunkSizeConfig> = {}
+  config: Partial<ChunkSizeConfig> = {},
+  maxMessageSize?: number
 ) {
-  // Configuration with defaults
-  const chunkConfig: ChunkSizeConfig = { ...DEFAULT_CONFIG, ...config };
+  // Configuration with defaults, respecting WebRTC data channel limits
+  const chunkConfig: ChunkSizeConfig = useMemo(() => ({ 
+    ...DEFAULT_CONFIG, 
+    ...config,
+    // Ensure maxChunkSize doesn't exceed WebRTC data channel limits
+    // Leave some overhead for message headers and metadata
+    maxChunkSize: maxMessageSize 
+      ? Math.min(config.maxChunkSize || DEFAULT_CONFIG.maxChunkSize, maxMessageSize - 1024)
+      : (config.maxChunkSize || DEFAULT_CONFIG.maxChunkSize)
+  }), [config, maxMessageSize]);
   
   // Current chunk size
   const currentChunkSizeRef = useRef<number>(chunkConfig.defaultChunkSize);
@@ -318,6 +327,21 @@ export function useAdaptiveChunkManager(
     }
   }, [role, debug, chunkConfig.defaultChunkSize]);
 
+  // Update maximum chunk size (e.g., when WebRTC data channel limits are detected)
+  const updateMaxChunkSize = useCallback((newMaxSize: number) => {
+    const adjustedMaxSize = newMaxSize - 1024; // Leave overhead for headers
+    chunkConfig.maxChunkSize = Math.max(chunkConfig.minChunkSize, adjustedMaxSize);
+    
+    // Ensure current chunk size doesn't exceed new limit
+    if (currentChunkSizeRef.current > chunkConfig.maxChunkSize) {
+      currentChunkSizeRef.current = chunkConfig.maxChunkSize;
+      
+      if (debug) {
+        console.log(`[AdaptiveChunk ${role}] Max chunk size updated to ${chunkConfig.maxChunkSize}, current size adjusted to ${currentChunkSizeRef.current}`);
+      }
+    }
+  }, [role, debug, chunkConfig]);
+
   // Get adaptation statistics
   const getAdaptationStats = useCallback(() => {
     const state = adaptationStateRef.current;
@@ -340,6 +364,7 @@ export function useAdaptiveChunkManager(
     setChunkSize,
     updateChunkSize,
     calculateOptimalChunkSize,
+    updateMaxChunkSize,
     
     // Performance tracking
     recordPerformance,

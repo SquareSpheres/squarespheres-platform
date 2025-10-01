@@ -260,7 +260,6 @@ function useWebSocketConnection(config: SignalingClientConfig) {
   };
 }
 
-// Host-specific hook
 export interface SignalHost {
   connect: () => Promise<void>;
   disconnect: () => void;
@@ -322,7 +321,6 @@ export function useSignalHost(config: SignalingClientConfig = {}): SignalHost {
   };
 }
 
-// Client-specific hook
 export interface SignalClient {
   connect: () => Promise<void>;
   disconnect: () => void;

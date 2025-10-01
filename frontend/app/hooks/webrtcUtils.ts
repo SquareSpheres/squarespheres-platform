@@ -219,6 +219,28 @@ export function createDataChannel(
   return dc;
 }
 
+// Detect the maximum message size for a WebRTC data channel
+export function getDataChannelMaxMessageSize(dataChannel: RTCDataChannel): number {
+  // Try to get the maxMessageSize property if available
+  if ('maxMessageSize' in dataChannel && typeof dataChannel.maxMessageSize === 'number') {
+    return dataChannel.maxMessageSize;
+  }
+  
+  // Fallback to conservative estimates based on browser
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  
+  if (userAgent.includes('Chrome') || userAgent.includes('Chromium')) {
+    return 256 * 1024; // 256KB for Chrome
+  } else if (userAgent.includes('Firefox')) {
+    return 256 * 1024; // 256KB for Firefox
+  } else if (userAgent.includes('Safari')) {
+    return 64 * 1024;  // 64KB for Safari (more conservative)
+  }
+  
+  // Conservative fallback for unknown browsers
+  return 64 * 1024; // 64KB
+}
+
 export function isChrome(): boolean {
   return typeof window !== 'undefined' && 
     typeof navigator !== 'undefined' &&
@@ -420,13 +442,14 @@ export interface DataChannelConfig {
   onOpen?: (readyState: RTCDataChannelState) => void;
   onClose?: (readyState: RTCDataChannelState) => void;
   onMessage?: (data: any) => void;
+  onDataChannelReady?: (maxMessageSize: number) => void;
   debug?: boolean;
   role?: 'client' | 'host';
   clientId?: string; // For host role
 }
 
 export function setupDataChannel(dc: RTCDataChannel, config: DataChannelConfig): void {
-  const { onOpen, onClose, onMessage, debug, role = 'client', clientId } = config;
+  const { onOpen, onClose, onMessage, onDataChannelReady, debug, role = 'client', clientId } = config;
   const prefix = role === 'host' ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ''}` : '[WebRTC Client]';
 
   // Set binary type to ArrayBuffer for consistent binary data handling
@@ -434,6 +457,14 @@ export function setupDataChannel(dc: RTCDataChannel, config: DataChannelConfig):
 
   dc.onopen = () => {
     if (debug) console.log(`${prefix} Data channel opened (binaryType: ${dc.binaryType})`);
+    
+    // Detect and report maxMessageSize when channel is ready
+    const maxMessageSize = getDataChannelMaxMessageSize(dc);
+    if (debug) {
+      console.log(`${prefix} Data channel maxMessageSize: ${maxMessageSize} bytes`);
+    }
+    onDataChannelReady?.(maxMessageSize);
+    
     onOpen?.(dc.readyState);
   };
 

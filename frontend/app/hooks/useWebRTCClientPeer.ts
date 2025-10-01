@@ -156,6 +156,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
         onOpen: (readyState) => setDataChannelState(readyState),
         onClose: (readyState) => setDataChannelState(readyState),
         onMessage: config.onChannelMessage,
+        onDataChannelReady: config.onDataChannelReady,
         debug,
         role: 'client',
       });
@@ -258,6 +259,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
           onOpen: (readyState) => setDataChannelState(readyState),
           onClose: (readyState) => setDataChannelState(readyState),
           onMessage: config.onChannelMessage,
+          onDataChannelReady: config.onDataChannelReady,
           debug,
           role: 'client',
         });

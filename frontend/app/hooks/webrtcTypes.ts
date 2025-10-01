@@ -37,6 +37,7 @@ export interface WebRTCPeerConfig {
   onChannelClose?: () => void;
   onConnectionTimeout?: () => void;
   onConnectionFailed?: (error: Error) => void;
+  onDataChannelReady?: (maxMessageSize: number) => void;
 }
 
 

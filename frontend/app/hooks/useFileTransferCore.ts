@@ -11,6 +11,7 @@ import { useErrorManager, FileTransferErrorType, ErrorSeverity } from './errorMa
 import { useNetworkPerformanceMonitor } from './networkPerformanceMonitor';
 import { useAdaptiveChunkManager } from './adaptiveChunkManager';
 import { WebRTCPeerConfig } from './webrtcTypes';
+import { getDataChannelMaxMessageSize } from './webrtcUtils';
 import { DEFAULT_CHUNK_SIZE, createLogger, MESSAGE_TYPES, encodeBinaryMessage, calculateChunkHash, calculateFileHash } from './fileTransferUtils';
 
 interface FileTransferCallbacks {
@@ -41,6 +42,9 @@ export function useFileTransferCore(
   const retryManager = useTransferRetryManager(config.role, config.debug);
   const errorManager = useErrorManager(config.role, config.debug);
   const networkMonitor = useNetworkPerformanceMonitor(config.role, config.debug);
+  
+  // Initialize chunk manager with WebRTC data channel size limits
+  // We'll update this when the data channel becomes available
   const chunkManager = useAdaptiveChunkManager(config.role, config.debug);
   
   // Message handler callbacks
@@ -303,11 +307,19 @@ export function useFileTransferCore(
   const hostPeer = useWebRTCHostPeer({
     ...config,
     onChannelMessage: messageHandlers.handleMessage,
+    onDataChannelReady: (maxMessageSize: number) => {
+      logger.log(`WebRTC data channel ready, maxMessageSize: ${maxMessageSize} bytes`);
+      chunkManager.updateMaxChunkSize(maxMessageSize);
+    },
   });
-
+  
   const clientPeer = useWebRTCClientPeer({
     ...config,
     onChannelMessage: messageHandlers.handleMessage,
+    onDataChannelReady: (maxMessageSize: number) => {
+      logger.log(`WebRTC data channel ready, maxMessageSize: ${maxMessageSize} bytes`);
+      chunkManager.updateMaxChunkSize(maxMessageSize);
+    },
   });
 
   const activePeer = config.role === 'host' ? hostPeer : clientPeer;
@@ -507,10 +519,49 @@ export function useFileTransferCore(
 
       logger.log(`Sending adaptive chunk ${chunkIndex + 1} (${chunk.length} bytes, size: ${currentChunkSize})`);
 
-      if (clientId) {
-        hostPeer.send(binaryChunkMessage, clientId);
-      } else {
-        hostPeer.send(binaryChunkMessage);
+      try {
+        if (clientId) {
+          hostPeer.send(binaryChunkMessage, clientId);
+        } else {
+          hostPeer.send(binaryChunkMessage);
+        }
+      } catch (error: any) {
+        // Handle WebRTC maxMessageSize errors
+        if (error?.message?.includes('maxMessageSize') || error?.message?.includes('Message size')) {
+          logger.log(`WebRTC message size limit exceeded (${binaryChunkMessage.byteLength} bytes), reducing chunk size`);
+          
+          // Reduce chunk size and retry
+          const newMaxSize = Math.floor(currentChunkSize * 0.8); // Reduce by 20%
+          chunkManager.updateMaxChunkSize(newMaxSize);
+          chunkManager.setChunkSize(newMaxSize);
+          
+          logger.log(`Chunk size reduced to ${newMaxSize}, retrying chunk ${chunkIndex + 1}`);
+          
+          // Recreate the chunk with the new size
+          const retryChunk = chunk.slice(0, newMaxSize);
+          const retryChunkHash = await calculateChunkHash(retryChunk);
+          const retryMetadataBytes = new TextEncoder().encode(JSON.stringify({
+            chunkIndex,
+            chunkSize: retryChunk.length,
+            chunkHash: retryChunkHash,
+            totalChunks: Math.ceil(file.size / newMaxSize)
+          }));
+          const retryChunkArrayBuffer = new Uint8Array(retryChunk);
+          const retryChunkBytes = new Uint8Array(retryMetadataBytes.length + 1 + retryChunkArrayBuffer.length);
+          retryChunkBytes.set(retryMetadataBytes, 0);
+          retryChunkBytes.set([0], retryMetadataBytes.length); // Null separator
+          retryChunkBytes.set(retryChunkArrayBuffer, retryMetadataBytes.length + 1);
+          const retryBinaryMessage = encodeBinaryMessage(MESSAGE_TYPES.FILE_CHUNK, transferId, retryChunkBytes);
+          
+          // Retry with smaller chunk
+          if (clientId) {
+            hostPeer.send(retryBinaryMessage, clientId);
+          } else {
+            hostPeer.send(retryBinaryMessage);
+          }
+        } else {
+          throw error; // Re-throw other errors
+        }
       }
 
       // Record chunk transfer timing and update network metrics

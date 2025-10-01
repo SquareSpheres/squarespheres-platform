@@ -18,6 +18,7 @@ import {
   SignalingHandlers,
   isChrome,
   DEFAULT_ICE_SERVERS,
+  getDataChannelMaxMessageSize,
 } from './webrtcUtils';
 
 export interface WebRTCHostPeerApi {
@@ -191,6 +192,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
           });
         },
         onMessage: config.onChannelMessage,
+        onDataChannelReady: config.onDataChannelReady,
         debug,
         role: 'host',
         clientId,
