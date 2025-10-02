@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFileTransfer } from '../hooks/useFileTransfer';
 import { DEFAULT_ICE_SERVERS } from '../hooks/webrtcUtils';
-import type { FileTransferError } from '../hooks/errorManager';
+// Removed error manager import - using simple error handling
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,7 @@ export default function FileTransferDemoPage() {
   // receivedFile is now managed by the hook
   const [logs, setLogs] = useState<string[]>([]);
   const [showAdvancedMetrics, setShowAdvancedMetrics] = useState(false);
-  const [errorHistory, setErrorHistory] = useState<FileTransferError[]>([]);
+  const [errorHistory, setErrorHistory] = useState<string[]>([]);
   const [resumableTransfers, setResumableTransfers] = useState<string[]>([]);
 
   const iceServers = useMemo(() => DEFAULT_ICE_SERVERS, []);
@@ -33,7 +33,7 @@ export default function FileTransferDemoPage() {
     onComplete: (file, fileName) => addLog(`Host transfer completed: ${fileName}`),
     onError: (error) => {
       addLog(`Host error: ${error}`);
-      updateErrorHistory('host');
+      setErrorHistory(prev => [...prev, `Host: ${error}`]);
     }
   });
 
@@ -50,7 +50,7 @@ export default function FileTransferDemoPage() {
     onComplete: (file, fileName) => addLog(`Client transfer completed: ${fileName}`),
     onError: (error) => {
       addLog(`Client error: ${error}`);
-      updateErrorHistory('client');
+      setErrorHistory(prev => [...prev, `Client: ${error}`]);
     }
   });
 
@@ -63,13 +63,7 @@ export default function FileTransferDemoPage() {
     setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
   }
 
-  // Update error history for debugging
-  const updateErrorHistory = (role: 'host' | 'client') => {
-    const transfer = role === 'host' ? hostFileTransfer : clientFileTransfer;
-    // This would need the actual transfer ID - for demo we'll use a placeholder
-    // const errors = transfer.getErrorHistory('current_transfer');
-    // setErrorHistory(errors);
-  };
+  // Simple error history for debugging
 
   // Update network metrics periodically
 
@@ -157,10 +151,7 @@ export default function FileTransferDemoPage() {
   const downloadReceivedFile = () => {
     if (activeTab === 'client') {
       // For client, check if file was saved to disk or needs download
-      if (clientFileTransfer.receivedFileHandle) {
-        addLog(`File already saved to disk: ${clientFileTransfer.receivedFileName}`);
-        return;
-      } else if (clientFileTransfer.receivedFile) {
+      if (clientFileTransfer.receivedFile) {
         // Fallback: Download the blob
         const fileName = clientFileTransfer.receivedFileName || 'received_file';
         console.log(`[Demo] Downloading file with name: ${fileName}`);
@@ -214,14 +205,13 @@ export default function FileTransferDemoPage() {
         <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg p-4 mb-6 border border-blue-200 dark:border-blue-800">
           <div className="text-blue-800 dark:text-blue-200 font-medium mb-2">🚀 Advanced File Transfer with Sprint 2 Features</div>
           <div className="text-blue-700 dark:text-blue-300 text-sm space-y-1">
-            <div>• <strong>🧠 Dynamic Chunk Sizing:</strong> Intelligent 8KB-1MB chunks based on network conditions (15-25% speed boost)</div>
-            <div>• <strong>📡 Network Monitoring:</strong> Real-time RTT, bandwidth, and quality detection with 4-tier classification</div>
-            <div>• <strong>🔄 Transfer Resumption:</strong> Automatic resume within 5 seconds after any interruption</div>
-            <div>• <strong>🛡️ Enhanced Error Handling:</strong> Structured error management with correlation IDs and recovery strategies</div>
-            <div>• <strong>💾 Persistent State:</strong> Transfer state survives browser restarts and session changes</div>
-            <div>• <strong>📊 Advanced Metrics:</strong> Complete performance monitoring with adaptation statistics</div>
-            <div>• <strong>🎯 Smart Storage:</strong> File System Access API for large files, memory for small files</div>
-            <div>• <strong>Debug:</strong> Toggle &quot;Advanced Metrics&quot; below to see network performance and error details</div>
+            <div>• <strong>📦 Optimized Chunk Sizing:</strong> Mobile-friendly 8KB chunks, desktop 16KB chunks</div>
+            <div>• <strong>🔄 WebRTC Backpressure:</strong> Smart buffer management for optimal transfer speeds</div>
+            <div>• <strong>🛡️ Simple Error Handling:</strong> Clean error reporting and recovery</div>
+            <div>• <strong>💾 In-Memory Storage:</strong> Fast, reliable file assembly in browser memory</div>
+            <div>• <strong>📊 Progress Tracking:</strong> Real-time transfer progress with percentage completion</div>
+            <div>• <strong>🎯 Binary Protocol:</strong> Efficient binary message format for file chunks</div>
+            <div>• <strong>Debug:</strong> Toggle &quot;Advanced Metrics&quot; below to see transfer details</div>
           </div>
         </div>
 
@@ -401,12 +391,7 @@ export default function FileTransferDemoPage() {
                       </div>
                     )}
                     <div className="text-green-700 dark:text-green-300 text-xs mt-1">
-                      {clientFileTransfer.receivedFileHandle 
-                        ? 'Location: Saved to disk (File System Access API)' 
-                        : clientFileTransfer.receivedFile
-                        ? 'Location: Available in memory (download to save)'
-                        : 'Location: Saved to disk'
-                      }
+                      &apos;Location: Available in memory (download to save)&apos;
                     </div>
                   </div>
                 )}
@@ -462,59 +447,27 @@ export default function FileTransferDemoPage() {
                 </div>
               )}
 
-              {/* Transfer Resumption */}
+              {/* Simple Transfer Info */}
               <div className="bg-muted rounded-lg p-4">
-                <h3 className="font-medium text-foreground mb-3">🔄 Transfer Resumption</h3>
+                <h3 className="font-medium text-foreground mb-3">📋 Transfer Information</h3>
                 <div className="space-y-2 text-sm">
                   <div className="text-muted-foreground">
-                    Transfer state is automatically persisted and can resume after interruptions
+                    Simplified file transfer with in-memory storage for reliability
                   </div>
-                  {resumableTransfers.length > 0 ? (
-                    <div>
-                      <div className="text-green-600 font-medium">Found {resumableTransfers.length} resumable transfer(s)</div>
-                      {resumableTransfers.map((transferId, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-background rounded border">
-                          <span className="font-mono text-xs">{transferId}</span>
-                          <button 
-                            className="px-2 py-1 bg-primary text-primary-foreground rounded text-xs hover:bg-primary/90"
-                            onClick={() => {
-                              // activeFileTransfer.resumeTransfer(transferId);
-                              addLog(`Resume request for ${transferId}`);
-                            }}
-                          >
-                            Resume
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-muted-foreground">No resumable transfers found</div>
-                  )}
+                  <div className="text-muted-foreground">
+                    Files are assembled in browser memory and can be downloaded when complete
+                  </div>
                 </div>
               </div>
 
               {/* Error History */}
-              {errorHistory.length > 0 && (
+                  {errorHistory.length > 0 && (
                 <div className="bg-muted rounded-lg p-4">
                   <h3 className="font-medium text-foreground mb-3">🛡️ Error History</h3>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {errorHistory.slice(-5).map((error, index) => (
                       <div key={index} className="p-2 bg-background rounded border text-sm">
-                        <div className="flex items-center justify-between">
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            error.severity === 'critical' ? 'bg-red-100 text-red-800' :
-                            error.severity === 'high' ? 'bg-orange-100 text-orange-800' :
-                            error.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {error.type}
-                          </span>
-                          <span className="text-xs text-muted-foreground">{error.correlationId}</span>
-                        </div>
-                        <div className="mt-1 text-foreground">{error.message}</div>
-                        {error.retryable && (
-                          <div className="text-xs text-blue-600 mt-1">Retryable</div>
-                        )}
+                        <div className="text-foreground">{error}</div>
                       </div>
                     ))}
                   </div>
@@ -625,10 +578,7 @@ export default function FileTransferDemoPage() {
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                {activeTab === 'client' 
-                  ? (clientFileTransfer.receivedFile ? 'Download File' : 'File Already Saved to Disk')
-                  : 'Download File'
-                }
+                Download File
               </button>
             </div>
           </div>
@@ -684,9 +634,9 @@ export default function FileTransferDemoPage() {
               )}
             </div>
 
-            {/* Sprint 2 Features */}
+            {/* Simplified Features */}
             <div className="space-y-2 text-sm">
-              <h3 className="font-medium text-foreground mb-2">Sprint 2 Features</h3>
+              <h3 className="font-medium text-foreground mb-2">Simplified Features</h3>
               
               {/* Chunk Size */}
               {activeFileTransfer.getCurrentChunkSize && (
@@ -695,20 +645,19 @@ export default function FileTransferDemoPage() {
                 </div>
               )}
               
-              
-              {/* Transfer Metrics */}
+              {/* Storage */}
               <div className="text-muted-foreground">
-                <strong>Transfer Metrics:</strong> Available via API
+                <strong>Storage:</strong> In-memory chunk assembly
               </div>
               
-              {/* Error Management */}
+              {/* Error Handling */}
               <div className="text-muted-foreground">
-                <strong>Error Management:</strong> Structured logging with correlation IDs
+                <strong>Error Handling:</strong> Simple error reporting
               </div>
               
-              {/* Resumption */}
+              {/* Backpressure */}
               <div className="text-muted-foreground">
-                <strong>Transfer Resumption:</strong> Persistent state with automatic recovery
+                <strong>Backpressure:</strong> WebRTC buffer management
               </div>
             </div>
           </div>
