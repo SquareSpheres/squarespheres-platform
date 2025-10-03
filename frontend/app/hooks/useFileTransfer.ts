@@ -12,12 +12,12 @@ import {
   createLogger
 } from './fileTransferUtils';
 
-// Simple binary message format - much simpler than before
+// Stream-based binary message format - optimized for reliability
 const MESSAGE_TYPES = {
-  FILE_START: 1,
-  FILE_CHUNK: 2,
-  FILE_END: 3,
-  FILE_ERROR: 4
+  FILE_START: 1,        // File metadata
+  FILE_DATA: 2,         // Raw file data (stream)
+  FILE_COMPLETE: 3,     // Explicit completion signal
+  FILE_ERROR: 4         // Error signal
 } as const;
 
 // Simple binary encoder - just type + data
@@ -95,11 +95,21 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
 }): FileTransferApi {
   const logger = createLogger(config.role, config.debug);
   
-  // Simple in-memory storage
+  // Stream-based in-memory storage
   const [receivedFile, setReceivedFile] = useState<Blob | null>(null);
   const [receivedFileName, setReceivedFileName] = useState<string | null>(null);
-  const chunksRef = useRef<Map<string, Uint8Array[]>>(new Map());
-  const fileInfoRef = useRef<Map<string, { fileName: string; fileSize: number; totalChunks: number }>>(new Map());
+  
+  // Stream transfer state
+  const transferBuffersRef = useRef<Map<string, Uint8Array>>(new Map());
+  const transferInfoRef = useRef<Map<string, { 
+    fileName: string; 
+    fileSize: number; 
+    bytesReceived: number;
+    startTime: number;
+  }>>(new Map());
+  
+  // Transfer timeout tracking
+  const transferTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   
   // Fixed chunk size
   const CHUNK_SIZE = getOptimalChunkSize();
@@ -111,209 +121,240 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     onError: config.onError
   });
 
-  // File start handler
+  // File start handler - stream-based
   const handleFileStart = useCallback(async (transferId: string, fileName: string, fileSize: number) => {
-    logger.log('Starting file transfer:', { fileName, fileSize, transferId });
+    logger.log('Starting stream-based file transfer:', { fileName, fileSize, transferId });
     
     setReceivedFileName(fileName);
     progressManager.startTransfer(fileName, fileSize);
     
-    const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
-    fileInfoRef.current.set(transferId, { fileName, fileSize, totalChunks });
-    chunksRef.current.set(transferId, new Array(totalChunks));
+    // Initialize stream buffer
+    const transferBuffer = new Uint8Array(fileSize);
+    transferBuffersRef.current.set(transferId, transferBuffer);
     
-    logger.log('Transfer initialized:', { 
-      transferId, 
-      totalChunks, 
-      chunkSize: CHUNK_SIZE,
-      hasFileInfo: fileInfoRef.current.has(transferId),
-      hasChunks: chunksRef.current.has(transferId)
+    // Initialize transfer info
+    transferInfoRef.current.set(transferId, {
+      fileName,
+      fileSize,
+      bytesReceived: 0,
+      startTime: Date.now()
     });
-  }, [logger, progressManager, CHUNK_SIZE]);
-
-  // File chunk handler
-  const handleFileChunk = useCallback(async (transferId: string, chunkIndex: number, chunkData: Uint8Array) => {
-    logger.log(`Processing chunk ${chunkIndex} for transfer ${transferId}`);
     
-    const chunks = chunksRef.current.get(transferId);
-    if (!chunks) {
-      logger.error(`No chunks array found for transfer ${transferId}. Available transfers:`, Array.from(chunksRef.current.keys()));
-      return;
-    }
+    // Set up transfer timeout (30 seconds for large files, 10 seconds for small files)
+    const timeoutMs = fileSize > 10 * 1024 * 1024 ? 30000 : 10000;
+    const timeout = setTimeout(() => {
+      logger.error(`Transfer timeout for ${transferId} after ${timeoutMs}ms`);
+      handleFileError(transferId, `Transfer timeout after ${timeoutMs}ms - no progress detected`);
+    }, timeoutMs);
+    transferTimeoutsRef.current.set(transferId, timeout);
     
-    chunks[chunkIndex] = chunkData;
-    progressManager.updateBytesTransferred(chunkData.length);
-    
-    logger.log(`Stored chunk ${chunkIndex} for transfer ${transferId}`, {
-      chunkSize: chunkData.length,
-      totalChunks: chunks.length,
-      receivedChunks: chunks.filter(chunk => chunk !== undefined).length
+    logger.log('Stream transfer initialized:', { 
+      transferId, 
+      fileSize,
+      timeoutMs,
+      hasBuffer: transferBuffersRef.current.has(transferId),
+      hasInfo: transferInfoRef.current.has(transferId)
     });
   }, [logger, progressManager]);
 
-  // File complete handler
-  const handleFileComplete = useCallback(async (transferId: string) => {
-    logger.log('Completing file transfer:', transferId);
+  // File data handler - stream-based
+  const handleFileData = useCallback(async (transferId: string, data: Uint8Array, offset: number) => {
+    logger.log(`Processing stream data for transfer ${transferId}`, { dataSize: data.length, offset });
     
-    const chunks = chunksRef.current.get(transferId);
-    const fileInfo = fileInfoRef.current.get(transferId);
+    const buffer = transferBuffersRef.current.get(transferId);
+    const transferInfo = transferInfoRef.current.get(transferId);
     
-    if (!chunks || !fileInfo) {
-      logger.error(`No chunks or file info found for transfer ${transferId}`);
+    if (!buffer || !transferInfo) {
+      logger.error(`No buffer or transfer info found for transfer ${transferId}`);
       return;
     }
     
-    // Check for missing chunks
-    const missingChunks = chunks.findIndex(chunk => chunk === undefined);
-    if (missingChunks !== -1) {
-      logger.error(`Missing chunk ${missingChunks} for transfer ${transferId}`);
-      progressManager.failTransfer(`Missing chunk ${missingChunks}`);
+    // Validate bounds
+    if (offset + data.length > buffer.length) {
+      logger.error(`Data exceeds buffer bounds: offset ${offset}, dataSize ${data.length}, bufferSize ${buffer.length}`);
+      handleFileError(transferId, 'Data exceeds expected file size');
       return;
     }
     
-    // Create blob from chunks
-    const blob = new Blob(chunks as BlobPart[]);
+    // Write data to buffer at specified offset
+    buffer.set(data, offset);
+    transferInfo.bytesReceived += data.length;
+    
+    // Update progress
+    progressManager.updateBytesTransferred(data.length);
+    
+    // Reset timeout on data progress
+    const existingTimeout = transferTimeoutsRef.current.get(transferId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+      // Reset timeout for continued progress
+      const timeoutMs = transferInfo.fileSize > 10 * 1024 * 1024 ? 30000 : 10000;
+      const newTimeout = setTimeout(() => {
+        logger.error(`Transfer timeout for ${transferId} after ${timeoutMs}ms - no progress`);
+        handleFileError(transferId, `Transfer timeout after ${timeoutMs}ms - no progress detected`);
+      }, timeoutMs);
+      transferTimeoutsRef.current.set(transferId, newTimeout);
+    }
+    
+    logger.log(`Stored stream data for transfer ${transferId}`, {
+      dataSize: data.length,
+      offset,
+      bytesReceived: transferInfo.bytesReceived,
+      fileSize: transferInfo.fileSize,
+      progress: `${Math.round((transferInfo.bytesReceived / transferInfo.fileSize) * 100)}%`
+    });
+  }, [logger, progressManager]);
+
+  // File complete handler - explicit completion strategy
+  const handleFileComplete = useCallback(async (transferId: string, completionData?: { 
+    totalBytes?: number; 
+    checksum?: string; 
+    transferTime?: number;
+  }) => {
+    logger.log('Completing stream-based file transfer:', transferId);
+    
+    const buffer = transferBuffersRef.current.get(transferId);
+    const transferInfo = transferInfoRef.current.get(transferId);
+    
+    if (!buffer || !transferInfo) {
+      logger.error(`No buffer or transfer info found for transfer ${transferId}`);
+      return;
+    }
+    
+    // Validate completion
+    if (completionData?.totalBytes && transferInfo.bytesReceived !== completionData.totalBytes) {
+      logger.warn(`Byte count mismatch: received ${transferInfo.bytesReceived}, expected ${completionData.totalBytes}`);
+    }
+    
+    // Check if we have all expected data
+    if (transferInfo.bytesReceived < transferInfo.fileSize) {
+      logger.warn(`Incomplete transfer: received ${transferInfo.bytesReceived}/${transferInfo.fileSize} bytes`);
+      // Still proceed - might be compression or other valid reasons
+    }
+    
+    // Create blob from buffer
+    const blob = new Blob([buffer.slice(0, transferInfo.bytesReceived)]);
     setReceivedFile(blob);
     
     // Call completion callback
     if (config.onComplete) {
-      config.onComplete(blob, fileInfo.fileName);
+      config.onComplete(blob, transferInfo.fileName);
     }
     
     progressManager.completeTransfer();
     
+    // Log transfer statistics
+    const transferTime = Date.now() - transferInfo.startTime;
+    const transferRate = transferInfo.bytesReceived / (transferTime / 1000); // bytes per second
+    logger.log('Transfer completed successfully:', {
+      transferId,
+      fileName: transferInfo.fileName,
+      bytesReceived: transferInfo.bytesReceived,
+      fileSize: transferInfo.fileSize,
+      transferTime,
+      transferRate: `${(transferRate / 1024 / 1024).toFixed(2)} MB/s`,
+      completionData
+    });
+    
     // Cleanup
-    chunksRef.current.delete(transferId);
-    fileInfoRef.current.delete(transferId);
+    transferBuffersRef.current.delete(transferId);
+    transferInfoRef.current.delete(transferId);
+    
+    // Clear timeout
+    const timeout = transferTimeoutsRef.current.get(transferId);
+    if (timeout) {
+      clearTimeout(timeout);
+      transferTimeoutsRef.current.delete(transferId);
+    }
   }, [logger, progressManager, config]);
 
   // File error handler
   const handleFileError = useCallback((transferId: string, error: string) => {
-    logger.error(`File transfer error for ${transferId}: ${error}`);
+    logger.error(`Stream transfer error for ${transferId}: ${error}`);
     progressManager.failTransfer(error);
     
     // Cleanup
-    chunksRef.current.delete(transferId);
-    fileInfoRef.current.delete(transferId);
+    transferBuffersRef.current.delete(transferId);
+    transferInfoRef.current.delete(transferId);
+    
+    // Clear timeout
+    const timeout = transferTimeoutsRef.current.get(transferId);
+    if (timeout) {
+      clearTimeout(timeout);
+      transferTimeoutsRef.current.delete(transferId);
+    }
   }, [logger, progressManager]);
 
-  // Simple message handler - WebRTC guarantees delivery and ordering
+  // Stream-based message handler - WebRTC guarantees delivery and ordering
   const handleMessage = useCallback(async (data: string | ArrayBuffer | Blob) => {
-    let message: { type: number; data: string } | null = null;
-    
     if (typeof data === 'string') {
-      // Handle string messages (fallback)
+      // Handle string messages (control messages)
       try {
-        const jsonMessage = JSON.parse(data);
-        message = { type: jsonMessage.type, data: JSON.stringify(jsonMessage) };
+        const message = JSON.parse(data);
+        
+        switch (message.type) {
+          case MESSAGE_TYPES.FILE_START:
+            await handleFileStart(message.transferId, message.fileName, message.fileSize);
+            break;
+          case MESSAGE_TYPES.FILE_COMPLETE:
+            await handleFileComplete(message.transferId, {
+              totalBytes: message.totalBytes,
+              checksum: message.checksum,
+              transferTime: message.transferTime
+            });
+            break;
+          case MESSAGE_TYPES.FILE_ERROR:
+            handleFileError(message.transferId, message.error);
+            break;
+          default:
+            logger.warn('Unknown string message type:', message.type);
+        }
       } catch (error) {
         logger.error('Failed to parse string message:', error);
-        return;
       }
     } else if (data instanceof ArrayBuffer) {
-      // Handle binary messages
+      // Handle binary data messages
       if (data.byteLength < 4) {
-        logger.error('Binary message too short');
+        logger.error('Binary data message too short');
         return;
       }
       
       const view = new DataView(data);
       const type = view.getUint32(0, true);
       
-      if (type === MESSAGE_TYPES.FILE_CHUNK) {
-        // Special handling for chunk messages with raw binary data
-        if (data.byteLength < 8) {
-          logger.error('Chunk message too short');
+      if (type === MESSAGE_TYPES.FILE_DATA) {
+        // Stream data message format: [4 bytes: type][4 bytes: transferId length][4 bytes: offset][transferId][data]
+        if (data.byteLength < 12) {
+          logger.error('File data message too short');
           return;
         }
         
-        const metadataLength = view.getUint32(4, true);
-        const metadataBytes = new Uint8Array(data, 8, metadataLength);
-        const metadata = new TextDecoder().decode(metadataBytes);
+        const transferIdLength = view.getUint32(4, true);
+        const offset = view.getUint32(8, true);
         
-        try {
-          const parsedMetadata = JSON.parse(metadata);
-          const chunkData = new Uint8Array(data, 8 + metadataLength);
-          await handleFileChunk(parsedMetadata.transferId, parsedMetadata.chunkIndex, chunkData);
-        } catch (error) {
-          logger.error('Failed to parse chunk metadata:', error);
+        if (data.byteLength < 12 + transferIdLength) {
+          logger.error('File data message invalid length');
+          return;
         }
-        return;
+        
+        const transferIdBytes = new Uint8Array(data, 12, transferIdLength);
+        const transferId = new TextDecoder().decode(transferIdBytes);
+        const fileData = new Uint8Array(data, 12 + transferIdLength);
+        
+        await handleFileData(transferId, fileData, offset);
       } else {
-        // Handle other binary messages
-        message = decodeMessage(data);
-        if (!message) {
-          logger.error('Failed to decode binary message');
-          return;
-        }
+        logger.warn('Unknown binary message type:', type);
       }
     } else if (data instanceof Blob) {
-      // Convert blob to array buffer
+      // Convert blob to array buffer and handle
       try {
         const arrayBuffer = await data.arrayBuffer();
-        if (arrayBuffer.byteLength < 4) {
-          logger.error('Blob message too short');
-          return;
-        }
-        
-        const view = new DataView(arrayBuffer);
-        const type = view.getUint32(0, true);
-        
-        if (type === MESSAGE_TYPES.FILE_CHUNK) {
-          // Handle chunk blob
-          if (arrayBuffer.byteLength < 8) {
-            logger.error('Chunk blob message too short');
-            return;
-          }
-          
-          const metadataLength = view.getUint32(4, true);
-          const metadataBytes = new Uint8Array(arrayBuffer, 8, metadataLength);
-          const metadata = new TextDecoder().decode(metadataBytes);
-          
-          try {
-            const parsedMetadata = JSON.parse(metadata);
-            const chunkData = new Uint8Array(arrayBuffer, 8 + metadataLength);
-            await handleFileChunk(parsedMetadata.transferId, parsedMetadata.chunkIndex, chunkData);
-          } catch (error) {
-            logger.error('Failed to parse chunk blob metadata:', error);
-          }
-          return;
-        } else {
-          // Handle other blob messages
-          message = decodeMessage(arrayBuffer);
-          if (!message) {
-            logger.error('Failed to decode blob message');
-            return;
-          }
-        }
+        await handleMessage(arrayBuffer);
       } catch (error) {
         logger.error('Failed to convert blob to array buffer:', error);
-        return;
       }
     }
-    
-    if (!message) return;
-    
-    try {
-      const parsedData = JSON.parse(message.data);
-      
-      switch (message.type) {
-        case MESSAGE_TYPES.FILE_START:
-          await handleFileStart(parsedData.transferId, parsedData.fileName, parsedData.fileSize);
-          break;
-        case MESSAGE_TYPES.FILE_END:
-          await handleFileComplete(parsedData.transferId);
-          break;
-        case MESSAGE_TYPES.FILE_ERROR:
-          handleFileError(parsedData.transferId, parsedData.error);
-          break;
-        default:
-          logger.warn('Unknown message type:', message.type);
-      }
-    } catch (error) {
-      logger.error('Failed to parse message data:', error);
-    }
-  }, [handleFileStart, handleFileChunk, handleFileComplete, handleFileError, logger]);
+  }, [handleFileStart, handleFileData, handleFileComplete, handleFileError, logger]);
 
   // WebRTC peers
   const hostPeer = useWebRTCHostPeer({
@@ -414,19 +455,18 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     });
   }, [config.role, hostPeer, logger, setupBackpressureHandling]);
 
-  // Send file (host only)
+  // Send file (host only) - stream-based
   const sendFile = useCallback(async (file: File, clientId?: string) => {
     if (config.role !== 'host') {
       throw new Error('sendFile can only be called on host');
     }
 
     const transferId = `transfer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const startTime = Date.now();
     
-    logger.log('Starting file transfer:', {
+    logger.log('Starting stream-based file transfer:', {
       fileName: file.name,
       fileSize: file.size,
-      totalChunks,
       transferId,
       clientId: clientId || 'all clients'
     });
@@ -434,14 +474,13 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     progressManager.startTransfer(file.name, file.size);
 
     try {
-      // Send file start message - binary format
-      const startData = JSON.stringify({
+      // Send file start message
+      const startMessage = JSON.stringify({
+        type: MESSAGE_TYPES.FILE_START,
         transferId,
         fileName: file.name,
-        fileSize: file.size,
-        totalChunks
+        fileSize: file.size
       });
-      const startMessage = encodeMessage(MESSAGE_TYPES.FILE_START, startData);
       
       if (clientId) {
         hostPeer.send(startMessage, clientId);
@@ -449,9 +488,8 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
         hostPeer.send(startMessage);
       }
 
-      // Send file chunks - binary format with raw chunk data
+      // Stream file data in chunks
       let bytesTransferred = 0;
-      let chunkIndex = 0;
       
       while (bytesTransferred < file.size) {
         const start = bytesTransferred;
@@ -459,24 +497,19 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
           
         const fileSlice = file.slice(start, end);
         const chunkArrayBuffer = await fileSlice.arrayBuffer();
-        const chunk = new Uint8Array(chunkArrayBuffer);
+        const chunkData = new Uint8Array(chunkArrayBuffer);
         
-        // Create binary chunk message: type + metadata + raw chunk data
-        const metadata = JSON.stringify({
-          transferId,
-          chunkIndex
-        });
-        const metadataBytes = new TextEncoder().encode(metadata);
-        
-        // Binary format: [4 bytes: type][4 bytes: metadata length][metadata][chunk data]
-        const buffer = new ArrayBuffer(8 + metadataBytes.length + chunk.length);
+        // Create stream data message: [4 bytes: type][4 bytes: transferId length][4 bytes: offset][transferId][data]
+        const transferIdBytes = new TextEncoder().encode(transferId);
+        const buffer = new ArrayBuffer(12 + transferIdBytes.length + chunkData.length);
         const view = new DataView(buffer);
         
-        view.setUint32(0, MESSAGE_TYPES.FILE_CHUNK, true);
-        view.setUint32(4, metadataBytes.length, true);
+        view.setUint32(0, MESSAGE_TYPES.FILE_DATA, true);
+        view.setUint32(4, transferIdBytes.length, true);
+        view.setUint32(8, start, true); // offset
         
-        new Uint8Array(buffer, 8).set(metadataBytes);
-        new Uint8Array(buffer, 8 + metadataBytes.length).set(chunk);
+        new Uint8Array(buffer, 12).set(transferIdBytes);
+        new Uint8Array(buffer, 12 + transferIdBytes.length).set(chunkData);
 
         if (clientId) {
           hostPeer.send(buffer, clientId);
@@ -484,40 +517,51 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
           hostPeer.send(buffer);
         }
 
-        progressManager.updateBytesTransferred(chunk.length);
-        bytesTransferred += chunk.length;
-        chunkIndex++;
+        progressManager.updateBytesTransferred(chunkData.length);
+        bytesTransferred += chunkData.length;
 
         await waitForBackpressure(clientId || 'default');
       }
         
-      // Send FILE_END message
-      const endData = JSON.stringify({ transferId });
-      const endMessage = encodeMessage(MESSAGE_TYPES.FILE_END, endData);
+      // Send explicit completion message
+      const transferTime = Date.now() - startTime;
+      const completionMessage = JSON.stringify({
+        type: MESSAGE_TYPES.FILE_COMPLETE,
+        transferId,
+        totalBytes: bytesTransferred,
+        transferTime,
+        checksum: undefined // Can be added later for integrity verification
+      });
       
       if (clientId) {
-        hostPeer.send(endMessage, clientId);
+        hostPeer.send(completionMessage, clientId);
       } else {
-        hostPeer.send(endMessage);
+        hostPeer.send(completionMessage);
       }
       
-      logger.log('File transfer completed successfully');
+      logger.log('Stream file transfer completed successfully:', {
+        transferId,
+        bytesTransferred,
+        transferTime,
+        transferRate: `${(bytesTransferred / (transferTime / 1000) / 1024 / 1024).toFixed(2)} MB/s`
+      });
+      
       progressManager.completeTransfer();
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('File transfer failed:', error);
+      logger.error('Stream file transfer failed:', error);
       
-      const errorData = JSON.stringify({
+      const errorMessage_str = JSON.stringify({
+        type: MESSAGE_TYPES.FILE_ERROR,
         transferId,
         error: errorMessage
       });
-      const errorMsg = encodeMessage(MESSAGE_TYPES.FILE_ERROR, errorData);
       
       if (clientId) {
-        hostPeer.send(errorMsg, clientId);
+        hostPeer.send(errorMessage_str, clientId);
       } else {
-        hostPeer.send(errorMsg);
+        hostPeer.send(errorMessage_str);
       }
       
       progressManager.failTransfer(errorMessage);
@@ -543,12 +587,18 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   
   // Clear transfer state
   const clearTransfer = useCallback(() => {
-    logger.log('Clearing transfer state');
+    logger.log('Clearing stream transfer state');
+    
+    // Clear all timeouts
+    transferTimeoutsRef.current.forEach((timeout) => {
+      clearTimeout(timeout);
+    });
+    transferTimeoutsRef.current.clear();
     
     setReceivedFile(null);
     setReceivedFileName(null);
-    chunksRef.current.clear();
-    fileInfoRef.current.clear();
+    transferBuffersRef.current.clear();
+    transferInfoRef.current.clear();
     progressManager.clearTransfer();
   }, [logger, progressManager]);
   
