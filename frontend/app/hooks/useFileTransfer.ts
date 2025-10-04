@@ -125,7 +125,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   const handleFileStart = useCallback(async (transferId: string, fileName: string, fileSize: number) => {
     logger.log('Starting stream-based file transfer:', { fileName, fileSize, transferId });
     
-    setReceivedFileName(fileName);
+    // Don't set receivedFileName here - wait for completion
     progressManager.startTransfer(fileName, fileSize);
     
     // Initialize stream buffer
@@ -183,6 +183,9 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     // Update progress
     progressManager.updateBytesTransferred(data.length);
     
+    // Debug: Log progress updates
+    logger.log(`Progress updated: ${transferInfo.bytesReceived}/${transferInfo.fileSize} bytes (${Math.round((transferInfo.bytesReceived / transferInfo.fileSize) * 100)}%)`);
+    
     // Reset timeout on data progress
     const existingTimeout = transferTimeoutsRef.current.get(transferId);
     if (existingTimeout) {
@@ -232,9 +235,10 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       // Still proceed - might be compression or other valid reasons
     }
     
-    // Create blob from buffer
+    // Create blob from buffer and set received file info
     const blob = new Blob([buffer.slice(0, transferInfo.bytesReceived)]);
     setReceivedFile(blob);
+    setReceivedFileName(transferInfo.fileName);
     
     // Call completion callback
     if (config.onComplete) {
@@ -519,8 +523,16 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
 
         progressManager.updateBytesTransferred(chunkData.length);
         bytesTransferred += chunkData.length;
+        
+        // Debug: Log host progress updates
+        logger.log(`Host progress updated: ${bytesTransferred}/${file.size} bytes (${Math.round((bytesTransferred / file.size) * 100)}%)`);
 
         await waitForBackpressure(clientId || 'default');
+        
+        // Small delay for testing - remove this in production
+        if (process.env.NODE_ENV === 'development') {
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
       }
         
       // Send explicit completion message

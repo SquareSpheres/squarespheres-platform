@@ -17,7 +17,7 @@ interface ProgressCallbacks {
   onError?: (error: string) => void;
 }
 
-const PROGRESS_UPDATE_THROTTLE = 50; // Update at most every 50ms (more frequent for better UX)
+const PROGRESS_UPDATE_THROTTLE = 16; // Update at most every 16ms (~60fps for smooth progress)
 
 export function useTransferProgress(callbacks: ProgressCallbacks = {}) {
   const [transferProgress, setTransferProgress] = useState<FileTransferProgress | null>(null);
@@ -62,8 +62,13 @@ export function useTransferProgress(callbacks: ProgressCallbacks = {}) {
     setTransferProgress(initialProgress);
     setIsTransferring(true);
     
+    console.log('[Progress] Starting transfer:', { fileName, fileSize });
+    
     if (callbacks.onProgress) {
+      console.log('[Progress] Calling onProgress callback');
       callbacks.onProgress(initialProgress);
+    } else {
+      console.warn('[Progress] No onProgress callback registered');
     }
   }, [callbacks]);
 
@@ -115,7 +120,8 @@ export function useTransferProgress(callbacks: ProgressCallbacks = {}) {
   }, []);
 
   const updateBytesTransferred = useCallback((additionalBytes: number) => {
-    updateProgressThrottled(prev => {
+    // Always update the internal state immediately for UI responsiveness
+    setTransferProgress(prev => {
       if (!prev) return null;
       const newBytesTransferred = prev.bytesTransferred + additionalBytes;
       const percentage = Math.round((newBytesTransferred / prev.fileSize) * 100);
@@ -126,17 +132,39 @@ export function useTransferProgress(callbacks: ProgressCallbacks = {}) {
         percentage
       };
       
-      // Force update at milestone percentages (every 10%) to ensure visible progress
+      // Force update at milestone percentages (every 5%) to ensure visible progress
       const oldPercentage = Math.round((prev.bytesTransferred / prev.fileSize) * 100);
-      const shouldForceUpdate = Math.floor(percentage / 10) > Math.floor(oldPercentage / 10);
+      const shouldForceUpdate = Math.floor(percentage / 5) > Math.floor(oldPercentage / 5);
       
-      if (shouldForceUpdate && callbacks.onProgress) {
-        // Bypass throttling for milestone updates
+      console.log('[Progress] Update:', { 
+        additionalBytes, 
+        newBytesTransferred, 
+        percentage, 
+        shouldForceUpdate,
+        hasCallback: !!callbacks.onProgress 
+      });
+      
+      // Always call progress callback for UI updates (not just milestones)
+      if (callbacks.onProgress) {
+        console.log('[Progress] Updating progress callback');
         callbacks.onProgress(newProgress);
         lastProgressUpdateRef.current = Date.now();
       }
       
       return newProgress;
+    });
+    
+    // Also update via throttled mechanism for external callbacks
+    updateProgressThrottled(prev => {
+      if (!prev) return null;
+      const newBytesTransferred = prev.bytesTransferred + additionalBytes;
+      const percentage = Math.round((newBytesTransferred / prev.fileSize) * 100);
+      
+      return {
+        ...prev,
+        bytesTransferred: newBytesTransferred,
+        percentage
+      };
     });
   }, [updateProgressThrottled, callbacks]);
 
