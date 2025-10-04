@@ -1,182 +1,178 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-export interface FileTransferProgress {
+export type TransferProgress = {
   fileName: string;
   fileSize: number;
   bytesTransferred: number;
   percentage: number;
-  status: 'pending' | 'transferring' | 'completed' | 'error';
+  status: 'transferring' | 'completed' | 'error';
+  startTime?: number;
   error?: string;
-}
+};
 
-interface ProgressCallbacks {
-  onProgress?: (progress: FileTransferProgress) => void;
-  onComplete?: (file: Blob | null, fileName: string | null) => void;
-  onError?: (error: string) => void;
-}
+export type ProgressCallbacks = {
+  onProgress?: (p: TransferProgress) => void;
+  onComplete?: (file?: Blob, fileName?: string) => void;
+  onError?: (err: string) => void;
+};
 
-const PROGRESS_UPDATE_THROTTLE = 16; // Update at most every 16ms (~60fps for smooth progress)
-
-export function useTransferProgress(callbacks: ProgressCallbacks = {}) {
-  const [transferProgress, setTransferProgress] = useState<FileTransferProgress | null>(null);
+export function useTransferProgress(initialCallbacks?: ProgressCallbacks) {
+  // state visible to components
+  const [transferProgress, setTransferProgress] = useState<TransferProgress | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
-  const lastProgressUpdateRef = useRef<number>(0);
 
-  const updateProgress = useCallback((newProgress: FileTransferProgress | null) => {
-    setTransferProgress(newProgress);
-    
-    if (newProgress && callbacks.onProgress) {
-      callbacks.onProgress(newProgress);
-    }
-    
-    // Handle completion
-    if (newProgress?.status === 'completed' && callbacks.onComplete) {
-      callbacks.onComplete(null, newProgress.fileName);
-    }
-    
-    // Handle errors
-    if (newProgress?.status === 'error' && newProgress.error && callbacks.onError) {
-      callbacks.onError(newProgress.error);
-    }
-  }, [callbacks]);
+  // Keep callbacks in refs so methods remain stable and always call the latest callbacks
+  const callbacksRef = useRef<ProgressCallbacks>(initialCallbacks || {});
+  useEffect(() => {
+    callbacksRef.current = initialCallbacks || {};
+  }, [initialCallbacks]);
 
-  const updateProgressThrottled = useCallback((updateFn: (prev: FileTransferProgress | null) => FileTransferProgress | null) => {
-    const now = Date.now();
-    if (now - lastProgressUpdateRef.current >= PROGRESS_UPDATE_THROTTLE) {
-      const newProgress = updateFn(transferProgress);
-      updateProgress(newProgress);
-      lastProgressUpdateRef.current = now;
-    }
-  }, [transferProgress, updateProgress]);
+  // Stable debug logger helper
+  const debugLog = (...args: any[]) => {
+    // toggle this to false to silence
+    const DEBUG = false;
+    if (DEBUG) console.log('[Progress]', ...args);
+  };
 
-  const startTransfer = useCallback((fileName: string, fileSize: number) => {
-    const initialProgress: FileTransferProgress = {
+  // Methods are created once and kept stable via refs (no deps)
+  const startTransfer = useRef((fileName: string, fileSize: number) => {
+    debugLog('========= START TRANSFER (manager) ==========');
+    const initial: TransferProgress = {
       fileName,
       fileSize,
       bytesTransferred: 0,
       percentage: 0,
-      status: 'transferring'
+      status: 'transferring',
+      startTime: Date.now()
     };
-    setTransferProgress(initialProgress);
-    setIsTransferring(true);
-    
-    console.log('[Progress] Starting transfer:', { fileName, fileSize });
-    
-    if (callbacks.onProgress) {
-      console.log('[Progress] Calling onProgress callback');
-      callbacks.onProgress(initialProgress);
-    } else {
-      console.warn('[Progress] No onProgress callback registered');
-    }
-  }, [callbacks]);
 
-  const completeTransfer = useCallback(() => {
+    // Use functional update to avoid depending on stale state
+    setTransferProgress(() => {
+      debugLog('startTransfer: setting initial progress:', initial);
+      return initial;
+    });
+    setIsTransferring(true);
+
+    // Call any registered callback
+    try {
+      callbacksRef.current.onProgress?.(initial);
+    } catch (err) {
+      debugLog('startTransfer callback error:', err);
+    }
+  }).current;
+
+  const updateBytesTransferred = useRef((additionalBytes: number) => {
+    debugLog('updateBytesTransferred called with', additionalBytes);
     setTransferProgress(prev => {
-      if (!prev) return null;
-      
-      // Ensure progress shows 100% before completion
-      const completed = { 
-        ...prev, 
-        status: 'completed' as const,
-        bytesTransferred: prev.fileSize,
-        percentage: 100
+      if (!prev) {
+        debugLog('updateBytesTransferred: No previous progress state!');
+        // Instead of returning null (which keeps it null), we keep prev as null and rely on caller
+        // to call startTransfer first. Still return prev (null) so UI knows nothing changed.
+        return prev;
+      }
+
+      const bytes = prev.bytesTransferred + additionalBytes;
+      const percent = prev.fileSize > 0 ? Math.min(100, Math.round((bytes / prev.fileSize) * 100)) : 0;
+      const next: TransferProgress = {
+        ...prev,
+        bytesTransferred: bytes,
+        percentage: percent
       };
-      
-      // Show 100% progress first
-      if (callbacks.onProgress) {
-        callbacks.onProgress(completed);
+
+      debugLog('updateBytesTransferred ->', next);
+      // Fire throttled callbacks from outside if required; for now call onProgress directly
+      try {
+        callbacksRef.current.onProgress?.(next);
+      } catch (err) {
+        debugLog('onProgress callback error:', err);
       }
-      
-      // Then call completion callback
-      if (callbacks.onComplete) {
-        callbacks.onComplete(null, completed.fileName);
+
+      return next;
+    });
+  }).current;
+
+  const completeTransfer = useRef((maybeFile?: Blob, fileName?: string) => {
+    debugLog('completeTransfer called', fileName);
+    setTransferProgress(prev => {
+      if (!prev) {
+        debugLog('completeTransfer: no prev state, setting completed with unknown file');
+        const completed = {
+          fileName: fileName || 'unknown',
+          fileSize: maybeFile ? maybeFile.size : 0,
+          bytesTransferred: maybeFile ? maybeFile.size : 0,
+          percentage: 100,
+          status: 'completed' as const,
+          startTime: undefined
+        } as TransferProgress;
+        callbacksRef.current.onProgress?.(completed);
+        return completed;
       }
-      
+
+      const completed: TransferProgress = {
+        ...prev,
+        bytesTransferred: prev.fileSize,
+        percentage: 100,
+        status: 'completed'
+      };
+
+      callbacksRef.current.onProgress?.(completed);
       return completed;
     });
-    setIsTransferring(false);
-  }, [callbacks]);
 
-  const failTransfer = useCallback((error: string) => {
+    setIsTransferring(false);
+
+    try {
+      callbacksRef.current.onComplete?.(maybeFile, fileName);
+    } catch (err) {
+      debugLog('onComplete callback error:', err);
+    }
+  }).current;
+
+  const errorTransfer = useRef((errMsg: string) => {
+    debugLog('errorTransfer called:', errMsg);
     setTransferProgress(prev => {
-      if (!prev) return null;
-      const failed = { ...prev, status: 'error' as const, error };
-      
-      if (callbacks.onError) {
-        callbacks.onError(error);
-      }
-      
-      return failed;
+      const next: TransferProgress = prev ? { ...prev, status: 'error', error: errMsg } : {
+        fileName: 'unknown',
+        fileSize: 0,
+        bytesTransferred: 0,
+        percentage: 0,
+        status: 'error',
+        error: errMsg
+      };
+      callbacksRef.current.onProgress?.(next);
+      callbacksRef.current.onError?.(errMsg);
+      return next;
     });
     setIsTransferring(false);
-  }, [callbacks]);
+  }).current;
 
-  const clearTransfer = useCallback(() => {
+  const clearTransfer = useRef(() => {
+    debugLog('clearTransfer called');
     setTransferProgress(null);
     setIsTransferring(false);
-    lastProgressUpdateRef.current = 0;
-  }, []);
+  }).current;
 
-  const updateBytesTransferred = useCallback((additionalBytes: number) => {
-    // Always update the internal state immediately for UI responsiveness
-    setTransferProgress(prev => {
-      if (!prev) return null;
-      const newBytesTransferred = prev.bytesTransferred + additionalBytes;
-      const percentage = Math.round((newBytesTransferred / prev.fileSize) * 100);
-      
-      const newProgress = {
-        ...prev,
-        bytesTransferred: newBytesTransferred,
-        percentage
-      };
-      
-      // Force update at milestone percentages (every 5%) to ensure visible progress
-      const oldPercentage = Math.round((prev.bytesTransferred / prev.fileSize) * 100);
-      const shouldForceUpdate = Math.floor(percentage / 5) > Math.floor(oldPercentage / 5);
-      
-      console.log('[Progress] Update:', { 
-        additionalBytes, 
-        newBytesTransferred, 
-        percentage, 
-        shouldForceUpdate,
-        hasCallback: !!callbacks.onProgress 
-      });
-      
-      // Always call progress callback for UI updates (not just milestones)
-      if (callbacks.onProgress) {
-        console.log('[Progress] Updating progress callback');
-        callbacks.onProgress(newProgress);
-        lastProgressUpdateRef.current = Date.now();
-      }
-      
-      return newProgress;
-    });
-    
-    // Also update via throttled mechanism for external callbacks
-    updateProgressThrottled(prev => {
-      if (!prev) return null;
-      const newBytesTransferred = prev.bytesTransferred + additionalBytes;
-      const percentage = Math.round((newBytesTransferred / prev.fileSize) * 100);
-      
-      return {
-        ...prev,
-        bytesTransferred: newBytesTransferred,
-        percentage
-      };
-    });
-  }, [updateProgressThrottled, callbacks]);
+  // Return a stable manager object (useRef ensures identity doesn't change)
+  const managerRef = useRef({
+    startTransfer,
+    updateBytesTransferred,
+    completeTransfer,
+    errorTransfer,
+    clearTransfer
+  });
 
   return {
     transferProgress,
     isTransferring,
-    startTransfer,
-    completeTransfer,
-    failTransfer,
-    clearTransfer,
-    updateProgress,
-    updateProgressThrottled,
-    updateBytesTransferred
+    // expose manager methods (callers should call manager.startTransfer(...))
+    progressManager: managerRef.current,
+    // also export direct helpers for convenience
+    startTransfer: managerRef.current.startTransfer,
+    updateBytesTransferred: managerRef.current.updateBytesTransferred,
+    completeTransfer: managerRef.current.completeTransfer,
+    errorTransfer: managerRef.current.errorTransfer,
+    clearTransfer: managerRef.current.clearTransfer
   };
 }

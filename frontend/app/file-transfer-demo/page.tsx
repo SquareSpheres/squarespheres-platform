@@ -27,8 +27,11 @@ export default function FileTransferDemoPage() {
     onChannelClose: () => addLog('Host data channel closed'),
     onChannelMessage: (d: string | ArrayBuffer | Blob) => addLog(`Host received: ${typeof d === 'string' ? d.substring(0, 100) : 'Binary data'}`),
     onProgress: (progress) => {
-      console.log('[Demo] Host progress received:', progress);
-      addLog(`Host progress: ${progress.percentage}% (${formatFileSize(progress.bytesTransferred)}/${formatFileSize(progress.fileSize)})`);
+      // Only log milestone progress updates (10%, 30%, 50%, 70%, 90%, 100%)
+      const milestones = [10, 30, 50, 70, 90, 100];
+      if (milestones.includes(progress.percentage)) {
+        addLog(`Host progress: ${progress.percentage}% (${formatFileSize(progress.bytesTransferred)}/${formatFileSize(progress.fileSize)})`);
+      }
     },
     onComplete: (file, fileName) => addLog(`Host transfer completed: ${fileName}`),
     onError: (error) => {
@@ -47,8 +50,11 @@ export default function FileTransferDemoPage() {
     onChannelClose: () => addLog('Client data channel closed'),
     onChannelMessage: (d: string | ArrayBuffer | Blob) => addLog(`Client received: ${typeof d === 'string' ? d.substring(0, 100) : 'Binary data'}`),
     onProgress: (progress) => {
-      console.log('[Demo] Client progress received:', progress);
-      addLog(`Client progress: ${progress.percentage}% (${formatFileSize(progress.bytesTransferred)}/${formatFileSize(progress.fileSize)})`);
+      // Only log milestone progress updates (10%, 30%, 50%, 70%, 90%, 100%)
+      const milestones = [10, 30, 50, 70, 90, 100];
+      if (milestones.includes(progress.percentage)) {
+        addLog(`Client progress: ${progress.percentage}% (${formatFileSize(progress.bytesTransferred)}/${formatFileSize(progress.fileSize)})`);
+      }
     },
     onComplete: (file, fileName) => addLog(`Client transfer completed: ${fileName}`),
     onError: (error) => {
@@ -181,11 +187,11 @@ export default function FileTransferDemoPage() {
   };
 
   const formatTransferRate = (bytesPerSecond: number) => {
-    if (bytesPerSecond === 0) return '0 B/s';
+    if (bytesPerSecond === 0) return '0.0 B/s';
     const k = 1024;
     const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
     const i = Math.floor(Math.log(bytesPerSecond) / Math.log(k));
-    return parseFloat((bytesPerSecond / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    return parseFloat((bytesPerSecond / Math.pow(k, i)).toFixed(1)).toFixed(1) + ' ' + sizes[i];
   };
 
   // Calculate transfer rates
@@ -206,7 +212,7 @@ export default function FileTransferDemoPage() {
   }, [hostFileTransfer.transferProgress, clientFileTransfer.transferProgress]);
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="h-screen bg-background p-6 overflow-y-auto">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-6 text-foreground">File Transfer Demo</h1>
         
@@ -420,24 +426,25 @@ export default function FileTransferDemoPage() {
           </div>
         )}
 
-        {/* Enhanced Transfer Progress */}
-        {(hostFileTransfer.transferProgress || clientFileTransfer.transferProgress || hostFileTransfer.isTransferring || clientFileTransfer.isTransferring) && (
-          <div className="bg-card rounded-lg shadow p-6 mb-4 border">
-            <h2 className="text-lg font-semibold mb-4 text-foreground">🚀 Stream Transfer Progress</h2>
-            <div className="space-y-6">
-              {(hostFileTransfer.transferProgress || hostFileTransfer.isTransferring) && (
+        {/* Transfer Progress */}
+        <div className="bg-card rounded-lg shadow p-6 mb-4 border min-h-[200px]">
+          <h2 className="text-lg font-semibold mb-4 text-foreground">🚀 Stream Transfer Progress</h2>
+          <div className="space-y-6">
+              {(hostFileTransfer.transferProgress || hostFileTransfer.isTransferring) ? (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
                     <div className="text-sm font-medium text-foreground">📤 Host Transfer</div>
-                    {hostFileTransfer.transferProgress?.status === 'transferring' && (
-                      <div className="flex items-center gap-1 text-xs text-blue-600">
-                        <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Streaming...
-                      </div>
-                    )}
+                    <div className="min-w-[100px] h-4 flex items-center">
+                      {hostFileTransfer.transferProgress?.status === 'transferring' && (
+                        <div className="flex items-center gap-1 text-xs text-primary">
+                          <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Streaming...
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -449,107 +456,108 @@ export default function FileTransferDemoPage() {
                     </div>
                     <div>
                       <div className="text-muted-foreground">Size</div>
-                      <div className="font-medium text-foreground">
+                      <div className="font-mono text-foreground w-[120px] inline-block text-left tabular-nums">
                         {hostFileTransfer.transferProgress ? formatFileSize(hostFileTransfer.transferProgress.fileSize) : 
-                         selectedFile ? formatFileSize(selectedFile.size) : 'Unknown'}
+                         selectedFile ? formatFileSize(selectedFile.size) : '0.00 MB'}
                       </div>
                     </div>
                     <div>
                       <div className="text-muted-foreground">Transferred</div>
-                      <div className="font-medium text-foreground">
+                      <div className="font-mono text-foreground w-[200px] inline-block text-left tabular-nums min-h-[1.25rem]">
                         {hostFileTransfer.transferProgress ? 
                           `${formatFileSize(hostFileTransfer.transferProgress.bytesTransferred)} / ${formatFileSize(hostFileTransfer.transferProgress.fileSize)}` :
-                          'Transferring...'}
+                          '0.00 MB / 0.00 MB'}
                       </div>
-                      {hostFileTransfer.transferProgress?.status === 'transferring' && transferRates.host > 0 && (
-                        <div className="text-xs text-blue-600">
-                          {formatTransferRate(transferRates.host)}
-                        </div>
-                      )}
+                      <div className="h-4 flex items-center">
+                        {hostFileTransfer.transferProgress?.status === 'transferring' && transferRates.host > 0 ? (
+                          <div className="text-xs text-muted-foreground font-mono w-16 text-right tabular-nums">
+                            {formatTransferRate(transferRates.host)}
+                          </div>
+                        ) : (
+                          <div className="w-16"></div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Enhanced Progress Bar */}
-                  <div className="space-y-2">
+                  {/* Progress Bar */}
+                  <div className="space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-medium text-foreground">Progress</span>
-                      <span className="text-sm font-bold text-foreground">
+                      <span className="text-sm font-mono text-muted-foreground w-[80px] text-right inline-block">
                         {hostFileTransfer.transferProgress ? (
                           hostFileTransfer.transferProgress.status === 'transferring' && hostFileTransfer.transferProgress.percentage >= 95 ? (
-                            <span className="flex items-center gap-1">
-                              <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              Finalizing...
-                            </span>
+                            'Finalizing'
                           ) : (
                             `${hostFileTransfer.transferProgress.percentage}%`
                           )
                         ) : (
-                          'Transferring...'
+                          'Starting...'
                         )}
                       </span>
                     </div>
                     
-                    <div className="relative w-full bg-muted rounded-full h-3 overflow-hidden">
+                    <div className="relative w-full bg-muted rounded-full h-2 overflow-hidden transition-none">
                       {hostFileTransfer.transferProgress ? (
-                        <>
-                          <div 
-                            className={`h-3 rounded-full transition-all duration-500 ${
-                              hostFileTransfer.transferProgress.status === 'completed' ? 'bg-green-500' :
-                              hostFileTransfer.transferProgress.status === 'error' ? 'bg-red-500' :
-                              hostFileTransfer.transferProgress.status === 'transferring' && hostFileTransfer.transferProgress.percentage >= 95 ? 'bg-blue-500 animate-pulse' :
-                              'bg-primary'
-                            }`}
-                            style={{ width: `${hostFileTransfer.transferProgress.percentage}%` }}
-                          ></div>
-                          
-                          {/* Animated shimmer effect when near completion */}
-                          {hostFileTransfer.transferProgress.status === 'transferring' && hostFileTransfer.transferProgress.percentage >= 95 && (
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse"></div>
-                          )}
-                        </>
+                        <div 
+                          className={`h-2 rounded-full transition-[width] duration-300 ease-out ${
+                            hostFileTransfer.transferProgress.status === 'completed' ? 'bg-green-500' :
+                            hostFileTransfer.transferProgress.status === 'error' ? 'bg-destructive' :
+                            'bg-primary'
+                          }`}
+                          style={{ 
+                            width: `${Math.min(100, Math.max(0, hostFileTransfer.transferProgress.percentage))}%`
+                          }}
+                        />
                       ) : (
-                        <div className="h-3 rounded-full bg-blue-500 animate-pulse" style={{ width: '100%' }}></div>
+                        <div className="h-2 rounded-full bg-primary/20 animate-pulse" style={{ width: '100%' }} />
                       )}
                     </div>
                   </div>
 
-                  <div className={`text-sm ${
+                  <div className={`text-sm min-h-[2rem] ${
                     hostFileTransfer.transferProgress?.status === 'completed' ? 'text-green-600' :
                     hostFileTransfer.transferProgress?.status === 'error' ? 'text-red-600' :
                     'text-blue-600'
                   }`}>
-                    <strong>Status:</strong> {
-                      hostFileTransfer.transferProgress ? (
-                        hostFileTransfer.transferProgress.status === 'transferring' && hostFileTransfer.transferProgress.percentage >= 95 ? 
-                          'Waiting for completion signal...' :
-                          hostFileTransfer.transferProgress.status
-                      ) : (
-                        hostFileTransfer.isTransferring ? 'transferring' : 'unknown'
-                      )
-                    }
+                    <div className="flex items-center gap-2">
+                      <strong>Status:</strong>
+                      <span className="min-w-[120px]">
+                        {hostFileTransfer.transferProgress ? (
+                          hostFileTransfer.transferProgress.status === 'transferring' && hostFileTransfer.transferProgress.percentage >= 95 ? 
+                            'Finalizing...' :
+                            hostFileTransfer.transferProgress.status
+                        ) : (
+                          hostFileTransfer.isTransferring ? 'transferring' : 'idle'
+                        )}
+                      </span>
+                    </div>
                     {hostFileTransfer.transferProgress?.error && (
                       <div className="text-red-600 mt-1">Error: {hostFileTransfer.transferProgress.error}</div>
                     )}
                   </div>
                 </div>
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  <div className="text-sm">No active host transfer</div>
+                </div>
               )}
               
-              {(clientFileTransfer.transferProgress || clientFileTransfer.isTransferring) && (
+              {(clientFileTransfer.transferProgress || clientFileTransfer.isTransferring) ? (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
                     <div className="text-sm font-medium text-foreground">📥 Client Transfer</div>
-                    {(clientFileTransfer.transferProgress?.status === 'transferring' || clientFileTransfer.isTransferring) && (
-                      <div className="flex items-center gap-1 text-xs text-blue-600">
-                        <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Receiving...
-                      </div>
-                    )}
+                    <div className="min-w-[100px] h-4 flex items-center">
+                      {(clientFileTransfer.transferProgress?.status === 'transferring' || clientFileTransfer.isTransferring) && (
+                        <div className="flex items-center gap-1 text-xs text-primary">
+                          <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Receiving...
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -561,95 +569,93 @@ export default function FileTransferDemoPage() {
                     </div>
                     <div>
                       <div className="text-muted-foreground">Size</div>
-                      <div className="font-medium text-foreground">
-                        {clientFileTransfer.transferProgress ? formatFileSize(clientFileTransfer.transferProgress.fileSize) : 'Unknown'}
+                      <div className="font-mono text-foreground w-[120px] inline-block text-left tabular-nums">
+                        {clientFileTransfer.transferProgress ? formatFileSize(clientFileTransfer.transferProgress.fileSize) : '0.00 MB'}
                       </div>
                     </div>
                     <div>
                       <div className="text-muted-foreground">Received</div>
-                      <div className="font-medium text-foreground">
+                      <div className="font-mono text-foreground w-[200px] inline-block text-left tabular-nums min-h-[1.25rem]">
                         {clientFileTransfer.transferProgress ? 
                           `${formatFileSize(clientFileTransfer.transferProgress.bytesTransferred)} / ${formatFileSize(clientFileTransfer.transferProgress.fileSize)}` :
-                          'Receiving...'}
+                          '0.00 MB / 0.00 MB'}
                       </div>
-                      {clientFileTransfer.transferProgress?.status === 'transferring' && transferRates.client > 0 && (
-                        <div className="text-xs text-blue-600">
-                          {formatTransferRate(transferRates.client)}
-                        </div>
-                      )}
+                      <div className="h-4 flex items-center">
+                        {clientFileTransfer.transferProgress?.status === 'transferring' && transferRates.client > 0 ? (
+                          <div className="text-xs text-muted-foreground font-mono w-16 text-right tabular-nums">
+                            {formatTransferRate(transferRates.client)}
+                          </div>
+                        ) : (
+                          <div className="w-16"></div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Enhanced Progress Bar */}
-                  <div className="space-y-2">
+                  {/* Progress Bar */}
+                  <div className="space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-medium text-foreground">Progress</span>
-                      <span className="text-sm font-bold text-foreground">
+                      <span className="text-sm font-mono text-muted-foreground w-[80px] text-right inline-block">
                         {clientFileTransfer.transferProgress ? (
                           clientFileTransfer.transferProgress.status === 'transferring' && clientFileTransfer.transferProgress.percentage >= 95 ? (
-                            <span className="flex items-center gap-1">
-                              <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              Finalizing...
-                            </span>
+                            'Finalizing'
                           ) : (
                             `${clientFileTransfer.transferProgress.percentage}%`
                           )
                         ) : (
-                          'Receiving...'
+                          'Starting...'
                         )}
                       </span>
                     </div>
                     
-                    <div className="relative w-full bg-muted rounded-full h-3 overflow-hidden">
+                    <div className="relative w-full bg-muted rounded-full h-2 overflow-hidden transition-none">
                       {clientFileTransfer.transferProgress ? (
-                        <>
-                          <div 
-                            className={`h-3 rounded-full transition-all duration-500 ${
-                              clientFileTransfer.transferProgress.status === 'completed' ? 'bg-green-500' :
-                              clientFileTransfer.transferProgress.status === 'error' ? 'bg-red-500' :
-                              clientFileTransfer.transferProgress.status === 'transferring' && clientFileTransfer.transferProgress.percentage >= 95 ? 'bg-blue-500 animate-pulse' :
-                              'bg-primary'
-                            }`}
-                            style={{ width: `${clientFileTransfer.transferProgress.percentage}%` }}
-                          ></div>
-                          
-                          {/* Animated shimmer effect when near completion */}
-                          {clientFileTransfer.transferProgress.status === 'transferring' && clientFileTransfer.transferProgress.percentage >= 95 && (
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse"></div>
-                          )}
-                        </>
+                        <div 
+                          className={`h-2 rounded-full transition-[width] duration-300 ease-out ${
+                            clientFileTransfer.transferProgress.status === 'completed' ? 'bg-green-500' :
+                            clientFileTransfer.transferProgress.status === 'error' ? 'bg-destructive' :
+                            'bg-primary'
+                          }`}
+                          style={{ 
+                            width: `${Math.min(100, Math.max(0, clientFileTransfer.transferProgress.percentage))}%`
+                          }}
+                        />
                       ) : (
-                        <div className="h-3 rounded-full bg-blue-500 animate-pulse" style={{ width: '100%' }}></div>
+                        <div className="h-2 rounded-full bg-primary/20 animate-pulse" style={{ width: '100%' }} />
                       )}
                     </div>
                   </div>
 
-                  <div className={`text-sm ${
+                  <div className={`text-sm min-h-[2rem] ${
                     clientFileTransfer.transferProgress?.status === 'completed' ? 'text-green-600' :
                     clientFileTransfer.transferProgress?.status === 'error' ? 'text-red-600' :
                     'text-blue-600'
                   }`}>
-                    <strong>Status:</strong> {
-                      clientFileTransfer.transferProgress ? (
-                        clientFileTransfer.transferProgress.status === 'transferring' && clientFileTransfer.transferProgress.percentage >= 95 ? 
-                          'Waiting for completion signal...' :
-                          clientFileTransfer.transferProgress.status
-                      ) : (
-                        clientFileTransfer.isTransferring ? 'receiving' : 'unknown'
-                      )
-                    }
+                    <div className="flex items-center gap-2">
+                      <strong>Status:</strong>
+                      <span className="min-w-[120px]">
+                        {clientFileTransfer.transferProgress ? (
+                          clientFileTransfer.transferProgress.status === 'transferring' && clientFileTransfer.transferProgress.percentage >= 95 ? 
+                            'Finalizing...' :
+                            clientFileTransfer.transferProgress.status
+                        ) : (
+                          clientFileTransfer.isTransferring ? 'receiving' : 'idle'
+                        )}
+                      </span>
+                    </div>
                     {clientFileTransfer.transferProgress?.error && (
                       <div className="text-red-600 mt-1">Error: {clientFileTransfer.transferProgress.error}</div>
                     )}
                   </div>
                 </div>
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  <div className="text-sm">No active client transfer</div>
+                </div>
               )}
             </div>
           </div>
-        )}
 
         {/* Received File */}
         {((activeTab === 'client' && (clientFileTransfer.receivedFile || clientFileTransfer.receivedFileName)) || (activeTab === 'host' && hostFileTransfer.receivedFile)) && (
@@ -683,7 +689,7 @@ export default function FileTransferDemoPage() {
         )}
 
         {/* Connection Status */}
-        <div className="bg-card rounded-lg shadow p-6 mb-4 border">
+        <div className="bg-card rounded-lg shadow p-6 mb-4 border min-h-[180px]">
           <h2 className="text-lg font-semibold mb-4 text-foreground">Connection Status</h2>
           <div className="space-y-3">
             <div>
@@ -709,7 +715,7 @@ export default function FileTransferDemoPage() {
 
 
         {/* Logs */}
-        <div className="bg-card rounded-lg shadow p-6 border">
+        <div className="bg-card rounded-lg shadow p-6 border min-h-[400px]">
           <h2 className="text-lg font-semibold mb-4 text-foreground">Logs</h2>
           <div className="h-80 overflow-y-auto border border-border rounded p-3 space-y-1">
             {logs.map((log, i) => (

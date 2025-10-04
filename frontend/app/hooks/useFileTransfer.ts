@@ -49,7 +49,8 @@ export interface FileTransferProgress {
   fileSize: number;
   bytesTransferred: number;
   percentage: number;
-  status: 'pending' | 'transferring' | 'completed' | 'error';
+  status: 'transferring' | 'completed' | 'error';
+  startTime?: number;
   error?: string;
 }
 
@@ -106,6 +107,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     fileSize: number; 
     bytesReceived: number;
     startTime: number;
+    lastLoggedPercentage?: number;
   }>>(new Map());
   
   // Transfer timeout tracking
@@ -114,19 +116,39 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   // Fixed chunk size
   const CHUNK_SIZE = getOptimalChunkSize();
   
-  // Progress management
-  const progressManager = useTransferProgress({
+  // Progress management - use stable manager pattern
+  const {
+    transferProgress,
+    isTransferring,
+    progressManager,
+    startTransfer,
+    updateBytesTransferred,
+    completeTransfer,
+    errorTransfer,
+    clearTransfer: clearProgressTransfer
+  } = useTransferProgress({
     onProgress: config.onProgress,
-    onComplete: config.onComplete,
+    onComplete: (file?: Blob, fileName?: string) => {
+      if (config.onComplete) {
+        config.onComplete(file || null, fileName || null);
+      }
+    },
     onError: config.onError
   });
+  
+  // Progress manager initialized
 
   // File start handler - stream-based
   const handleFileStart = useCallback(async (transferId: string, fileName: string, fileSize: number) => {
+    console.log('[FileTransfer] handleFileStart called with:', { fileName, fileSize, transferId });
     logger.log('Starting stream-based file transfer:', { fileName, fileSize, transferId });
     
-    // Don't set receivedFileName here - wait for completion
-    progressManager.startTransfer(fileName, fileSize);
+    // Start progress tracking
+    try {
+      progressManager.startTransfer(fileName, fileSize);
+    } catch (error) {
+      console.error('[FileTransfer] Error starting transfer progress:', error);
+    }
     
     // Initialize stream buffer
     const transferBuffer = new Uint8Array(fileSize);
@@ -159,7 +181,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
 
   // File data handler - stream-based
   const handleFileData = useCallback(async (transferId: string, data: Uint8Array, offset: number) => {
-    logger.log(`Processing stream data for transfer ${transferId}`, { dataSize: data.length, offset });
+    // Process stream data (logging removed to reduce spam)
     
     const buffer = transferBuffersRef.current.get(transferId);
     const transferInfo = transferInfoRef.current.get(transferId);
@@ -181,10 +203,19 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     transferInfo.bytesReceived += data.length;
     
     // Update progress
-    progressManager.updateBytesTransferred(data.length);
+    if (progressManager?.updateBytesTransferred) {
+      progressManager.updateBytesTransferred(data.length);
+    }
     
-    // Debug: Log progress updates
-    logger.log(`Progress updated: ${transferInfo.bytesReceived}/${transferInfo.fileSize} bytes (${Math.round((transferInfo.bytesReceived / transferInfo.fileSize) * 100)}%)`);
+    // Log milestone progress updates (10%, 30%, 50%, 70%, 90%, 100%)
+    const currentPercentage = Math.round((transferInfo.bytesReceived / transferInfo.fileSize) * 100);
+    const milestones = [10, 30, 50, 70, 90, 100];
+    const lastLoggedPercentage = transferInfo.lastLoggedPercentage || 0;
+    
+    if (milestones.includes(currentPercentage) && currentPercentage > lastLoggedPercentage) {
+      logger.log(`Progress milestone: ${currentPercentage}% (${transferInfo.bytesReceived}/${transferInfo.fileSize} bytes)`);
+      transferInfo.lastLoggedPercentage = currentPercentage;
+    }
     
     // Reset timeout on data progress
     const existingTimeout = transferTimeoutsRef.current.get(transferId);
@@ -199,13 +230,8 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       transferTimeoutsRef.current.set(transferId, newTimeout);
     }
     
-    logger.log(`Stored stream data for transfer ${transferId}`, {
-      dataSize: data.length,
-      offset,
-      bytesReceived: transferInfo.bytesReceived,
-      fileSize: transferInfo.fileSize,
-      progress: `${Math.round((transferInfo.bytesReceived / transferInfo.fileSize) * 100)}%`
-    });
+    // Only log detailed data storage for debugging if needed
+    // logger.log(`Stored stream data for transfer ${transferId}`, { dataSize: data.length, offset });
   }, [logger, progressManager]);
 
   // File complete handler - explicit completion strategy
@@ -275,7 +301,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   // File error handler
   const handleFileError = useCallback((transferId: string, error: string) => {
     logger.error(`Stream transfer error for ${transferId}: ${error}`);
-    progressManager.failTransfer(error);
+    progressManager.errorTransfer(error);
     
     // Cleanup
     transferBuffersRef.current.delete(transferId);
@@ -475,6 +501,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       clientId: clientId || 'all clients'
     });
     
+    // Start transfer progress tracking
     progressManager.startTransfer(file.name, file.size);
 
     try {
@@ -521,18 +548,23 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
           hostPeer.send(buffer);
         }
 
-        progressManager.updateBytesTransferred(chunkData.length);
+        // Update progress for this chunk
+        if (progressManager?.updateBytesTransferred) {
+          progressManager.updateBytesTransferred(chunkData.length);
+        }
         bytesTransferred += chunkData.length;
         
-        // Debug: Log host progress updates
-        logger.log(`Host progress updated: ${bytesTransferred}/${file.size} bytes (${Math.round((bytesTransferred / file.size) * 100)}%)`);
+        // Log milestone progress updates (10%, 30%, 50%, 70%, 90%, 100%)
+        const currentPercentage = Math.round((bytesTransferred / file.size) * 100);
+        const milestones = [10, 30, 50, 70, 90, 100];
+        const lastLoggedPercentage = (file as any).lastLoggedPercentage || 0;
+        
+        if (milestones.includes(currentPercentage) && currentPercentage > lastLoggedPercentage) {
+          logger.log(`Host progress milestone: ${currentPercentage}% (${bytesTransferred}/${file.size} bytes)`);
+          (file as any).lastLoggedPercentage = currentPercentage;
+        }
 
         await waitForBackpressure(clientId || 'default');
-        
-        // Small delay for testing - remove this in production
-        if (process.env.NODE_ENV === 'development') {
-          await new Promise(resolve => setTimeout(resolve, 10));
-        }
       }
         
       // Send explicit completion message
@@ -576,7 +608,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
         hostPeer.send(errorMessage_str);
       }
       
-      progressManager.failTransfer(errorMessage);
+      progressManager.errorTransfer(errorMessage);
     }
   }, [config.role, logger, progressManager, hostPeer, waitForBackpressure, CHUNK_SIZE]);
   
@@ -594,7 +626,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       hostPeer.send(cancelMessage);
     }
     
-    progressManager.failTransfer('Transfer cancelled');
+    progressManager.errorTransfer('Transfer cancelled');
   }, [config.role, logger, hostPeer, progressManager]);
   
   // Clear transfer state
@@ -614,6 +646,8 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     progressManager.clearTransfer();
   }, [logger, progressManager]);
   
+  // Return file transfer API
+
   return {
     // Transfer operations
     sendFile,
@@ -621,8 +655,8 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     clearTransfer,
     
     // Transfer state
-    transferProgress: progressManager.transferProgress,
-    isTransferring: progressManager.isTransferring,
+    transferProgress: transferProgress,
+    isTransferring: isTransferring,
     receivedFile,
     receivedFileName,
     
