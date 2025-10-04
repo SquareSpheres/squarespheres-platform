@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMobileDebug } from './useMobileDebug';
-import { isSafari, getWebSocketTimeout } from '../utils/browserUtils';
+import { getWebSocketTimeout } from '../utils/browserUtils';
 
 export interface SignalingMessage {
   type: string;
@@ -123,8 +123,6 @@ function useWebSocketConnection(config: SignalingClientConfig) {
       }
 
       let wsUrl: string;
-      const browserIsSafari = isSafari();
-      
       try {
         wsUrl = new URL(url).toString();
         console.log(`[SignalingClient] Connecting to WebSocket URL: ${wsUrl}`);
@@ -159,24 +157,6 @@ function useWebSocketConnection(config: SignalingClientConfig) {
         clearTimeout(timeoutId);
       });
 
-      // Safari-specific error handling - attempt immediate retry on 1006
-      ws.addEventListener('close', (event) => {
-        if (browserIsSafari && event.code === 1006 && wsRef.current?.readyState === WebSocket.CLOSED) {
-          console.log('[SignalingClient] Safari 1006 error detected, attempting immediate retry...');
-          setTimeout(() => {
-            if (wsRef.current?.readyState === WebSocket.CLOSED) {
-              // Attempt reconnection
-              const retryWs = new WebSocket(wsUrl);
-              wsRef.current = retryWs;
-              // Copy event handlers to new WebSocket
-              retryWs.onopen = ws.onopen;
-              retryWs.onclose = ws.onclose;
-              retryWs.onerror = ws.onerror;
-              retryWs.onmessage = ws.onmessage;
-            }
-          }, 1000);
-        }
-      });
 
       ws.onclose = (event) => {
         console.log(`[SignalingClient] Connection closed to: ${wsUrl}`, {
@@ -185,24 +165,6 @@ function useWebSocketConnection(config: SignalingClientConfig) {
           wasClean: event.wasClean
         });
         
-        // Safari-specific close code debugging
-        if (event.code !== 1000) {
-          const closeDetails = {
-            code: event.code,
-            reason: event.reason,
-            wasClean: event.wasClean,
-            commonCodes: {
-              1006: 'Connection closed abnormally (no close frame)',
-              1011: 'Server error',
-              1012: 'Server is restarting',
-              1013: 'Try again later',
-              1014: 'Bad gateway',
-              1015: 'TLS handshake failed'
-            }
-          };
-          
-          safariLog('WebSocket Close Details', closeDetails, 'error');
-        }
         
         setIsConnected(false);
         clearAllWaiters(new SignalError('WebSocket closed', { code: 'WS_CLOSED' }));
@@ -211,35 +173,6 @@ function useWebSocketConnection(config: SignalingClientConfig) {
 
       ws.onerror = (error) => {
         console.error(`[SignalingClient] Connection error to: ${wsUrl}`, error);
-        
-        // Safari-specific debugging with mobile-friendly logging
-        const errorDetails = {
-          url: wsUrl,
-          readyState: ws.readyState,
-          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
-          protocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown',
-          error: error
-        };
-        
-        safariLog('WebSocket Error Details', errorDetails, 'error');
-        
-        // Additional Safari 1006 specific logging
-        if (browserIsSafari) {
-          console.error('[SignalingClient] Safari WebSocket Error Analysis:', {
-            readyState: ws.readyState,
-            url: wsUrl,
-            possibleCauses: [
-              'Network connectivity issues',
-              'Firewall blocking WebSocket connection',
-              'Safari security policy blocking connection',
-              'Server not accepting Safari WebSocket requests',
-              'TLS/SSL certificate issues',
-              'WebSocket subprotocol mismatch',
-              'CORS policy blocking connection'
-            ],
-            safariVersion: navigator.userAgent.match(/Version\/(\d+\.\d+)/)?.[1] || 'unknown'
-          });
-        }
         
         const err = new SignalError('WebSocket error', { code: 'WS_ERROR', details: error });
         onError?.(err);
