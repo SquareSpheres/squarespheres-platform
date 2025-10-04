@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useMobileDebug } from './useMobileDebug';
 
 export interface SignalingMessage {
   type: string;
@@ -91,6 +92,8 @@ function useWebSocketConnection(config: SignalingClientConfig) {
     onClose
   } = config;
 
+  const { safariLog } = useMobileDebug();
+
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const pendingWaitersRef = useRef<Set<{
@@ -127,7 +130,8 @@ function useWebSocketConnection(config: SignalingClientConfig) {
         return;
       }
 
-      const ws = new WebSocket(wsUrl);
+      // Safari iOS may require specific subprotocols
+      const ws = new WebSocket(wsUrl, ['squarespheres-signaling']);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -137,8 +141,49 @@ function useWebSocketConnection(config: SignalingClientConfig) {
         resolve();
       };
 
-      ws.onclose = () => {
-        console.log(`[SignalingClient] Connection closed to: ${wsUrl}`);
+      // Safari-specific connection timeout
+      const isSafari = typeof navigator !== 'undefined' && /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+      const connectionTimeout = isSafari ? 15000 : 10000; // Longer timeout for Safari
+      
+      const timeoutId = setTimeout(() => {
+        if (ws.readyState === WebSocket.CONNECTING) {
+          console.error(`[SignalingClient] Connection timeout after ${connectionTimeout}ms`);
+          ws.close();
+          reject(new SignalError('WebSocket connection timeout', { code: 'WS_TIMEOUT' }));
+        }
+      }, connectionTimeout);
+
+      // Clear timeout on successful connection
+      ws.addEventListener('open', () => {
+        clearTimeout(timeoutId);
+      });
+
+      ws.onclose = (event) => {
+        console.log(`[SignalingClient] Connection closed to: ${wsUrl}`, {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean
+        });
+        
+        // Safari-specific close code debugging
+        if (event.code !== 1000) {
+          const closeDetails = {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean,
+            commonCodes: {
+              1006: 'Connection closed abnormally (no close frame)',
+              1011: 'Server error',
+              1012: 'Server is restarting',
+              1013: 'Try again later',
+              1014: 'Bad gateway',
+              1015: 'TLS handshake failed'
+            }
+          };
+          
+          safariLog('WebSocket Close Details', closeDetails, 'error');
+        }
+        
         setIsConnected(false);
         clearAllWaiters(new SignalError('WebSocket closed', { code: 'WS_CLOSED' }));
         onClose?.();
@@ -146,6 +191,18 @@ function useWebSocketConnection(config: SignalingClientConfig) {
 
       ws.onerror = (error) => {
         console.error(`[SignalingClient] Connection error to: ${wsUrl}`, error);
+        
+        // Safari-specific debugging with mobile-friendly logging
+        const errorDetails = {
+          url: wsUrl,
+          readyState: ws.readyState,
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+          protocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown',
+          error: error
+        };
+        
+        safariLog('WebSocket Error Details', errorDetails, 'error');
+        
         const err = new SignalError('WebSocket error', { code: 'WS_ERROR', details: error });
         onError?.(err);
         reject(new SignalError('WebSocket connection failed', { code: 'WS_CONNECT_FAILED', details: error }));
