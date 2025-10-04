@@ -11,10 +11,6 @@ import type { FileTransferConfig } from '../types/fileTransferConfig';
 import { createStreamHandlersCore } from './useStreamHandlersCore';
 import { createAckHandler } from './useStreamAckHandler';
 
-/**
- * Hook providing file transfer message handlers for both sender and receiver roles.
- * Handles stream-based file transfers with transfer IDs and proper buffering.
- */
 export function useStreamMessageHandlers({
   logger,
   progressManager,
@@ -48,7 +44,6 @@ export function useStreamMessageHandlers({
   sendAckWithPeers: (transferId: string, progress: number) => void;
 }) {
 
-  // Create core stream handlers
   const { handleFileError, handleFileStart, handleFileData, handleFileComplete } = createStreamHandlersCore({
     logger,
     progressManager,
@@ -63,16 +58,12 @@ export function useStreamMessageHandlers({
     sendAckWithPeers,
   });
 
-  // Create ACK handler
   const { handleFileAck } = createAckHandler({
     logger,
     transferInfoRef,
     setAckProgress,
   });
 
-  /**
-   * Parses and routes messages to appropriate handlers
-   */
   const parseAndHandleMessage = useCallback(async (
     data: string | ArrayBuffer,
     handlers: {
@@ -117,28 +108,28 @@ export function useStreamMessageHandlers({
         logger.error('Binary data message too short');
         return;
       }
-
+      
       const view = new DataView(data);
       const type = view.getUint32(0, true);
-
+      
       if (type === MESSAGE_TYPES.FILE_DATA) {
         if (data.byteLength < 12) {
           logger.error('File data message too short');
           return;
         }
-
+        
         const transferIdLength = view.getUint32(4, true);
         const offset = view.getUint32(8, true);
-
+        
         if (data.byteLength < 12 + transferIdLength) {
           logger.error('File data message invalid length');
           return;
         }
-
+        
         const transferIdBytes = new Uint8Array(data, 12, transferIdLength);
         const transferId = new TextDecoder().decode(transferIdBytes);
         const fileData = new Uint8Array(data, 12 + transferIdLength);
-
+        
         await handleFileData(transferId, fileData, offset);
       } else {
         logger.warn('Unknown binary message type:', type);
@@ -148,7 +139,6 @@ export function useStreamMessageHandlers({
 
 
 
-  // Stream-based message handler - WebRTC guarantees delivery and ordering
   const handleMessage = useCallback(async (data: string | ArrayBuffer | Blob) => {
     if (data instanceof Blob) {
       try {

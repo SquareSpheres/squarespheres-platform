@@ -1,4 +1,3 @@
-import { useCallback } from 'react';
 import type { FileTransferAckProgress } from '../types/fileTransfer';
 import type { Logger } from '../types/logger';
 
@@ -16,13 +15,11 @@ export function createAckHandler(params: {
 }) {
   const { logger, transferInfoRef, setAckProgress } = params;
 
-  const handleFileAck = useCallback((transferId: string, progress: number) => {
+  const handleFileAck = (transferId: string, progress: number) => {
     logger.log(`Received ACK for transfer ${transferId}: ${progress}%`);
     
-    // Update ACK progress state
     setAckProgress(prev => {
       if (!prev) {
-        // Initialize ACK progress if not set
         const transferInfo = transferInfoRef.current?.get(transferId);
         if (transferInfo) {
           return {
@@ -36,7 +33,6 @@ export function createAckHandler(params: {
         return prev;
       }
       
-      // Update existing ACK progress
       const bytesAcknowledged = Math.round((progress / 100) * prev.fileSize);
       return {
         ...prev,
@@ -45,7 +41,7 @@ export function createAckHandler(params: {
         status: progress >= 100 ? 'completed' as const : 'acknowledging' as const
       };
     });
-  }, [logger, transferInfoRef, setAckProgress]);
+  };
 
   return { handleFileAck };
 }
