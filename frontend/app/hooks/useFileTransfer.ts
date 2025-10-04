@@ -17,7 +17,8 @@ const MESSAGE_TYPES = {
   FILE_START: 1,        // File metadata
   FILE_DATA: 2,         // Raw file data (stream)
   FILE_COMPLETE: 3,     // Explicit completion signal
-  FILE_ERROR: 4         // Error signal
+  FILE_ERROR: 4,        // Error signal
+  FILE_ACK: 5           // Progress acknowledgment
 } as const;
 
 // Simple binary encoder - just type + data
@@ -54,6 +55,14 @@ export interface FileTransferProgress {
   error?: string;
 }
 
+export interface FileTransferAckProgress {
+  fileName: string;
+  fileSize: number;
+  bytesAcknowledged: number;
+  percentage: number;
+  status: 'waiting' | 'acknowledging' | 'completed' | 'error';
+}
+
 export interface FileTransferApi {
   // Host methods
   sendFile: (file: File, clientId?: string) => Promise<void>;
@@ -65,6 +74,7 @@ export interface FileTransferApi {
 
   // Common
   transferProgress: FileTransferProgress | null;
+  ackProgress: FileTransferAckProgress | null;  // ACK-based progress for host
   isTransferring: boolean;
   clearTransfer: () => void;
 
@@ -108,10 +118,14 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     bytesReceived: number;
     startTime: number;
     lastLoggedPercentage?: number;
+    lastAckTime?: number;
   }>>(new Map());
   
   // Transfer timeout tracking
   const transferTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  
+  // ACK progress tracking (separate from regular progress)
+  const [ackProgress, setAckProgress] = useState<FileTransferAckProgress | null>(null);
   
   // Fixed chunk size
   const CHUNK_SIZE = getOptimalChunkSize();
@@ -207,14 +221,49 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       progressManager.updateBytesTransferred(data.length);
     }
     
-    // Log milestone progress updates (10%, 30%, 50%, 70%, 90%, 100%)
+    // Smart ACK frequency based on file size and transfer speed
     const currentPercentage = Math.round((transferInfo.bytesReceived / transferInfo.fileSize) * 100);
-    const milestones = [10, 30, 50, 70, 90, 100];
-    const lastLoggedPercentage = transferInfo.lastLoggedPercentage || 0;
+    const elapsedMs = Date.now() - transferInfo.startTime;
+    const transferRate = transferInfo.bytesReceived / (elapsedMs / 1000); // bytes per second
     
-    if (milestones.includes(currentPercentage) && currentPercentage > lastLoggedPercentage) {
-      logger.log(`Progress milestone: ${currentPercentage}% (${transferInfo.bytesReceived}/${transferInfo.fileSize} bytes)`);
+    // Determine ACK frequency based on file size and transfer speed
+    let shouldSendAck = false;
+    let ackReason = '';
+    
+    if (transferInfo.fileSize < 10 * 1024 * 1024) {
+      // Small files (< 10MB): Every 1% for smooth progress
+      shouldSendAck = currentPercentage > (transferInfo.lastLoggedPercentage || 0);
+      ackReason = '1% interval (small file)';
+    } else if (transferInfo.fileSize < 100 * 1024 * 1024) {
+      // Medium files (10-100MB): Every 2% for balanced updates
+      shouldSendAck = currentPercentage > (transferInfo.lastLoggedPercentage || 0) && 
+                     (currentPercentage % 2 === 0);
+      ackReason = '2% interval (medium file)';
+    } else {
+      // Large files (> 100MB): Time-based (500ms) or 5% intervals for efficiency
+      const lastAckTime = transferInfo.lastAckTime || transferInfo.startTime;
+      const timeSinceLastAck = Date.now() - lastAckTime;
+      const shouldSendByTime = timeSinceLastAck >= 500; // 500ms minimum
+      const shouldSendByPercentage = currentPercentage > (transferInfo.lastLoggedPercentage || 0) && 
+                                   (currentPercentage % 5 === 0); // Every 5%
+      
+      shouldSendAck = shouldSendByTime || shouldSendByPercentage;
+      ackReason = shouldSendByTime ? '500ms interval (large file)' : '5% interval (large file)';
+    }
+    
+    // Always send ACK at 100% completion
+    if (currentPercentage >= 100 && (transferInfo.lastLoggedPercentage || 0) < 100) {
+      shouldSendAck = true;
+      ackReason = '100% completion';
+    }
+    
+    if (shouldSendAck && currentPercentage > (transferInfo.lastLoggedPercentage || 0)) {
+      logger.log(`Progress milestone: ${currentPercentage}% (${transferInfo.bytesReceived}/${transferInfo.fileSize} bytes) - ${ackReason}`);
       transferInfo.lastLoggedPercentage = currentPercentage;
+      transferInfo.lastAckTime = Date.now();
+      
+      // Send ACK to host for progress tracking
+      sendAck(transferId, currentPercentage);
     }
     
     // Reset timeout on data progress
@@ -298,10 +347,45 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     }
   }, [logger, progressManager, config]);
 
+  // File ACK handler - updates ACK progress for host
+  const handleFileAck = useCallback((transferId: string, progress: number) => {
+    logger.log(`Received ACK for transfer ${transferId}: ${progress}%`);
+    
+    // Update ACK progress state
+    setAckProgress(prev => {
+      if (!prev) {
+        // Initialize ACK progress if not set
+        const transferInfo = transferInfoRef.current.get(transferId);
+        if (transferInfo) {
+          return {
+            fileName: transferInfo.fileName,
+            fileSize: transferInfo.fileSize,
+            bytesAcknowledged: Math.round((progress / 100) * transferInfo.fileSize),
+            percentage: progress,
+            status: 'acknowledging' as const
+          };
+        }
+        return prev;
+      }
+      
+      // Update existing ACK progress
+      const bytesAcknowledged = Math.round((progress / 100) * prev.fileSize);
+      return {
+        ...prev,
+        bytesAcknowledged,
+        percentage: progress,
+        status: progress >= 100 ? 'completed' as const : 'acknowledging' as const
+      };
+    });
+  }, [logger]);
+
   // File error handler
   const handleFileError = useCallback((transferId: string, error: string) => {
     logger.error(`Stream transfer error for ${transferId}: ${error}`);
     progressManager.errorTransfer(error);
+    
+    // Update ACK progress to error state
+    setAckProgress(prev => prev ? { ...prev, status: 'error' as const } : null);
     
     // Cleanup
     transferBuffersRef.current.delete(transferId);
@@ -335,6 +419,9 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
             break;
           case MESSAGE_TYPES.FILE_ERROR:
             handleFileError(message.transferId, message.error);
+            break;
+          case MESSAGE_TYPES.FILE_ACK:
+            handleFileAck(message.transferId, message.progress);
             break;
           default:
             logger.warn('Unknown string message type:', message.type);
@@ -485,6 +572,23 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     });
   }, [config.role, hostPeer, logger, setupBackpressureHandling]);
 
+  // Send ACK helper function
+  const sendAck = useCallback((transferId: string, progress: number) => {
+    const ackMessage = JSON.stringify({
+      type: MESSAGE_TYPES.FILE_ACK,
+      transferId,
+      progress
+    });
+    
+    if (config.role === 'host') {
+      hostPeer.send(ackMessage);
+    } else if (config.role === 'client') {
+      clientPeer.send(ackMessage);
+    }
+    
+    logger.log(`Sent ACK for transfer ${transferId}: ${progress}%`);
+  }, [config.role, hostPeer, clientPeer, logger]);
+
   // Send file (host only) - stream-based
   const sendFile = useCallback(async (file: File, clientId?: string) => {
     if (config.role !== 'host') {
@@ -503,6 +607,17 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     
     // Start transfer progress tracking
     progressManager.startTransfer(file.name, file.size);
+    
+    // Initialize ACK progress for host
+    if (config.role === 'host') {
+      setAckProgress({
+        fileName: file.name,
+        fileSize: file.size,
+        bytesAcknowledged: 0,
+        percentage: 0,
+        status: 'waiting'
+      });
+    }
 
     try {
       // Send file start message
@@ -643,6 +758,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     setReceivedFileName(null);
     transferBuffersRef.current.clear();
     transferInfoRef.current.clear();
+    setAckProgress(null);
     progressManager.clearTransfer();
   }, [logger, progressManager]);
   
@@ -656,6 +772,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     
     // Transfer state
     transferProgress: transferProgress,
+    ackProgress: ackProgress,
     isTransferring: isTransferring,
     receivedFile,
     receivedFileName,

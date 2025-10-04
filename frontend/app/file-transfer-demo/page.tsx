@@ -211,6 +211,14 @@ export default function FileTransferDemoPage() {
     setTransferRates({ host: hostRate, client: clientRate });
   }, [hostFileTransfer.transferProgress, clientFileTransfer.transferProgress]);
 
+  // Log ACK progress updates
+  useEffect(() => {
+    if (hostFileTransfer.ackProgress) {
+      // Log all ACK progress updates (the smart frequency is handled in the hook)
+      addLog(`Host ACK: ${hostFileTransfer.ackProgress.percentage}% (${formatFileSize(hostFileTransfer.ackProgress.bytesAcknowledged)}/${formatFileSize(hostFileTransfer.ackProgress.fileSize)})`);
+    }
+  }, [hostFileTransfer.ackProgress]);
+
   return (
     <div className="h-screen bg-background p-6 overflow-y-auto">
       <div className="max-w-4xl mx-auto">
@@ -540,6 +548,64 @@ export default function FileTransferDemoPage() {
               ) : (
                 <div className="text-center text-muted-foreground py-8">
                   <div className="text-sm">No active host transfer</div>
+                </div>
+              )}
+
+              {/* ACK Progress Bar for Host */}
+              {hostFileTransfer.ackProgress && (
+                <div className="space-y-4 mt-6 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm font-medium text-blue-700 dark:text-blue-300">📡 Host ACK Progress (Receiver Confirmation)</div>
+                    <div className="min-w-[100px] h-4 flex items-center">
+                      {hostFileTransfer.ackProgress.status === 'acknowledging' && (
+                        <div className="flex items-center gap-1 text-xs text-blue-600">
+                          <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                          </svg>
+                          <span>Receiving ACKs</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ACK Progress Bar */}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">ACK Progress</span>
+                      <span className="text-sm font-mono text-blue-600 dark:text-blue-400 w-[80px] text-right inline-block">
+                        {hostFileTransfer.ackProgress.status === 'waiting' ? 'Waiting...' : `${hostFileTransfer.ackProgress.percentage}%`}
+                      </span>
+                    </div>
+                    
+                    <div className="relative w-full bg-blue-100 dark:bg-blue-900/30 rounded-full h-3 overflow-hidden transition-none">
+                      <div 
+                        className={`h-3 rounded-full transition-[width] duration-300 ease-out ${
+                          hostFileTransfer.ackProgress.status === 'completed' ? 'bg-green-500' :
+                          hostFileTransfer.ackProgress.status === 'error' ? 'bg-red-500' :
+                          hostFileTransfer.ackProgress.status === 'waiting' ? 'bg-yellow-500' :
+                          'bg-blue-500'
+                        }`}
+                        style={{ 
+                          width: `${Math.min(100, Math.max(0, hostFileTransfer.ackProgress.percentage))}%`
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-sm text-blue-600 dark:text-blue-400">
+                    <div className="flex gap-2">
+                      <strong>Status:</strong>
+                      <span className="min-w-[120px]">
+                        {hostFileTransfer.ackProgress.status === 'waiting' ? 'Waiting for receiver...' :
+                         hostFileTransfer.ackProgress.status === 'acknowledging' ? 'Receiving confirmations' :
+                         hostFileTransfer.ackProgress.status}
+                      </span>
+                    </div>
+                    <div className="text-xs text-blue-500 dark:text-blue-500 mt-1">
+                      Acknowledged: {formatFileSize(hostFileTransfer.ackProgress.bytesAcknowledged)} / {formatFileSize(hostFileTransfer.ackProgress.fileSize)}
+                    </div>
+                  </div>
                 </div>
               )}
               
