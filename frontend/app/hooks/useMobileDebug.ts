@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { detectBrowser, isMobile, isSafari } from '../utils/browserUtils';
 
 interface MobileDebugConfig {
   enabled?: boolean;
@@ -17,15 +18,9 @@ export function useMobileDebug(config: MobileDebugConfig = {}) {
     if (typeof window === 'undefined') return;
 
     const checkDevice = () => {
-      const userAgent = navigator.userAgent;
-      const mobileCheck = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent) || 
-                         (navigator.maxTouchPoints && navigator.maxTouchPoints > 2) ||
-                         window.innerWidth <= 768;
-      
-      const safariCheck = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
-      
-      setIsMobile(mobileCheck);
-      setIsSafari(safariCheck);
+      const browserInfo = detectBrowser();
+      setIsMobile(browserInfo.isMobile);
+      setIsSafari(browserInfo.isSafari);
     };
 
     checkDevice();

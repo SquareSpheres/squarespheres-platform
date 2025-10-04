@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMobileDebug } from './useMobileDebug';
+import { isSafari, getWebSocketTimeout } from '../utils/browserUtils';
 
 export interface SignalingMessage {
   type: string;
@@ -122,6 +123,8 @@ function useWebSocketConnection(config: SignalingClientConfig) {
       }
 
       let wsUrl: string;
+      const browserIsSafari = isSafari();
+      
       try {
         wsUrl = new URL(url).toString();
         console.log(`[SignalingClient] Connecting to WebSocket URL: ${wsUrl}`);
@@ -130,8 +133,7 @@ function useWebSocketConnection(config: SignalingClientConfig) {
         return;
       }
 
-      // Safari iOS may require specific subprotocols
-      const ws = new WebSocket(wsUrl, ['squarespheres-signaling']);
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -141,9 +143,8 @@ function useWebSocketConnection(config: SignalingClientConfig) {
         resolve();
       };
 
-      // Safari-specific connection timeout
-      const isSafari = typeof navigator !== 'undefined' && /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
-      const connectionTimeout = isSafari ? 15000 : 10000; // Longer timeout for Safari
+      // Browser-specific connection timeout
+      const connectionTimeout = getWebSocketTimeout();
       
       const timeoutId = setTimeout(() => {
         if (ws.readyState === WebSocket.CONNECTING) {
@@ -156,6 +157,25 @@ function useWebSocketConnection(config: SignalingClientConfig) {
       // Clear timeout on successful connection
       ws.addEventListener('open', () => {
         clearTimeout(timeoutId);
+      });
+
+      // Safari-specific error handling - attempt immediate retry on 1006
+      ws.addEventListener('close', (event) => {
+        if (browserIsSafari && event.code === 1006 && wsRef.current?.readyState === WebSocket.CLOSED) {
+          console.log('[SignalingClient] Safari 1006 error detected, attempting immediate retry...');
+          setTimeout(() => {
+            if (wsRef.current?.readyState === WebSocket.CLOSED) {
+              // Attempt reconnection
+              const retryWs = new WebSocket(wsUrl);
+              wsRef.current = retryWs;
+              // Copy event handlers to new WebSocket
+              retryWs.onopen = ws.onopen;
+              retryWs.onclose = ws.onclose;
+              retryWs.onerror = ws.onerror;
+              retryWs.onmessage = ws.onmessage;
+            }
+          }, 1000);
+        }
       });
 
       ws.onclose = (event) => {
@@ -202,6 +222,24 @@ function useWebSocketConnection(config: SignalingClientConfig) {
         };
         
         safariLog('WebSocket Error Details', errorDetails, 'error');
+        
+        // Additional Safari 1006 specific logging
+        if (browserIsSafari) {
+          console.error('[SignalingClient] Safari WebSocket Error Analysis:', {
+            readyState: ws.readyState,
+            url: wsUrl,
+            possibleCauses: [
+              'Network connectivity issues',
+              'Firewall blocking WebSocket connection',
+              'Safari security policy blocking connection',
+              'Server not accepting Safari WebSocket requests',
+              'TLS/SSL certificate issues',
+              'WebSocket subprotocol mismatch',
+              'CORS policy blocking connection'
+            ],
+            safariVersion: navigator.userAgent.match(/Version\/(\d+\.\d+)/)?.[1] || 'unknown'
+          });
+        }
         
         const err = new SignalError('WebSocket error', { code: 'WS_ERROR', details: error });
         onError?.(err);

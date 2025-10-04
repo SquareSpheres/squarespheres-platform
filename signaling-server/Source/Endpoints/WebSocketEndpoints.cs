@@ -32,8 +32,6 @@ public static class WebSocketEndpoints
                     var acceptContext = new WebSocketAcceptContext
                     {
                         KeepAliveInterval = webSocketOptions.Value.KeepAliveInterval,
-                        SubProtocol =
-                            context.WebSockets.WebSocketRequestedProtocols.FirstOrDefault(),
                     };
                     var webSocket = await context.WebSockets.AcceptWebSocketAsync(acceptContext);
 
