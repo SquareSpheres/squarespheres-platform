@@ -4,12 +4,14 @@ import { useCallback, useRef } from 'react';
 import { isMobileDevice } from './fileTransferUtils';
 import { BACKPRESSURE_THRESHOLDS, MAX_BUFFER_SIZES, TRANSFER_TIMEOUTS } from '../utils/fileTransferConstants';
 import type { WebRTCHostPeer } from '../types/fileTransfer';
+import type { Logger } from '../types/logger';
+import type { FileTransferConfig } from '../types/fileTransferConfig';
 
 /**
  * Hook to manage WebRTC DataChannel backpressure.
  * Ensures smooth sending without flooding the buffer.
  */
-export function useBackpressureManager(config: { role: 'host' | 'client'; debug?: boolean }, logger: any, hostPeer: WebRTCHostPeer) {
+export function useBackpressureManager(config: FileTransferConfig, logger: Logger, hostPeer: WebRTCHostPeer) {
   const backpressurePromises = useRef<Map<string, { resolve: () => void; reject: () => void }>>(new Map());
   const backpressureHandlers = useRef<Map<string, () => void>>(new Map());
 
