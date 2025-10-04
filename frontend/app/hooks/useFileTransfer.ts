@@ -11,120 +11,31 @@ import {
   isMobileDevice, 
   createLogger
 } from './fileTransferUtils';
+import {
+  BACKPRESSURE_THRESHOLDS,
+  TRANSFER_TIMEOUTS,
+  MIN_ACK_INTERVAL_MS,
+  YIELD_CHUNK_INTERVAL,
+  MAX_BUFFER_SIZES,
+  FILE_SIZE_THRESHOLDS,
+  PROGRESS_MILESTONES,
+} from '../utils/fileTransferConstants';
+import { MESSAGE_TYPES } from '../constants/messageTypes';
+import { encodeMessage, decodeMessage } from '../utils/binaryMessageCodec';
+import {
+  ClientConnection,
+  WebRTCPeer,
+  WebRTCHostPeer,
+  WebRTCClientPeer,
+  FileTransferProgress,
+  FileTransferAckProgress,
+  FileTransferApi
+} from '../types/fileTransfer';
+import { useBackpressureManager } from './useBackpressureManager';
 
-// Type definitions for peer connections
-interface ClientConnection {
-  connectionState: RTCPeerConnectionState;
-  dataChannelState: RTCDataChannelState | undefined;
-  dc?: RTCDataChannel;
-}
+// Type definitions now imported from types file
 
-interface WebRTCPeer {
-  connectionState: RTCPeerConnectionState;
-  dataChannelState: RTCDataChannelState | undefined;
-  createOrEnsureConnection: () => Promise<void>;
-  close: () => void;
-  disconnect: () => void;
-  role: 'host' | 'client';
-  peerId?: string;
-  send: (data: string | ArrayBuffer, clientId?: string) => void;
-}
-
-interface WebRTCHostPeer extends WebRTCPeer {
-  connectedClients?: string[];
-  clientConnections?: Map<string, ClientConnection>;
-  clientConnectionsRef?: { current: Map<string, ClientConnection> };
-}
-
-interface WebRTCClientPeer extends WebRTCPeer {
-  // Client-specific properties can be added here if needed
-}
-
-// Stream-based binary message format - optimized for reliability
-const MESSAGE_TYPES = {
-  FILE_START: 1,        // File metadata
-  FILE_DATA: 2,         // Raw file data (stream)
-  FILE_COMPLETE: 3,     // Explicit completion signal
-  FILE_ERROR: 4,        // Error signal
-  FILE_ACK: 5           // Progress acknowledgment
-} as const;
-
-// Simple binary encoder - just type + data
-function encodeMessage(type: number, data: string): ArrayBuffer {
-  const dataBytes = new TextEncoder().encode(data);
-  const buffer = new ArrayBuffer(4 + dataBytes.length);
-  const view = new DataView(buffer);
-  
-  view.setUint32(0, type, true); // Message type (4 bytes)
-  new Uint8Array(buffer, 4).set(dataBytes); // Data
-  
-  return buffer;
-}
-
-// Simple binary decoder
-function decodeMessage(buffer: ArrayBuffer): { type: number; data: string } | null {
-  if (buffer.byteLength < 4) return null;
-  
-  const view = new DataView(buffer);
-  const type = view.getUint32(0, true);
-  const dataBytes = new Uint8Array(buffer, 4);
-  const data = new TextDecoder().decode(dataBytes);
-  
-  return { type, data };
-}
-
-export interface FileTransferProgress {
-  fileName: string;
-  fileSize: number;
-  bytesTransferred: number;
-  percentage: number;
-  status: 'transferring' | 'completed' | 'error';
-  startTime?: number;
-  error?: string;
-}
-
-export interface FileTransferAckProgress {
-  fileName: string;
-  fileSize: number;
-  bytesAcknowledged: number;
-  percentage: number;
-  status: 'waiting' | 'acknowledging' | 'completed' | 'error';
-}
-
-export interface FileTransferApi {
-  // Host methods
-  sendFile: (file: File, clientId?: string) => Promise<void>;
-  cancelTransfer: (transferId?: string) => void;
-
-  // Client methods
-  receivedFile: Blob | null;
-  receivedFileName: string | null;
-
-  // Common
-  transferProgress: FileTransferProgress | null;
-  ackProgress: FileTransferAckProgress | null;  // ACK-based progress for host
-  isTransferring: boolean;
-  clearTransfer: () => void;
-
-  // Progress callbacks
-  onProgress?: (progress: FileTransferProgress) => void;
-  onComplete?: (file: Blob | null, fileName: string | null) => void;
-  onError?: (error: string) => void;
-
-  // WebRTC connection methods
-  connectionState: RTCPeerConnectionState;
-  dataChannelState: RTCDataChannelState | undefined;
-  createOrEnsureConnection: () => Promise<void>;
-  close: () => void;
-  disconnect: () => void;
-  role: 'host' | 'client';
-  peerId?: string;
-  connectedClients?: string[];
-  clientConnections?: Map<string, ClientConnection>;
-
-  // Fixed chunk size
-  getCurrentChunkSize: () => number;
-}
+// Public API interface now imported from types file
 
 export function useFileTransfer(config: WebRTCPeerConfig & { 
   debug?: boolean;
@@ -249,7 +160,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     });
     
     // Set up transfer timeout (30 seconds for large files, 10 seconds for small files)
-    const timeoutMs = fileSize > 10 * 1024 * 1024 ? 30000 : 10000;
+    const timeoutMs = fileSize > FILE_SIZE_THRESHOLDS.SMALL ? TRANSFER_TIMEOUTS.LARGE : TRANSFER_TIMEOUTS.DEFAULT;
     
     resetTimeout(transferId, timeoutMs, () => {
       logger.error(`Transfer timeout for ${transferId} after ${timeoutMs}ms`);
@@ -307,11 +218,11 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     let shouldSendAck = false;
     let ackReason = '';
     
-    if (transferInfo.fileSize < 10 * 1024 * 1024) {
+    if (transferInfo.fileSize < FILE_SIZE_THRESHOLDS.SMALL) {
       // Small files (< 10MB): Every 1% for smooth progress
       shouldSendAck = currentPercentage > (transferInfo.lastLoggedPercentage || 0);
       ackReason = '1% interval (small file)';
-    } else if (transferInfo.fileSize < 100 * 1024 * 1024) {
+    } else if (transferInfo.fileSize < FILE_SIZE_THRESHOLDS.MEDIUM) {
       // Medium files (10-100MB): Every 2% for balanced updates
       shouldSendAck = currentPercentage > (transferInfo.lastLoggedPercentage || 0) && 
                      (currentPercentage % 2 === 0);
@@ -340,7 +251,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       const lastAckTime = transferInfo.lastAckTime || transferInfo.startTime;
       const timeSinceLastAck = now - lastAckTime;
       
-      if (timeSinceLastAck >= 200 || currentPercentage >= 100) {
+      if (timeSinceLastAck >= MIN_ACK_INTERVAL_MS || currentPercentage >= 100) {
         logger.log(`Progress milestone: ${currentPercentage}% (${transferInfo.bytesReceived}/${transferInfo.fileSize} bytes) - ${ackReason}`);
         transferInfo.lastLoggedPercentage = currentPercentage;
         transferInfo.lastAckTime = now;
@@ -351,7 +262,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     }
     
     // Reset timeout on data progress
-    const timeoutMs = transferInfo.fileSize > 10 * 1024 * 1024 ? 30000 : 10000;
+    const timeoutMs = transferInfo.fileSize > FILE_SIZE_THRESHOLDS.SMALL ? TRANSFER_TIMEOUTS.LARGE : TRANSFER_TIMEOUTS.DEFAULT;
     resetTimeout(transferId, timeoutMs, () => {
       logger.error(`Transfer timeout for ${transferId} after ${timeoutMs}ms - no progress`);
       handleFileError(transferId, `Transfer timeout after ${timeoutMs}ms - no progress detected`);
@@ -572,99 +483,8 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   }, [config.role, hostPeer, clientPeer, logger]);
 
 
-  // Event-driven backpressure handling
-  const backpressurePromises = useRef<Map<string, { resolve: () => void; reject: () => void }>>(new Map());
-  const backpressureHandlers = useRef<Map<string, (() => void)>>(new Map());
-  
-  const setupBackpressureHandling = useCallback((dataChannel: RTCDataChannel, clientId: string) => {
-    // Set threshold based on device type
-    const threshold = isMobileDevice() ? 64 * 1024 : 128 * 1024; // 64KB mobile, 128KB desktop
-    dataChannel.bufferedAmountLowThreshold = threshold;
-    
-    // Remove existing listener if any
-    const existingHandler = backpressureHandlers.current.get(clientId);
-    if (existingHandler) {
-      dataChannel.removeEventListener('bufferedamountlow', existingHandler);
-      backpressureHandlers.current.delete(clientId);
-    }
-    
-    // Add event-driven backpressure handler with stable reference
-    const handleBufferLow = () => {
-      const promiseKey = clientId;
-      const promise = backpressurePromises.current.get(promiseKey);
-      if (promise) {
-        promise.resolve();
-        backpressurePromises.current.delete(promiseKey);
-        logger.log(`Buffer drained for client ${clientId}, resuming transfer`);
-      }
-    };
-    
-    // Store handler reference for proper cleanup
-    backpressureHandlers.current.set(clientId, handleBufferLow);
-    dataChannel.addEventListener('bufferedamountlow', handleBufferLow);
-    
-    // Return cleanup function
-    return () => {
-      dataChannel.removeEventListener('bufferedamountlow', handleBufferLow);
-      backpressureHandlers.current.delete(clientId);
-    };
-  }, [logger]);
-  
-  const waitForBackpressure = useCallback(async (clientId: string): Promise<void> => {
-    if (config.role !== 'host') return;
-    
-    let dataChannel: RTCDataChannel | null = null;
-    
-    if (clientId) {
-      const clientConn = (hostPeer as WebRTCHostPeer).clientConnectionsRef?.current?.get(clientId);
-      dataChannel = clientConn?.dc || null;
-    } else {
-      const clientConnections = (hostPeer as WebRTCHostPeer).clientConnectionsRef?.current;
-      if (clientConnections) {
-        for (const [, conn] of Array.from(clientConnections)) {
-          if (conn.dc && conn.dc.readyState === 'open') {
-            dataChannel = conn.dc;
-            break;
-          }
-        }
-      }
-    }
-    
-    if (!dataChannel) {
-      await new Promise(resolve => setTimeout(resolve, 1));
-      return;
-    }
-    
-    const MAX_BUFFER_SIZE = isMobileDevice() ? 512 * 1024 : 1024 * 1024; // 512KB mobile, 1MB desktop
-    
-    // If buffer is not full, continue immediately
-    if (dataChannel.bufferedAmount < MAX_BUFFER_SIZE) {
-      return;
-    }
-    
-    // Buffer is full, wait for bufferedamountlow event
-    logger.log(`Buffer full (${Math.round(dataChannel.bufferedAmount / 1024)}KB), waiting for drain event...`);
-    
-    return new Promise<void>((resolve, reject) => {
-      const promiseKey = clientId || 'default';
-      backpressurePromises.current.set(promiseKey, { resolve, reject });
-      
-      // Set up event-driven backpressure if not already done
-      setupBackpressureHandling(dataChannel, promiseKey);
-      
-      // Timeout after 10 seconds as fallback
-      setTimeout(() => {
-        const promise = backpressurePromises.current.get(promiseKey);
-        if (promise) {
-          promise.reject();
-          backpressurePromises.current.delete(promiseKey);
-          logger.warn(`Backpressure timeout for client ${promiseKey}`);
-        }
-      }, 10000);
-    }).catch(() => {
-      logger.warn(`Backpressure failed for client ${clientId}, continuing anyway`);
-    });
-  }, [config.role, hostPeer, logger, setupBackpressureHandling]);
+  // Backpressure management handled by dedicated hook
+  const { waitForBackpressure } = useBackpressureManager(config, logger, hostPeer);
 
 
   // Send file (host only) - stream-based
@@ -749,10 +569,9 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
         
         // Log milestone progress updates (10%, 30%, 50%, 70%, 90%, 100%)
         const currentPercentage = Math.round((bytesTransferred / file.size) * 100);
-        const milestones = [10, 30, 50, 70, 90, 100];
         const lastLoggedPercentage = (file as any).lastLoggedPercentage || 0;
         
-        if (milestones.includes(currentPercentage) && currentPercentage > lastLoggedPercentage) {
+        if (PROGRESS_MILESTONES.includes(currentPercentage as any) && currentPercentage > lastLoggedPercentage) {
           logger.log(`Host progress milestone: ${currentPercentage}% (${bytesTransferred}/${file.size} bytes)`);
           (file as any).lastLoggedPercentage = currentPercentage;
         }
@@ -760,7 +579,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
         await waitForBackpressure(clientId || 'default');
         
         // Yield to UI every 10 chunks to prevent blocking
-        if (bytesTransferred % (CHUNK_SIZE * 10) === 0) {
+        if (bytesTransferred % (CHUNK_SIZE * YIELD_CHUNK_INTERVAL) === 0) {
           await new Promise(resolve => setTimeout(resolve, 0));
         }
       }
