@@ -333,10 +333,28 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
       watchdog.handleConnectionStateChange(state);
       onConnectionStateChange?.(state, clientId);
 
+      // Enhanced logging for connection state changes
+      const timestamp = new Date().toISOString();
+      if (debug) {
+        console.log(`${prefix} 🔄 CONNECTION STATE CHANGE [${timestamp}]:`, {
+          state,
+          previousState: pc.connectionState,
+          iceConnectionState: pc.iceConnectionState,
+          iceGatheringState: pc.iceGatheringState,
+          signalingState: pc.signalingState
+        });
+      }
+
       if (state === 'connected') {
-        if (debug) console.log(`${prefix} Connection established!`);
+        if (debug) console.log(`${prefix} ✅ Connection established!`);
       } else if (state === 'failed') {
-        if (debug) console.error(`${prefix} Connection failed`);
+        if (debug) console.error(`${prefix} ❌ Connection failed`);
+      } else if (state === 'disconnected') {
+        if (debug) console.warn(`${prefix} ⚠️ Connection disconnected`);
+      } else if (state === 'connecting') {
+        if (debug) console.log(`${prefix} 🔄 Connection connecting...`);
+      } else if (state === 'closed') {
+        if (debug) console.log(`${prefix} 🔒 Connection closed`);
       }
     },
 
@@ -403,11 +421,19 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
     },
 
     onIceConnectionStateChange: (state: RTCIceConnectionState) => {
-      if (debug) console.log(`${prefix} ICE connection state: ${state}`);
+      const timestamp = new Date().toISOString();
+      if (debug) {
+        console.log(`${prefix} 🧊 ICE CONNECTION STATE CHANGE [${timestamp}]:`, {
+          state,
+          connectionState: pc.connectionState,
+          iceGatheringState: pc.iceGatheringState,
+          signalingState: pc.signalingState
+        });
+      }
 
       if (state === 'failed') {
         if (debug) {
-          console.warn(`${prefix} ICE connection failed`);
+          console.warn(`${prefix} ❌ ICE connection failed`);
           logIceConnectionDiagnostics(pc, prefix, debug);
         }
         // For Chrome and Safari, attempt ICE restart on failure
@@ -415,14 +441,14 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
           if (debug) console.log(`${prefix} ${browserInfo.name} ICE failed - attempting immediate restart`);
           try {
             pc.restartIce();
-            if (debug) console.log(`${prefix} ICE restart initiated successfully`);
+            if (debug) console.log(`${prefix} 🔄 ICE restart initiated successfully`);
           } catch (error) {
-            if (debug) console.error(`${prefix} ICE restart failed:`, error);
+            if (debug) console.error(`${prefix} ❌ ICE restart failed:`, error);
           }
         }
       } else if (state === 'disconnected') {
         if (debug) {
-          console.warn(`${prefix} ICE connection disconnected, waiting for reconnection...`);
+          console.warn(`${prefix} ⚠️ ICE connection disconnected, waiting for reconnection...`);
           logIceConnectionDiagnostics(pc, prefix, debug);
         }
         // For Chrome and Safari, attempt ICE restart after a short delay on disconnect
@@ -433,20 +459,26 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
               if (debug) console.log(`${prefix} ${browserInfo.name} ICE still disconnected after ${delay}ms, attempting restart`);
               try {
                 pc.restartIce();
-                if (debug) console.log(`${prefix} ICE restart initiated successfully`);
+                if (debug) console.log(`${prefix} 🔄 ICE restart initiated successfully`);
               } catch (error) {
-                if (debug) console.error(`${prefix} ICE restart failed:`, error);
+                if (debug) console.error(`${prefix} ❌ ICE restart failed:`, error);
               }
             } else {
-              if (debug) console.log(`${prefix} ICE connection recovered, no restart needed`);
+              if (debug) console.log(`${prefix} ✅ ICE connection recovered, no restart needed`);
             }
           }, delay);
         }
       } else if (state === 'connected') {
         if (debug) {
-          console.log(`${prefix} ICE connection established!`);
+          console.log(`${prefix} ✅ ICE connection established!`);
           logIceConnectionDiagnostics(pc, prefix, debug);
         }
+      } else if (state === 'checking') {
+        if (debug) console.log(`${prefix} 🔍 ICE connection checking...`);
+      } else if (state === 'completed') {
+        if (debug) console.log(`${prefix} ✅ ICE connection completed`);
+      } else if (state === 'closed') {
+        if (debug) console.log(`${prefix} 🔒 ICE connection closed`);
       }
     },
   };
@@ -469,13 +501,37 @@ export function setupDataChannel(dc: RTCDataChannel, config: DataChannelConfig):
   // Set binary type to ArrayBuffer for consistent binary data handling
   dc.binaryType = 'arraybuffer';
 
+  // Enhanced data channel state monitoring
+  if (debug) {
+    console.log(`${prefix} 📡 Setting up data channel:`, {
+      label: dc.label,
+      ordered: dc.ordered,
+      maxPacketLifeTime: dc.maxPacketLifeTime,
+      maxRetransmits: dc.maxRetransmits,
+      protocol: dc.protocol,
+      readyState: dc.readyState,
+      binaryType: dc.binaryType
+    });
+  }
+
   dc.onopen = () => {
-    if (debug) console.log(`${prefix} Data channel opened (binaryType: ${dc.binaryType})`);
+    const timestamp = new Date().toISOString();
+    if (debug) {
+      console.log(`${prefix} 📡 DATA CHANNEL OPENED [${timestamp}]:`, {
+        label: dc.label,
+        readyState: dc.readyState,
+        binaryType: dc.binaryType,
+        ordered: dc.ordered,
+        maxPacketLifeTime: dc.maxPacketLifeTime,
+        maxRetransmits: dc.maxRetransmits,
+        protocol: dc.protocol
+      });
+    }
     
     // Detect and report maxMessageSize when channel is ready
     const maxMessageSize = getDataChannelMaxMessageSize(dc);
     if (debug) {
-      console.log(`${prefix} Data channel maxMessageSize: ${maxMessageSize} bytes`);
+      console.log(`${prefix} 📏 Data channel maxMessageSize: ${maxMessageSize} bytes`);
     }
     onDataChannelReady?.(maxMessageSize);
     
@@ -483,11 +539,29 @@ export function setupDataChannel(dc: RTCDataChannel, config: DataChannelConfig):
   };
 
   dc.onclose = () => {
-    if (debug) console.log(`${prefix} Data channel closed`);
+    const timestamp = new Date().toISOString();
+    if (debug) {
+      console.log(`${prefix} 📡 DATA CHANNEL CLOSED [${timestamp}]:`, {
+        label: dc.label,
+        readyState: dc.readyState
+      });
+    }
     onClose?.(dc.readyState);
   };
 
+  dc.onerror = (error) => {
+    const timestamp = new Date().toISOString();
+    if (debug) {
+      console.error(`${prefix} 📡 DATA CHANNEL ERROR [${timestamp}]:`, {
+        label: dc.label,
+        readyState: dc.readyState,
+        error: error
+      });
+    }
+  };
+
   dc.onmessage = (e) => {
+    // Don't log individual data messages to avoid log spam
     onMessage?.(e.data);
   };
 }

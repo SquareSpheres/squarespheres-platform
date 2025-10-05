@@ -80,11 +80,27 @@ export function useStreamMessageHandlers({
     if (typeof data === 'string') {
       try {
         const message = JSON.parse(data);
+        logger.log(`[FileTransfer] 📨 Parsed string message:`, {
+          type: message.type,
+          transferId: message.transferId,
+          messageSize: data.length
+        });
+        
         switch (message.type) {
           case MESSAGE_TYPES.FILE_START:
+            logger.log(`[FileTransfer] 🚀 Processing FILE_START:`, {
+              transferId: message.transferId,
+              fileName: message.fileName,
+              fileSize: message.fileSize
+            });
             await handleFileStart(message.transferId, message.fileName, message.fileSize);
             break;
           case MESSAGE_TYPES.FILE_COMPLETE:
+            logger.log(`[FileTransfer] ✅ Processing FILE_COMPLETE:`, {
+              transferId: message.transferId,
+              totalBytes: message.totalBytes,
+              transferTime: message.transferTime
+            });
             await handleFileComplete(message.transferId, {
               totalBytes: message.totalBytes,
               checksum: message.checksum,
@@ -92,9 +108,17 @@ export function useStreamMessageHandlers({
             });
             break;
           case MESSAGE_TYPES.FILE_ERROR:
+            logger.log(`[FileTransfer] ❌ Processing FILE_ERROR:`, {
+              transferId: message.transferId,
+              error: message.error
+            });
             handleFileError(message.transferId, message.error);
             break;
           case MESSAGE_TYPES.FILE_ACK:
+            logger.log(`[FileTransfer] 📋 Processing FILE_ACK:`, {
+              transferId: message.transferId,
+              progress: message.progress
+            });
             handleFileAck(message.transferId, message.progress);
             break;
           default:
