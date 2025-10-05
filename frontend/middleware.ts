@@ -1,9 +1,9 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 
-// Protect admin, api, and trpc routes
+// Protect admin, api, and trpc routes (except TURN servers which need to be accessible before auth)
 const isProtectedRoute = createRouteMatcher([
   '/admin(.*)',
-  '/api(.*)',
+  '/api/user-activity(.*)',
   '/trpc(.*)',
 ])
 

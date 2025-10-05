@@ -33,6 +33,7 @@ export interface WebRTCPeerConfig {
   // Optional callbacks
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
   onIceConnectionStateChange?: (state: RTCIceConnectionState) => void;
+  onIceCandidate?: (candidate: RTCIceCandidateInit | null, connectionType: string) => void;
   onChannelMessage?: (data: string | ArrayBuffer | Blob) => void;
   onChannelOpen?: () => void;
   onChannelClose?: () => void;

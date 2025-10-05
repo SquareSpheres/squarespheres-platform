@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWebRTCPeer, isHostPeer } from '../hooks/useWebRTCPeer';
 import { DEFAULT_ICE_SERVERS } from '../hooks/webrtcUtils';
+import { useWebRTCConfig } from '../hooks/useWebRTCConfig';
 
 export default function WebRTCDemoPage() {
   const [hostIdInput, setHostIdInput] = useState('');
@@ -17,8 +18,12 @@ export default function WebRTCDemoPage() {
     publicIP?: string;
     userAgent: string;
   }>({ userAgent: '' });
-  // Using STUN-only configuration for simplicity
-  const iceServers = useMemo(() => DEFAULT_ICE_SERVERS, []);
+  // Using dynamic TURN servers with fallback to STUN-only configuration
+  const { iceServers, usingTurnServers, isLoadingTurnServers, turnServersError } = useWebRTCConfig({
+    includeTurnServers: true,
+    mergeWithFallback: true,
+    fallbackIceServers: DEFAULT_ICE_SERVERS
+  });
 
   const hostPeer = useWebRTCPeer({
     role: 'host',
@@ -266,17 +271,34 @@ export default function WebRTCDemoPage() {
               </span></div>
               <div>Browser: <span className="text-foreground">{connectionInfo.userAgent.includes('Chrome') ? 'Chrome' : 'Other'}</span></div>
               <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
-                <div className="text-blue-800 dark:text-blue-200 font-medium">🌐 STUN-Only Configuration</div>
+                <div className="text-blue-800 dark:text-blue-200 font-medium">
+                  {usingTurnServers ? '🚀 Enhanced Configuration' : isLoadingTurnServers ? '⏳ Loading TURN Servers...' : '🌐 STUN-Only Configuration'}
+                </div>
                 <div className="text-blue-700 dark:text-blue-300 text-xs mt-1">
-                  Using reliable STUN servers for NAT traversal. Most connections work fine with STUN-only.
+                  {usingTurnServers 
+                    ? 'Using dynamic TURN servers for enhanced connectivity in restrictive networks.'
+                    : isLoadingTurnServers
+                    ? 'Fetching TURN server credentials...'
+                    : 'Using reliable STUN servers for NAT traversal. Most connections work fine with STUN-only.'
+                  }
                 </div>
-                <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
-                  <div className="text-yellow-800 dark:text-yellow-200 font-medium text-xs">💡 TURN Servers for Production</div>
-                  <div className="text-yellow-700 dark:text-yellow-300 text-xs mt-1">
-                    For restrictive networks (corporate firewalls), consider adding TURN servers. 
-                    Commercial options: Twilio, Xirsys, or self-hosted CoTURN.
+                <div className="text-xs mt-1">
+                  <span className="font-mono">ICE Servers: {iceServers.length} configured</span>
+                </div>
+                {turnServersError && (
+                  <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
+                    <div className="text-red-800 dark:text-red-200 font-medium text-xs">⚠️ TURN Server Error</div>
+                    <div className="text-red-700 dark:text-red-300 text-xs mt-1">{turnServersError}</div>
                   </div>
-                </div>
+                )}
+                {usingTurnServers && (
+                  <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
+                    <div className="text-green-800 dark:text-green-200 font-medium text-xs">✅ TURN Servers Active</div>
+                    <div className="text-green-700 dark:text-green-300 text-xs mt-1">
+                      Enhanced connectivity for corporate networks and restrictive firewalls.
+                    </div>
+                  </div>
+                )}
               </div>
               {(connectionInfo.publicIP && connectionInfo.publicIP !== 'Unable to detect') && (
                 <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">

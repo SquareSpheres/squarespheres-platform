@@ -252,7 +252,7 @@ export function createStreamHandlersCore(params: {
       const transferInfo = transferInfoRef.current?.get(transferId);
       
       if (!buffer || !transferInfo) {
-        logger.error(`No buffer or transfer info found for transfer ${transferId}`);
+        logger.log(`Transfer ${transferId} already completed or not found - this is expected for duplicate completion calls`);
         return;
       }
     

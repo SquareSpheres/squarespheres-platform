@@ -15,6 +15,7 @@ export default function FileTransferDemoPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [errorHistory, setErrorHistory] = useState<string[]>([]);
   const [transferRates, setTransferRates] = useState<{ host: number; client: number }>({ host: 0, client: 0 });
+  const [connectionTypes, setConnectionTypes] = useState<{ host: string; client: string }>({ host: 'Unknown', client: 'Unknown' });
 
   const iceServers = useMemo(() => DEFAULT_ICE_SERVERS, []);
 
@@ -26,6 +27,15 @@ export default function FileTransferDemoPage() {
     onChannelOpen: () => addLog('Host data channel open'),
     onChannelClose: () => addLog('Host data channel closed'),
     onChannelMessage: (d: string | ArrayBuffer | Blob) => addLog(`Host received: ${typeof d === 'string' ? d.substring(0, 100) : 'Binary data'}`),
+    onIceConnectionStateChange: (state: RTCIceConnectionState) => {
+      addLog(`Host ICE state: ${state}`);
+    },
+    onIceCandidate: (candidate: RTCIceCandidateInit | null, connectionType: string) => {
+      if (candidate) {
+        addLog(`Host ICE candidate: ${connectionType}`);
+        setConnectionTypes(prev => ({ ...prev, host: connectionType }));
+      }
+    },
     onProgress: (progress) => {
       // Only log milestone progress updates (10%, 30%, 50%, 70%, 90%, 100%)
       const milestones = [10, 30, 50, 70, 90, 100];
@@ -49,6 +59,15 @@ export default function FileTransferDemoPage() {
     onChannelOpen: () => addLog('Client data channel open'),
     onChannelClose: () => addLog('Client data channel closed'),
     onChannelMessage: (d: string | ArrayBuffer | Blob) => addLog(`Client received: ${typeof d === 'string' ? d.substring(0, 100) : 'Binary data'}`),
+    onIceConnectionStateChange: (state: RTCIceConnectionState) => {
+      addLog(`Client ICE state: ${state}`);
+    },
+    onIceCandidate: (candidate: RTCIceCandidateInit | null, connectionType: string) => {
+      if (candidate) {
+        addLog(`Client ICE candidate: ${connectionType}`);
+        setConnectionTypes(prev => ({ ...prev, client: connectionType }));
+      }
+    },
     onProgress: (progress) => {
       // Only log milestone progress updates (10%, 30%, 50%, 70%, 90%, 100%)
       const milestones = [10, 30, 50, 70, 90, 100];
@@ -209,7 +228,14 @@ export default function FileTransferDemoPage() {
     const clientRate = calculateRate(clientFileTransfer.transferProgress);
     
     setTransferRates({ host: hostRate, client: clientRate });
-  }, [hostFileTransfer.transferProgress, clientFileTransfer.transferProgress]);
+  }, [
+    hostFileTransfer.transferProgress?.bytesTransferred,
+    hostFileTransfer.transferProgress?.status,
+    hostFileTransfer.transferProgress?.startTime,
+    clientFileTransfer.transferProgress?.bytesTransferred,
+    clientFileTransfer.transferProgress?.status,
+    clientFileTransfer.transferProgress?.startTime
+  ]);
 
   // Log ACK progress updates
   useEffect(() => {
@@ -217,13 +243,50 @@ export default function FileTransferDemoPage() {
       // Log all ACK progress updates (the smart frequency is handled in the hook)
       addLog(`Host ACK: ${hostFileTransfer.ackProgress.percentage}% (${formatFileSize(hostFileTransfer.ackProgress.bytesAcknowledged)}/${formatFileSize(hostFileTransfer.ackProgress.fileSize)})`);
     }
-  }, [hostFileTransfer.ackProgress]);
+  }, [
+    hostFileTransfer.ackProgress?.percentage,
+    hostFileTransfer.ackProgress?.bytesAcknowledged,
+    hostFileTransfer.ackProgress?.fileSize,
+    hostFileTransfer.ackProgress?.status
+  ]);
 
   return (
     <div className="h-screen bg-background p-6 overflow-y-auto">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-6 text-foreground">File Transfer Demo</h1>
         
+        {/* Connection Type Indicator */}
+        <div className="bg-card rounded-lg shadow mb-4 border p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium text-foreground">Connection Type</div>
+            <div className="flex gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Host:</span>
+                <span className={`px-2 py-1 rounded text-xs ${
+                  connectionTypes.host.includes('TURN') ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300' :
+                  connectionTypes.host.includes('Direct') ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' :
+                  connectionTypes.host.includes('Local') ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' :
+                  connectionTypes.host.includes('STUN') ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300' :
+                  'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300'
+                }`}>
+                  {connectionTypes.host}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Client:</span>
+                <span className={`px-2 py-1 rounded text-xs ${
+                  connectionTypes.client.includes('TURN') ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300' :
+                  connectionTypes.client.includes('Direct') ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' :
+                  connectionTypes.client.includes('Local') ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' :
+                  connectionTypes.client.includes('STUN') ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300' :
+                  'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300'
+                }`}>
+                  {connectionTypes.client}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div className="bg-card rounded-lg shadow mb-4 border">
           <div className="flex border-b border-border">
@@ -765,6 +828,9 @@ export default function FileTransferDemoPage() {
               </div>
               <div className="text-sm text-muted-foreground">
                 ID: {activeFileTransfer.peerId || 'n/a'}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Type: {activeTab === 'host' ? connectionTypes.host : connectionTypes.client}
               </div>
               {activeTab === 'host' ? (
                 <div className="text-sm text-muted-foreground">

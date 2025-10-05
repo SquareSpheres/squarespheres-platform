@@ -19,6 +19,7 @@ import {
   DEFAULT_ICE_SERVERS,
   getDataChannelMaxMessageSize,
 } from './webrtcUtils';
+import { useWebRTCConfig } from './useWebRTCConfig';
 import { detectBrowser } from '../utils/browserUtils';
 
 export interface WebRTCHostPeerApi {
@@ -69,7 +70,12 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     }
   }, []);
 
-  const iceServers = config.iceServers ?? DEFAULT_ICE_SERVERS;
+  // Use dynamic TURN servers with fallback to default STUN servers
+  const { iceServers, usingTurnServers, isLoadingTurnServers } = useWebRTCConfig({
+    includeTurnServers: true,
+    mergeWithFallback: true,
+    fallbackIceServers: config.iceServers ?? DEFAULT_ICE_SERVERS
+  });
   const connectionTimeoutMs = config.connectionTimeoutMs ?? (browserInfo.isChrome ? 45000 : 30000);
   const iceGatheringTimeoutMs = config.iceGatheringTimeoutMs ?? (browserInfo.isChrome ? 20000 : 15000);
   
@@ -170,6 +176,9 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       onIceConnectionStateChange: (state) => {
         if (debug) console.log(`[WebRTC Host] Client ${clientId} ICE connection state: ${state}`);
         config.onIceConnectionStateChange?.(state);
+      },
+      onIceCandidate: (candidate, connectionType) => {
+        config.onIceCandidate?.(candidate, connectionType);
       },
       onChannelOpen: config.onChannelOpen,
       onChannelClose: config.onChannelClose,

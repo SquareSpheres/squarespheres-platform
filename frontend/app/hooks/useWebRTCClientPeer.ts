@@ -19,6 +19,7 @@ import {
   isChrome,
   DEFAULT_ICE_SERVERS,
 } from './webrtcUtils';
+import { useWebRTCConfig } from './useWebRTCConfig';
 import { detectBrowser } from '../utils/browserUtils';
 
 export interface WebRTCClientPeerApi {
@@ -42,7 +43,12 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
     setBrowserInfo(detectBrowser());
   }, []);
 
-  const iceServers = config.iceServers ?? DEFAULT_ICE_SERVERS;
+  // Use dynamic TURN servers with fallback to default STUN servers
+  const { iceServers, usingTurnServers, isLoadingTurnServers } = useWebRTCConfig({
+    includeTurnServers: true,
+    mergeWithFallback: true,
+    fallbackIceServers: config.iceServers ?? DEFAULT_ICE_SERVERS
+  });
   const connectionTimeoutMs = config.connectionTimeoutMs ?? (browserInfo.isChrome ? 45000 : browserInfo.isSafari ? 60000 : 30000);
   const iceGatheringTimeoutMs = config.iceGatheringTimeoutMs ?? (browserInfo.isChrome ? 20000 : browserInfo.isSafari ? 25000 : 15000);
   
@@ -140,6 +146,9 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
       onIceConnectionStateChange: (state) => {
         if (debug) console.log(`[WebRTC Client] ICE connection state: ${state}`);
         config.onIceConnectionStateChange?.(state);
+      },
+      onIceCandidate: (candidate, connectionType) => {
+        config.onIceCandidate?.(candidate, connectionType);
       },
       onChannelOpen: config.onChannelOpen,
       onChannelClose: config.onChannelClose,

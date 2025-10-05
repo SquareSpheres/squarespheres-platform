@@ -268,6 +268,10 @@ export function isLocalhost(): boolean {
      window.location.hostname === '127.0.0.1');
 }
 
+/**
+ * @deprecated Use useWebRTCConfig hook instead for dynamic TURN server integration
+ * Legacy fallback STUN servers - kept for backward compatibility
+ */
 export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   // Reliable STUN servers for NAT traversal
   { urls: 'stun:stun.l.google.com:19302' },
@@ -277,15 +281,8 @@ export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   
-  // TODO: Add TURN servers for production use when needed
-  // TURN servers are required for connections in restrictive networks (corporate firewalls, etc.)
-  // Consider using commercial TURN services like Twilio, Xirsys, or self-hosted CoTURN
-  // Example TURN server configuration:
-  // {
-  //   urls: 'turn:your-turn-server.com:3478',
-  //   username: 'your-username',
-  //   credential: 'your-password'
-  // }
+  // TURN servers are now dynamically loaded via useWebRTCConfig hook
+  // This provides better reliability and works in restrictive networks
 ];
 
 export function createEnhancedIceServers(customServers?: RTCIceServer[]): RTCIceServer[] {
@@ -319,6 +316,7 @@ export interface WebRTCEventHandlerConfig {
   sendSignal: (payload: WebRTCSignalPayload, targetClientId?: string) => Promise<void>;
   onConnectionStateChange?: (state: RTCPeerConnectionState, clientId?: string) => void;
   onIceConnectionStateChange?: (state: RTCIceConnectionState, clientId?: string) => void;
+  onIceCandidate?: (candidate: RTCIceCandidateInit | null, connectionType: string, clientId?: string) => void;
   onChannelOpen?: () => void;
   onChannelClose?: () => void;
   onChannelMessage?: (data: any) => void;
@@ -327,7 +325,7 @@ export interface WebRTCEventHandlerConfig {
 }
 
 export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): WebRTCEventHandlers {
-  const { role, clientId, pc, watchdog, sendSignal, onConnectionStateChange, onIceConnectionStateChange, onChannelOpen, onChannelClose, onChannelMessage, browserInfo, debug } = config;
+  const { role, clientId, pc, watchdog, sendSignal, onConnectionStateChange, onIceConnectionStateChange, onIceCandidate, onChannelOpen, onChannelClose, onChannelMessage, browserInfo, debug } = config;
   const prefix = role === 'host' ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ''}` : '[WebRTC Client]';
 
   return {
@@ -354,21 +352,24 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
 
     onIceCandidate: (candidate: RTCIceCandidateInit | null) => {
       if (candidate) {
+        const candidateType = candidate.candidate?.split(' ')[7] || 'unknown';
+        const isHost = candidateType === 'host';
+        const isSrflx = candidateType === 'srflx';
+        const isRelay = candidateType === 'relay';
+
+        let connectionType = '🔗 DIRECT';
+        if (isRelay) {
+          connectionType = '🔄 RELAY (TURN)';
+        } else if (isHost) {
+          connectionType = '🏠 HOST (Local)';
+        } else if (isSrflx) {
+          connectionType = '🌐 SRFLX (STUN)';
+        }
+
+        // Call the callback with connection type information
+        onIceCandidate?.(candidate, connectionType, clientId);
+
         if (debug) {
-          const candidateType = candidate.candidate?.split(' ')[7] || 'unknown';
-          const isHost = candidateType === 'host';
-          const isSrflx = candidateType === 'srflx';
-          const isRelay = candidateType === 'relay';
-
-          let connectionType = '🔗 DIRECT';
-          if (isRelay) {
-            connectionType = '🔄 RELAY (TURN)';
-          } else if (isHost) {
-            connectionType = '🏠 HOST (Local)';
-          } else if (isSrflx) {
-            connectionType = '🌐 SRFLX (STUN)';
-          }
-
           console.log(`${prefix} ICE candidate:`, {
             candidate: candidate.candidate,
             sdpMid: candidate.sdpMid,
@@ -387,6 +388,9 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
         }
         sendSignal({ kind: 'webrtc-ice', candidate }, clientId);
       } else {
+        // Call callback with null candidate to indicate end of candidates
+        onIceCandidate?.(null, 'End of candidates', clientId);
+        
         if (debug) {
           console.log(`${prefix} ICE gathering completed - sending end-of-candidates`);
           console.log(`${prefix} Connection stats:`, {
