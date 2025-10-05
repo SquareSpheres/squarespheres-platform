@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getWebSocketTimeout } from '../utils/browserUtils';
+import { getWebSocketTimeout, detectBrowser } from '../utils/browserUtils';
 
 export interface SignalingMessage {
   type: string;
@@ -95,6 +95,8 @@ function useWebSocketConnection(config: SignalingClientConfig) {
 
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const retryCountRef = useRef(0);
+  const maxRetries = 3;
   const pendingWaitersRef = useRef<Set<{
     match: (message: SignalingMessage) => boolean;
     resolve: (message: SignalingMessage) => void;
@@ -123,21 +125,33 @@ function useWebSocketConnection(config: SignalingClientConfig) {
       let wsUrl: string;
       try {
         wsUrl = new URL(url).toString();
-        console.log(`[SignalingClient] Connecting to WebSocket URL: ${wsUrl}`);
+        const browser = detectBrowser();
+        console.log(`[SignalingClient] Connecting to WebSocket URL: ${wsUrl}`, {
+          browser: browser.name,
+          isSafari: browser.isSafari,
+          isIOS: browser.isIOS,
+          retryAttempt: retryCountRef.current
+        });
       } catch {
         reject(new SignalError('Invalid signaling URL', { code: 'URL_INVALID', details: { url } }));
         return;
       }
 
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+      // Safari iOS workaround: Add small delay before connection
+      const browser = detectBrowser();
+      const connectionDelay = browser.isSafari && browser.isIOS ? 100 : 0;
+      
+      setTimeout(() => {
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
 
-      ws.onopen = () => {
-        console.log(`[SignalingClient] Successfully connected to: ${wsUrl}`);
-        setIsConnected(true);
-        onOpen?.();
-        resolve();
-      };
+        ws.onopen = () => {
+          console.log(`[SignalingClient] Successfully connected to: ${wsUrl}`);
+          setIsConnected(true);
+          retryCountRef.current = 0; // Reset retry count on successful connection
+          onOpen?.();
+          resolve();
+        };
 
       // Browser-specific connection timeout
       const connectionTimeout = getWebSocketTimeout();
@@ -169,32 +183,54 @@ function useWebSocketConnection(config: SignalingClientConfig) {
         onClose?.();
       };
 
-      ws.onerror = (error) => {
-        console.error(`[SignalingClient] Connection error to: ${wsUrl}`, error);
-        
-        const err = new SignalError('WebSocket error', { code: 'WS_ERROR', details: error });
-        onError?.(err);
-        reject(new SignalError('WebSocket connection failed', { code: 'WS_CONNECT_FAILED', details: error }));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const raw: SignalingMessage = JSON.parse(event.data);
-          const message: SignalingMessage = { ...raw, type: String(raw.type || '').toLowerCase() };
-
-          Array.from(pendingWaitersRef.current).some((waiter) => {
-            if (!waiter.match(message)) return false;
-            pendingWaitersRef.current.delete(waiter);
-            clearTimeout(waiter.timeoutId);
-            waiter.resolve(message);
-            return true;
+        ws.onerror = (error) => {
+          const browser = detectBrowser();
+          console.error(`[SignalingClient] Connection error to: ${wsUrl}`, {
+            error,
+            browser: browser.name,
+            isSafari: browser.isSafari,
+            isIOS: browser.isIOS,
+            retryAttempt: retryCountRef.current,
+            maxRetries
           });
+          
+          // Safari iOS retry logic
+          if (browser.isSafari && browser.isIOS && retryCountRef.current < maxRetries) {
+            retryCountRef.current++;
+            console.log(`[SignalingClient] Safari iOS retry attempt ${retryCountRef.current}/${maxRetries}`);
+            
+            // Close current connection and retry after delay
+            ws.close();
+            setTimeout(() => {
+              connect().then(resolve).catch(reject);
+            }, 1000 * retryCountRef.current); // Exponential backoff
+            return;
+          }
+          
+          const err = new SignalError('WebSocket error', { code: 'WS_ERROR', details: error });
+          onError?.(err);
+          reject(new SignalError('WebSocket connection failed', { code: 'WS_CONNECT_FAILED', details: error }));
+        };
 
-          onMessage?.(message);
-        } catch (error) {
-          onError?.(new SignalError('Failed to parse message', { code: 'PARSE_ERROR', details: { data: event.data } }));
-        }
-      };
+        ws.onmessage = (event) => {
+          try {
+            const raw: SignalingMessage = JSON.parse(event.data);
+            const message: SignalingMessage = { ...raw, type: String(raw.type || '').toLowerCase() };
+
+            Array.from(pendingWaitersRef.current).some((waiter) => {
+              if (!waiter.match(message)) return false;
+              pendingWaitersRef.current.delete(waiter);
+              clearTimeout(waiter.timeoutId);
+              waiter.resolve(message);
+              return true;
+            });
+
+            onMessage?.(message);
+          } catch (error) {
+            onError?.(new SignalError('Failed to parse message', { code: 'PARSE_ERROR', details: { data: event.data } }));
+          }
+        };
+      }, connectionDelay);
     });
   }, [url, onMessage, onError, onOpen, onClose, clearAllWaiters]);
 
@@ -250,6 +286,39 @@ function useWebSocketConnection(config: SignalingClientConfig) {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   }, []);
 
+  // Safari iOS connection test utility
+  const testWebSocketConnection = useCallback(async (testUrl: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const browser = detectBrowser();
+      if (!browser.isSafari || !browser.isIOS) {
+        resolve(true);
+        return;
+      }
+
+      console.log(`[SignalingClient] Testing Safari iOS WebSocket connection to: ${testUrl}`);
+      const testWs = new WebSocket(testUrl);
+      
+      const timeout = setTimeout(() => {
+        testWs.close();
+        console.log(`[SignalingClient] Safari iOS connection test timeout`);
+        resolve(false);
+      }, 5000);
+
+      testWs.onopen = () => {
+        clearTimeout(timeout);
+        testWs.close();
+        console.log(`[SignalingClient] Safari iOS connection test successful`);
+        resolve(true);
+      };
+
+      testWs.onerror = (error) => {
+        clearTimeout(timeout);
+        console.error(`[SignalingClient] Safari iOS connection test failed:`, error);
+        resolve(false);
+      };
+    });
+  }, []);
+
   const sendRequest = useCallback(async <T extends SignalingMessage>(
     message: SignalingMessage,
     opts?: { timeoutMs?: number }
@@ -282,7 +351,8 @@ function useWebSocketConnection(config: SignalingClientConfig) {
     sendRequest,
     request,
     isConnected,
-    wsRef
+    wsRef,
+    testWebSocketConnection
   };
 }
 
