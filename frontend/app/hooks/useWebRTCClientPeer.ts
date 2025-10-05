@@ -19,6 +19,7 @@ import {
   isChrome,
   DEFAULT_ICE_SERVERS,
 } from './webrtcUtils';
+import { detectBrowser } from '../utils/browserUtils';
 
 export interface WebRTCClientPeerApi {
   connectionState: RTCPeerConnectionState;
@@ -35,15 +36,15 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
   const debug = config.debug ?? false;
 
   // Defer browser detection to avoid SSR issues
-  const [isChromeBrowser, setIsChromeBrowser] = useState(false);
+  const [browserInfo, setBrowserInfo] = useState(detectBrowser());
 
   useEffect(() => {
-    setIsChromeBrowser(isChrome());
+    setBrowserInfo(detectBrowser());
   }, []);
 
   const iceServers = config.iceServers ?? DEFAULT_ICE_SERVERS;
-  const connectionTimeoutMs = config.connectionTimeoutMs ?? (isChromeBrowser ? 45000 : 30000);
-  const iceGatheringTimeoutMs = config.iceGatheringTimeoutMs ?? (isChromeBrowser ? 20000 : 15000);
+  const connectionTimeoutMs = config.connectionTimeoutMs ?? (browserInfo.isChrome ? 45000 : browserInfo.isSafari ? 60000 : 30000);
+  const iceGatheringTimeoutMs = config.iceGatheringTimeoutMs ?? (browserInfo.isChrome ? 20000 : browserInfo.isSafari ? 25000 : 15000);
   
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -70,7 +71,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
     const watchdogConfig: WatchdogConfig = {
       connectionTimeoutMs,
       iceGatheringTimeoutMs,
-      isChrome: isChromeBrowser,
+      browserInfo,
       onConnectionTimeout: () => {
         if (debug) console.warn('[WebRTC Client] Connection timeout');
         config.onConnectionTimeout?.();
@@ -83,21 +84,21 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
     };
 
     return createConnectionWatchdog(watchdogConfig);
-  }, [connectionTimeoutMs, iceGatheringTimeoutMs, isChromeBrowser, config, debug]);
+  }, [connectionTimeoutMs, iceGatheringTimeoutMs, browserInfo, config, debug]);
 
   const ensurePeerConnection = useCallback(async () => {
     if (pcRef.current) return;
 
     const pc = createPeerConnection({
       iceServers,
-      isChrome: isChromeBrowser,
+      browserInfo,
       debug,
     });
 
     const watchdog = createWatchdog();
     watchdogRef.current = watchdog;
 
-    const iceCandidateManager = new ICECandidateManager(isChromeBrowser, debug, 'client');
+    const iceCandidateManager = new ICECandidateManager(browserInfo, debug, 'client');
     iceCandidateManagerRef.current = iceCandidateManager;
 
     const eventHandlers = createWebRTCEventHandlers({
@@ -139,7 +140,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
       onChannelOpen: config.onChannelOpen,
       onChannelClose: config.onChannelClose,
       onChannelMessage: config.onChannelMessage,
-      isChrome: isChromeBrowser,
+      browserInfo,
       debug,
     });
 
@@ -163,7 +164,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
     };
     
     pcRef.current = pc;
-  }, [iceServers, isChromeBrowser, debug, createWatchdog, config, sendSignal]);
+  }, [iceServers, browserInfo, debug, createWatchdog, config, sendSignal]);
 
   const handleSignalMessage = useCallback(async (message: SignalingMessage) => {
     if (!message.payload) return;
@@ -251,7 +252,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
         }
 
         const pc = pcRef.current!;
-        const dc = createDataChannel(pc, clientId, isChromeBrowser, debug);
+        const dc = createDataChannel(pc, clientId, browserInfo, debug);
         dcRef.current = dc;
         setDataChannelState(dc.readyState);
 
@@ -300,7 +301,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
       config.onConnectionFailed?.(error instanceof Error ? error : new Error('Connection failed'));
       throw error;
     }
-  }, [client, config, ensurePeerConnection, sendSignal, iceGatheringTimeoutMs, isChromeBrowser, debug]);
+  }, [client, config, ensurePeerConnection, sendSignal, iceGatheringTimeoutMs, browserInfo, debug]);
 
   const send = useCallback((data: string | ArrayBuffer | Blob) => {
     const dc = dcRef.current;

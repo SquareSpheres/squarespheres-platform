@@ -2,10 +2,11 @@
 
 import { WebRTCSignalPayload } from './webrtcTypes';
 import { SignalingMessage } from './useSignalingClient';
+import { detectBrowser } from '../utils/browserUtils';
 
 export interface PeerConnectionConfig {
   iceServers: RTCIceServer[];
-  isChrome: boolean;
+  browserInfo: ReturnType<typeof detectBrowser>;
   debug?: boolean;
 }
 
@@ -56,8 +57,9 @@ export class ConnectionWatchdog {
   }
 
   canRetry(): boolean {
-    // Reduce Chrome retries to prevent interference with natural connection process
-    const maxRetries = this.config.isChrome ? 0 : 2;
+    const { browserInfo } = this.config;
+    // Safari needs more retries, Chrome needs fewer to avoid interference
+    const maxRetries = browserInfo.isChrome ? 0 : browserInfo.isSafari ? 3 : 2;
     return this.retryCount < maxRetries && !this.retryInProgress;
   }
 
@@ -76,8 +78,11 @@ export class ConnectionWatchdog {
   }
 
   getRetryDelay(): number {
-    // Increase Chrome retry delay to give more time for natural reconnection
-    return this.config.isChrome ? 15000 : 3000;
+    const { browserInfo } = this.config;
+    // Safari needs longer delays, Chrome needs very long delays
+    if (browserInfo.isChrome) return 15000;
+    if (browserInfo.isSafari) return 5000; // Safari needs more time but not as much as Chrome
+    return 3000; // Default for other browsers
   }
 
   handleConnectionStateChange(state: RTCPeerConnectionState): void {
@@ -104,6 +109,8 @@ export class ConnectionWatchdog {
 }
 
 export function createPeerConnection(config: PeerConnectionConfig): RTCPeerConnection {
+  const { browserInfo } = config;
+  
   const pcConfig: RTCConfiguration = {
     iceServers: config.iceServers,
     iceCandidatePoolSize: 0, // Set to 0 for all browsers to prevent overwhelming signaling
@@ -123,7 +130,9 @@ export function createPeerConnection(config: PeerConnectionConfig): RTCPeerConne
       bundlePolicy: pcConfig.bundlePolicy,
       rtcpMuxPolicy: pcConfig.rtcpMuxPolicy,
       iceTransportPolicy: pcConfig.iceTransportPolicy,
-      isChrome: config.isChrome,
+      browser: browserInfo.name,
+      isSafari: browserInfo.isSafari,
+      isChrome: browserInfo.isChrome,
     });
 
     // Log ICE server configuration
@@ -197,14 +206,18 @@ export function attachEventHandlers(
 export function createDataChannel(
   pc: RTCPeerConnection,
   label: string,
-  isChrome: boolean,
+  browserInfo: ReturnType<typeof detectBrowser>,
   debug = false
 ): RTCDataChannel {
   const dcConfig: RTCDataChannelInit = {
     ordered: true,
-    ...(isChrome ? {
+    ...(browserInfo.isChrome ? {
       maxPacketLifeTime: 1000,
       protocol: 'sctp',
+    } : browserInfo.isSafari ? {
+      // Safari-specific configuration - more conservative settings
+      maxRetransmits: 5,
+      ordered: true,
     } : {
       maxRetransmits: 3,
     }),
@@ -307,12 +320,12 @@ export interface WebRTCEventHandlerConfig {
   onChannelOpen?: () => void;
   onChannelClose?: () => void;
   onChannelMessage?: (data: any) => void;
-  isChrome: boolean;
+  browserInfo: ReturnType<typeof detectBrowser>;
   debug?: boolean;
 }
 
 export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): WebRTCEventHandlers {
-  const { role, clientId, pc, watchdog, sendSignal, onConnectionStateChange, onChannelOpen, onChannelClose, onChannelMessage, isChrome, debug } = config;
+  const { role, clientId, pc, watchdog, sendSignal, onConnectionStateChange, onChannelOpen, onChannelClose, onChannelMessage, browserInfo, debug } = config;
   const prefix = role === 'host' ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ''}` : '[WebRTC Client]';
 
   return {
@@ -397,9 +410,9 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
           console.warn(`${prefix} ICE connection failed`);
           logIceConnectionDiagnostics(pc, prefix, debug);
         }
-        // For Chrome, attempt ICE restart on failure
-        if (isChrome && pc.remoteDescription) {
-          if (debug) console.log(`${prefix} Chrome ICE failed - attempting immediate restart`);
+        // For Chrome and Safari, attempt ICE restart on failure
+        if ((browserInfo.isChrome || browserInfo.isSafari) && pc.remoteDescription) {
+          if (debug) console.log(`${prefix} ${browserInfo.name} ICE failed - attempting immediate restart`);
           try {
             pc.restartIce();
             if (debug) console.log(`${prefix} ICE restart initiated successfully`);
@@ -412,11 +425,12 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
           console.warn(`${prefix} ICE connection disconnected, waiting for reconnection...`);
           logIceConnectionDiagnostics(pc, prefix, debug);
         }
-        // For Chrome, attempt ICE restart after a short delay on disconnect
-        if (isChrome && pc.remoteDescription) {
+        // For Chrome and Safari, attempt ICE restart after a short delay on disconnect
+        if ((browserInfo.isChrome || browserInfo.isSafari) && pc.remoteDescription) {
+          const delay = browserInfo.isSafari ? 3000 : 2000; // Safari needs a bit more time
           setTimeout(() => {
             if (pc.iceConnectionState === 'disconnected') {
-              if (debug) console.log(`${prefix} Chrome ICE still disconnected after 2s, attempting restart`);
+              if (debug) console.log(`${prefix} ${browserInfo.name} ICE still disconnected after ${delay}ms, attempting restart`);
               try {
                 pc.restartIce();
                 if (debug) console.log(`${prefix} ICE restart initiated successfully`);
@@ -426,7 +440,7 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
             } else {
               if (debug) console.log(`${prefix} ICE connection recovered, no restart needed`);
             }
-          }, 2000); // Reduced from 3000ms to 2000ms for faster recovery
+          }, delay);
         }
       } else if (state === 'connected') {
         if (debug) {
@@ -480,13 +494,13 @@ export function setupDataChannel(dc: RTCDataChannel, config: DataChannelConfig):
 
 export class ICECandidateManager {
   private pendingCandidates: Map<string, RTCIceCandidateInit[]> = new Map();
-  private isChrome: boolean;
+  private browserInfo: ReturnType<typeof detectBrowser>;
   private debug: boolean;
   private role: 'client' | 'host';
   private prefix: string;
 
-  constructor(isChrome: boolean, debug = false, role: 'client' | 'host' = 'client', clientId?: string) {
-    this.isChrome = isChrome;
+  constructor(browserInfo: ReturnType<typeof detectBrowser>, debug = false, role: 'client' | 'host' = 'client', clientId?: string) {
+    this.browserInfo = browserInfo;
     this.debug = debug;
     this.role = role;
     this.prefix = role === 'host' ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ''}` : '[WebRTC Client]';
@@ -530,7 +544,7 @@ export class ICECandidateManager {
     } catch (error) {
       if (pc.remoteDescription === null) {
         this.storePendingCandidate(candidate, clientId);
-      } else if (this.isChrome && (error as Error).name === 'OperationError') {
+      } else if (this.browserInfo.isChrome && (error as Error).name === 'OperationError') {
         if (this.debug) console.log(`${this.prefix} Chrome ICE candidate error (likely duplicate), ignoring`);
       } else {
         if (this.debug) console.warn(`${this.prefix} ICE candidate addition failed but remote description is set - this might be normal`);
@@ -550,7 +564,7 @@ export class ICECandidateManager {
 export interface WatchdogConfig {
   connectionTimeoutMs: number;
   iceGatheringTimeoutMs: number;
-  isChrome: boolean;
+  browserInfo: ReturnType<typeof detectBrowser>;
   onConnectionTimeout?: () => void;
   onConnectionFailed?: (error: Error) => void;
   debug?: boolean;
