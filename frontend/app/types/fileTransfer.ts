@@ -32,6 +32,7 @@ export interface WebRTCHostPeer extends WebRTCPeer {
   connectedClients?: string[];
   clientConnections?: Map<string, ClientConnection>;
   clientConnectionsRef?: { current: Map<string, ClientConnection> };
+  getDataChannel: (clientId?: string) => RTCDataChannel | null;
 }
 
 /**

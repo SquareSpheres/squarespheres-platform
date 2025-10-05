@@ -1,6 +1,6 @@
 // src/hooks/useStreamMessageHandlers.ts
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { MESSAGE_TYPES } from '../constants/messageTypes';
 import type {
   FileTransferAckProgress,
@@ -65,7 +65,7 @@ export function useStreamMessageHandlers({
   });
 
   // Create message queue for non-blocking message processing
-  const messageQueue = new MessageQueue();
+  const messageQueue = useMemo(() => new MessageQueue(), []);
 
   const parseAndHandleMessage = useCallback(async (
     data: string | ArrayBuffer,
@@ -186,11 +186,11 @@ export function useStreamMessageHandlers({
   const handleMessage = useCallback((data: string | ArrayBuffer | Blob) => {
     // Enqueue message for non-blocking processing
     messageQueue.enqueue(data);
-  }, []);
+  }, [messageQueue]);
 
   const clearMessageQueue = useCallback(() => {
     messageQueue.clear();
-  }, []);
+  }, [messageQueue]);
 
   return {
     handleMessage,

@@ -292,7 +292,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       
       progressManager.errorTransfer(errorMessage);
     }
-  }, [config.role, logger, progressManager, hostPeer, waitForBackpressure, CHUNK_SIZE]);
+  }, [config.role, config.debug, logger, progressManager, hostPeer, waitForBackpressure, CHUNK_SIZE]);
   
   // Cancel transfer
   const cancelTransfer = useCallback((transferId?: string) => {

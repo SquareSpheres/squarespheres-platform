@@ -313,7 +313,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       return clientConn?.dc || null;
     } else {
       // Return first available data channel
-      for (const [, conn] of clientConnectionsRef.current) {
+      for (const conn of Array.from(clientConnectionsRef.current.values())) {
         if (conn.dc && conn.dc.readyState === 'open') {
           return conn.dc;
         }
