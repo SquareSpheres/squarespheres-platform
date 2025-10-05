@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSignalHost } from '../hooks/useSignalingClient'
 import { detectBrowser } from '../utils/browserUtils'
 
@@ -15,10 +15,10 @@ export default function WebSocketTestPage() {
   const originalConsoleLog = useRef<typeof console.log | undefined>(undefined)
   const originalConsoleError = useRef<typeof console.error | undefined>(undefined)
 
-  const addResult = (message: string) => {
+  const addResult = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString()
     setTestResults(prev => [...prev, `[${timestamp}] ${message}`])
-  }
+  }, [])
 
   // Initialize signaling client at component level
   const signalHost = useSignalHost({
@@ -53,9 +53,9 @@ export default function WebSocketTestPage() {
     return () => {
       restoreConsoleLogs()
     }
-  }, [])
+  }, [captureConsoleLogs, addResult])
 
-  const captureConsoleLogs = () => {
+  const captureConsoleLogs = useCallback(() => {
     originalConsoleLog.current = console.log
     originalConsoleError.current = console.error
     
@@ -75,7 +75,7 @@ export default function WebSocketTestPage() {
       addResult(`ERROR: ${message}`)
       setLastError(message)
     }
-  }
+  }, [addResult])
 
   const restoreConsoleLogs = () => {
     if (originalConsoleLog.current) {
@@ -269,7 +269,7 @@ export default function WebSocketTestPage() {
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mt-6">
           <h3 className="text-lg font-semibold text-yellow-800 mb-2">Safari iOS Troubleshooting</h3>
           <ul className="text-yellow-700 space-y-2">
-            <li>• Check Safari Settings → Advanced → Experimental Features and disable "NSURLSession WebSocket"</li>
+            <li>• Check Safari Settings → Advanced → Experimental Features and disable &quot;NSURLSession WebSocket&quot;</li>
             <li>• Ensure the server certificate is valid and not self-signed</li>
             <li>• Try refreshing the page or restarting Safari</li>
             <li>• Check if the connection works in other browsers on the same device</li>
