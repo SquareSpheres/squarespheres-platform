@@ -97,7 +97,22 @@ export default function WebSocketTestPage() {
       addResult('🚀 Starting WebSocket connection test...')
       addResult('Using default WebSocket URL configuration')
       
-      addResult('📡 Attempting to connect...')
+      // Test basic connectivity first
+      addResult('🔍 Testing basic connectivity...')
+      const testUrl = process.env.NEXT_PUBLIC_SIGNAL_SERVER || 'ws://localhost:5052/ws'
+      addResult(`Target URL: ${testUrl}`)
+      
+      // Test if we can reach the server with a simple fetch
+      try {
+        const httpsUrl = testUrl.replace('wss://', 'https://').replace('ws://', 'http://')
+        addResult(`Testing HTTP connectivity to: ${httpsUrl}`)
+        const response = await fetch(httpsUrl, { method: 'HEAD', mode: 'no-cors' })
+        addResult(`HTTP test completed (no-cors mode)`)
+      } catch (fetchError) {
+        addResult(`HTTP test failed: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`)
+      }
+      
+      addResult('📡 Attempting WebSocket connection...')
       setConnectionStatus('Connecting...')
       await signalHost.connect()
       
@@ -276,6 +291,21 @@ export default function WebSocketTestPage() {
             <li>• Try switching between WiFi and cellular data</li>
             <li>• Check if Low Power Mode is enabled (can affect network connections)</li>
           </ul>
+          
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded">
+            <h4 className="font-semibold text-red-800 mb-2">Error Code 1006 (Abnormal Closure)</h4>
+            <p className="text-red-700 text-sm">
+              This error indicates the WebSocket connection was closed without a proper close handshake. 
+              Common causes:
+            </p>
+            <ul className="text-red-700 text-sm mt-2 space-y-1">
+              <li>• Server is not responding to WebSocket upgrade requests</li>
+              <li>• SSL/TLS certificate issues specific to Safari iOS</li>
+              <li>• Server blocking connections from Safari user agent</li>
+              <li>• Network firewall or proxy blocking WebSocket connections</li>
+              <li>• Server overload or configuration issues</li>
+            </ul>
+          </div>
         </div>
 
         {isClient && (
