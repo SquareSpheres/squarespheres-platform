@@ -16,10 +16,10 @@ import {
   WatchdogConfig,
   createSignalingMessageHandler,
   SignalingHandlers,
-  isChrome,
   DEFAULT_ICE_SERVERS,
   getDataChannelMaxMessageSize,
 } from './webrtcUtils';
+import { detectBrowser } from '../utils/browserUtils';
 
 export interface WebRTCHostPeerApi {
   connectionState: RTCPeerConnectionState;
@@ -46,15 +46,31 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
   const debug = config.debug ?? false;
 
   // Defer browser detection to avoid SSR issues
-  const [isChromeBrowser, setIsChromeBrowser] = useState(false);
+  const [browserInfo, setBrowserInfo] = useState<ReturnType<typeof detectBrowser>>(() => 
+    typeof window !== 'undefined' ? detectBrowser() : {
+      isSafari: false,
+      isChrome: false,
+      isFirefox: false,
+      isEdge: false,
+      isOpera: false,
+      isMobile: false,
+      isIOS: false,
+      isAndroid: false,
+      name: 'unknown',
+      version: 'unknown',
+      userAgent: 'unknown'
+    }
+  );
 
   useEffect(() => {
-    setIsChromeBrowser(isChrome());
+    if (typeof window !== 'undefined') {
+      setBrowserInfo(detectBrowser());
+    }
   }, []);
 
   const iceServers = config.iceServers ?? DEFAULT_ICE_SERVERS;
-  const connectionTimeoutMs = config.connectionTimeoutMs ?? (isChromeBrowser ? 45000 : 30000);
-  const iceGatheringTimeoutMs = config.iceGatheringTimeoutMs ?? (isChromeBrowser ? 20000 : 15000);
+  const connectionTimeoutMs = config.connectionTimeoutMs ?? (browserInfo.isChrome ? 45000 : 30000);
+  const iceGatheringTimeoutMs = config.iceGatheringTimeoutMs ?? (browserInfo.isChrome ? 20000 : 15000);
   
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>('new');
   const [dataChannelState, setDataChannelState] = useState<RTCDataChannelState>();
@@ -84,14 +100,14 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
   const createClientConnection = useCallback((clientId: string): ClientConnection => {
     const pc = createPeerConnection({
       iceServers,
-      isChrome: isChromeBrowser,
+      browserInfo,
       debug,
     });
 
     const watchdogConfig: WatchdogConfig = {
       connectionTimeoutMs,
       iceGatheringTimeoutMs,
-      isChrome: isChromeBrowser,
+      browserInfo,
       onConnectionTimeout: () => {
         if (debug) console.warn(`[WebRTC Host] Connection timeout for client ${clientId}`);
         config.onConnectionTimeout?.();
@@ -105,7 +121,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
 
     const watchdog = createConnectionWatchdog(watchdogConfig);
 
-    const iceCandidateManager = new ICECandidateManager(isChromeBrowser, debug, 'host', clientId);
+    const iceCandidateManager = new ICECandidateManager(browserInfo, debug, 'host', clientId);
 
     const eventHandlers = createWebRTCEventHandlers({
       role: 'host',
@@ -153,7 +169,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       onChannelOpen: config.onChannelOpen,
       onChannelClose: config.onChannelClose,
       onChannelMessage: config.onChannelMessage,
-      isChrome: isChromeBrowser,
+      browserInfo,
       debug,
     });
 
@@ -200,7 +216,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     };
 
     return { pc, dc: null, watchdog, iceCandidateManager };
-  }, [iceServers, isChromeBrowser, debug, connectionTimeoutMs, iceGatheringTimeoutMs, config, sendSignal]);
+  }, [iceServers, browserInfo, debug, connectionTimeoutMs, iceGatheringTimeoutMs, config, sendSignal]);
 
   const handleSignalMessage = useCallback(async (message: SignalingMessage) => {
     if (!message.payload) return;
