@@ -21,6 +21,7 @@ import {
 } from './webrtcUtils';
 import { useWebRTCConfig } from './useWebRTCConfig';
 import { detectBrowser } from '../utils/browserUtils';
+import { createLogger, consoleLogger } from '../types/logger';
 
 export interface WebRTCClientPeerApi {
   connectionState: RTCPeerConnectionState;
@@ -107,6 +108,8 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
     const iceCandidateManager = new ICECandidateManager(browserInfo, debug, 'client');
     iceCandidateManagerRef.current = iceCandidateManager;
 
+    const logger = config.logger || createLogger('WebRTC Client', consoleLogger);
+
     const eventHandlers = createWebRTCEventHandlers({
       role: 'client',
       pc,
@@ -115,6 +118,10 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
       onConnectionStateChange: (state) => {
         setConnectionState(state);
         config.onConnectionStateChange?.(state);
+
+        if (debug && (state === 'connected' || state === 'failed')) {
+          console.log(`[WebRTC Client] Connection: ${state}`);
+        }
 
         if (state === 'failed' && watchdog.canRetry()) {
           if (debug) console.log('[WebRTC Client] Attempting connection retry');
@@ -144,7 +151,9 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
         }
       },
       onIceConnectionStateChange: (state) => {
-        if (debug) console.log(`[WebRTC Client] ICE connection state: ${state}`);
+        if (debug && (state === 'connected' || state === 'failed')) {
+          console.log(`[WebRTC Client] ICE: ${state}`);
+        }
         config.onIceConnectionStateChange?.(state);
       },
       onIceCandidate: (candidate, connectionType) => {
@@ -155,6 +164,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
       onChannelMessage: config.onChannelMessage,
       browserInfo,
       debug,
+      logger,
     });
 
     attachEventHandlers(pc, eventHandlers, debug);

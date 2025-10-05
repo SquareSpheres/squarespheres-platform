@@ -3,6 +3,7 @@
 import { WebRTCSignalPayload } from './webrtcTypes';
 import { SignalingMessage } from './useSignalingClient';
 import { detectBrowser } from '../utils/browserUtils';
+import { Logger, consoleLogger } from '../types/logger';
 
 export interface PeerConnectionConfig {
   iceServers: RTCIceServer[];
@@ -103,7 +104,8 @@ export class ConnectionWatchdog {
 
   private log(message: string): void {
     if (this.config.debug) {
-      console.log(`[ConnectionWatchdog] ${message}`);
+      const logger = this.config.logger || consoleLogger;
+      logger.log(`[ConnectionWatchdog] ${message}`);
     }
   }
 }
@@ -186,9 +188,6 @@ export function attachEventHandlers(
   };
 
   pc.onicegatheringstatechange = () => {
-    if (debug) {
-      console.log(`[WebRTC] ICE gathering state: ${pc.iceGatheringState}`);
-    }
     handlers.onIceGatheringStateChange?.(pc.iceGatheringState);
   };
 
@@ -322,10 +321,11 @@ export interface WebRTCEventHandlerConfig {
   onChannelMessage?: (data: any) => void;
   browserInfo: ReturnType<typeof detectBrowser>;
   debug?: boolean;
+  logger?: Logger;
 }
 
 export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): WebRTCEventHandlers {
-  const { role, clientId, pc, watchdog, sendSignal, onConnectionStateChange, onIceConnectionStateChange, onIceCandidate, onChannelOpen, onChannelClose, onChannelMessage, browserInfo, debug } = config;
+  const { role, clientId, pc, watchdog, sendSignal, onConnectionStateChange, onIceConnectionStateChange, onIceCandidate, onChannelOpen, onChannelClose, onChannelMessage, browserInfo, debug, logger = consoleLogger } = config;
   const prefix = role === 'host' ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ''}` : '[WebRTC Client]';
 
   return {
@@ -334,9 +334,9 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
       onConnectionStateChange?.(state, clientId);
 
       if (state === 'connected') {
-        if (debug) console.log(`${prefix} Connection established!`);
+        if (debug) logger.log(`${prefix} Connection established!`);
       } else if (state === 'failed') {
-        if (debug) console.error(`${prefix} Connection failed`);
+        if (debug) logger.error(`${prefix} Connection failed`);
       }
     },
 
@@ -370,20 +370,13 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
         onIceCandidate?.(candidate, connectionType, clientId);
 
         if (debug) {
-          console.log(`${prefix} ICE candidate:`, {
-            candidate: candidate.candidate,
-            sdpMid: candidate.sdpMid,
-            sdpMLineIndex: candidate.sdpMLineIndex,
-            type: candidateType,
-            connectionType
-          });
-
+          // Only log the connection type, not the full candidate details
           if (isRelay) {
-            console.log(`${prefix} ✅ TURN relay candidate - works in restrictive networks`);
+            logger.log(`${prefix} ✅ TURN relay candidate - works in restrictive networks`);
           } else if (isSrflx) {
-            console.log(`${prefix} 📡 STUN reflexive candidate - direct connection through NAT`);
+            logger.log(`${prefix} 📡 STUN reflexive candidate - direct connection through NAT`);
           } else if (isHost) {
-            console.log(`${prefix} 🏠 Host candidate - local network connection`);
+            logger.log(`${prefix} 🏠 Host candidate - local network connection`);
           }
         }
         sendSignal({ kind: 'webrtc-ice', candidate }, clientId);
@@ -392,13 +385,7 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
         onIceCandidate?.(null, 'End of candidates', clientId);
         
         if (debug) {
-          console.log(`${prefix} ICE gathering completed - sending end-of-candidates`);
-          console.log(`${prefix} Connection stats:`, {
-            iceConnectionState: pc.iceConnectionState,
-            iceGatheringState: pc.iceGatheringState,
-            connectionState: pc.connectionState,
-            signalingState: pc.signalingState
-          });
+          logger.log(`${prefix} ICE gathering completed`);
         }
         sendSignal({ kind: 'webrtc-ice', candidate: null as any }, clientId);
       }
@@ -577,6 +564,7 @@ export interface WatchdogConfig {
   onConnectionTimeout?: () => void;
   onConnectionFailed?: (error: Error) => void;
   debug?: boolean;
+  logger?: Logger;
 }
 
 export function createConnectionWatchdog(config: WatchdogConfig): ConnectionWatchdog {

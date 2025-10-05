@@ -21,6 +21,7 @@ import {
 } from './webrtcUtils';
 import { useWebRTCConfig } from './useWebRTCConfig';
 import { detectBrowser } from '../utils/browserUtils';
+import { createLogger, consoleLogger } from '../types/logger';
 
 export interface WebRTCHostPeerApi {
   connectionState: RTCPeerConnectionState;
@@ -130,6 +131,8 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
 
     const iceCandidateManager = new ICECandidateManager(browserInfo, debug, 'host', clientId);
 
+    const logger = config.logger || createLogger(`WebRTC Host${clientId ? ` Client ${clientId}` : ''}`, consoleLogger);
+    
     const eventHandlers = createWebRTCEventHandlers({
       role: 'host',
       clientId,
@@ -137,8 +140,6 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       watchdog,
       sendSignal: (payload, targetClientId) => sendSignal(payload, targetClientId || clientId),
       onConnectionStateChange: (state) => {
-        if (debug) console.log(`[WebRTC Host] Client ${clientId} connection state: ${state}`);
-
         setClientConnections(prev => {
           const newMap = new Map(prev);
           const clientConn = clientConnectionsRef.current.get(clientId);
@@ -165,16 +166,16 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
           return newMap;
         });
 
-        if (state === 'connected') {
-          if (debug) console.log(`[WebRTC Host] Connection established with client ${clientId}!`);
-        } else if (state === 'failed') {
-          if (debug) console.error(`[WebRTC Host] Connection failed with client ${clientId}`);
+        if (debug && (state === 'connected' || state === 'failed')) {
+          console.log(`[WebRTC Host] Client ${clientId}: ${state}`);
         }
 
         config.onConnectionStateChange?.(state);
       },
       onIceConnectionStateChange: (state) => {
-        if (debug) console.log(`[WebRTC Host] Client ${clientId} ICE connection state: ${state}`);
+        if (debug && (state === 'connected' || state === 'failed')) {
+          console.log(`[WebRTC Host] Client ${clientId} ICE: ${state}`);
+        }
         config.onIceConnectionStateChange?.(state);
       },
       onIceCandidate: (candidate, connectionType) => {
@@ -185,6 +186,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       onChannelMessage: config.onChannelMessage,
       browserInfo,
       debug,
+      logger,
     });
 
     attachEventHandlers(pc, eventHandlers, debug);

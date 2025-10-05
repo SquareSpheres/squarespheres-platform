@@ -10,7 +10,6 @@ import { Share2, ArrowUpCircle, ArrowDownCircle, Wifi, Zap, Download, FileText, 
 import { ThemeProvider } from './Provider'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
 import { ClerkThemeProvider } from "./components/ClerkThemeProvider"
-import { MobileLogViewer } from './components/MobileLogViewer'
 
 const inter = Inter({ subsets: ['latin'] })
 const poppins = Poppins({
@@ -93,7 +92,6 @@ export default function RootLayout({
               {children}
             </main>
           </div>
-          <MobileLogViewer isVisible={true} />
           </ClerkThemeProvider>
         </ThemeProvider>
       </body>

@@ -18,17 +18,6 @@ export const getOptimalChunkSize = (): number => {
   return isMobileDevice() ? DEFAULT_CHUNK_SIZE : DESKTOP_CHUNK_SIZE;
 };
 
-// Mobile debugging helper - logs to console and shows alert on mobile
-export const mobileDebug = (message: string, data?: any) => {
-  console.log(`[Mobile Debug] ${message}`, data);
-  
-  // On mobile, also show alert for critical errors (only in development)
-  if (isMobileDevice() && typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-    if (message.includes('error') || message.includes('failed') || message.includes('Error')) {
-      alert(`Mobile Debug: ${message}`);
-    }
-  }
-};
 export const LARGE_FILE_THRESHOLD = 100 * 1024 * 1024; // 100MB threshold for streaming vs memory
 
 import * as mime from 'mime-types';

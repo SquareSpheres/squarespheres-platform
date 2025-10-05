@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useMobileDebug } from './useMobileDebug';
 import { getWebSocketTimeout } from '../utils/browserUtils';
 
 export interface SignalingMessage {
@@ -93,7 +92,6 @@ function useWebSocketConnection(config: SignalingClientConfig) {
     onClose
   } = config;
 
-  const { safariLog } = useMobileDebug();
 
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);

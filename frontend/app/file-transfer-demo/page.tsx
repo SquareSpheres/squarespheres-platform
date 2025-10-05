@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFileTransfer } from '../hooks/useFileTransfer';
 import { DEFAULT_ICE_SERVERS } from '../hooks/webrtcUtils';
+import { Logger, createLogger } from '../types/logger';
 
 export const dynamic = 'force-dynamic'
 
@@ -17,22 +18,62 @@ export default function FileTransferDemoPage() {
   const [transferRates, setTransferRates] = useState<{ host: number; client: number }>({ host: 0, client: 0 });
   const [connectionTypes, setConnectionTypes] = useState<{ host: string; client: string }>({ host: 'Unknown', client: 'Unknown' });
 
+  // Create a UI-integrated logger
+  const uiLogger: Logger = useMemo(() => ({
+    log: (...args) => {
+      const message = args.map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+      ).join(' ');
+      setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
+    },
+    warn: (...args) => {
+      const message = args.map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+      ).join(' ');
+      setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: WARN: ${message}`]);
+    },
+    error: (...args) => {
+      const message = args.map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+      ).join(' ');
+      setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ERROR: ${message}`]);
+      setErrorHistory(prev => [...prev, message]);
+    },
+    info: (...args) => {
+      const message = args.map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+      ).join(' ');
+      setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: INFO: ${message}`]);
+    }
+  }), []);
+
   const iceServers = useMemo(() => DEFAULT_ICE_SERVERS, []);
 
   const hostFileTransfer = useFileTransfer({
     role: 'host',
     debug: true,
     iceServers,
-    onConnectionStateChange: (s: RTCPeerConnectionState) => addLog(`Host PC state: ${s}`),
-    onChannelOpen: () => addLog('Host data channel open'),
-    onChannelClose: () => addLog('Host data channel closed'),
-    onChannelMessage: (d: string | ArrayBuffer | Blob) => addLog(`Host received: ${typeof d === 'string' ? d.substring(0, 100) : 'Binary data'}`),
+    logger: createLogger('Host', uiLogger),
+    onConnectionStateChange: (s: RTCPeerConnectionState) => {
+      if (s === 'connected' || s === 'failed') {
+        uiLogger.log(`Host connection: ${s}`);
+      }
+    },
+    onChannelOpen: () => uiLogger.log('Host data channel ready'),
+    onChannelClose: () => uiLogger.log('Host data channel closed'),
+    onChannelMessage: (d: string | ArrayBuffer | Blob) => {
+      // Only log non-binary messages to reduce noise
+      if (typeof d === 'string' && d.length < 200) {
+        uiLogger.log(`Host received: ${d}`);
+      }
+    },
     onIceConnectionStateChange: (state: RTCIceConnectionState) => {
-      addLog(`Host ICE state: ${state}`);
+      if (state === 'connected' || state === 'failed') {
+        uiLogger.log(`Host ICE: ${state}`);
+      }
     },
     onIceCandidate: (candidate: RTCIceCandidateInit | null, connectionType: string) => {
       if (candidate) {
-        addLog(`Host ICE candidate: ${connectionType}`);
         setConnectionTypes(prev => ({ ...prev, host: connectionType }));
       }
     },
@@ -40,13 +81,12 @@ export default function FileTransferDemoPage() {
       // Only log milestone progress updates (10%, 30%, 50%, 70%, 90%, 100%)
       const milestones = [10, 30, 50, 70, 90, 100];
       if (milestones.includes(progress.percentage)) {
-        addLog(`Host progress: ${progress.percentage}% (${formatFileSize(progress.bytesTransferred)}/${formatFileSize(progress.fileSize)})`);
+        uiLogger.log(`Host progress: ${progress.percentage}% (${formatFileSize(progress.bytesTransferred)}/${formatFileSize(progress.fileSize)})`);
       }
     },
-    onComplete: (file, fileName) => addLog(`Host transfer completed: ${fileName}`),
+    onComplete: (file, fileName) => uiLogger.log(`Host transfer completed: ${fileName}`),
     onError: (error) => {
-      addLog(`Host error: ${error}`);
-      setErrorHistory(prev => [...prev, `Host: ${error}`]);
+      uiLogger.error(`Host error: ${error}`);
     }
   });
 
@@ -55,16 +95,27 @@ export default function FileTransferDemoPage() {
     hostId: hostIdInput || undefined,
     debug: true,
     iceServers,
-    onConnectionStateChange: (s: RTCPeerConnectionState) => addLog(`Client PC state: ${s}`),
-    onChannelOpen: () => addLog('Client data channel open'),
-    onChannelClose: () => addLog('Client data channel closed'),
-    onChannelMessage: (d: string | ArrayBuffer | Blob) => addLog(`Client received: ${typeof d === 'string' ? d.substring(0, 100) : 'Binary data'}`),
+    logger: createLogger('Client', uiLogger),
+    onConnectionStateChange: (s: RTCPeerConnectionState) => {
+      if (s === 'connected' || s === 'failed') {
+        uiLogger.log(`Client connection: ${s}`);
+      }
+    },
+    onChannelOpen: () => uiLogger.log('Client data channel ready'),
+    onChannelClose: () => uiLogger.log('Client data channel closed'),
+    onChannelMessage: (d: string | ArrayBuffer | Blob) => {
+      // Only log non-binary messages to reduce noise
+      if (typeof d === 'string' && d.length < 200) {
+        uiLogger.log(`Client received: ${d}`);
+      }
+    },
     onIceConnectionStateChange: (state: RTCIceConnectionState) => {
-      addLog(`Client ICE state: ${state}`);
+      if (state === 'connected' || state === 'failed') {
+        uiLogger.log(`Client ICE: ${state}`);
+      }
     },
     onIceCandidate: (candidate: RTCIceCandidateInit | null, connectionType: string) => {
       if (candidate) {
-        addLog(`Client ICE candidate: ${connectionType}`);
         setConnectionTypes(prev => ({ ...prev, client: connectionType }));
       }
     },
@@ -72,21 +123,16 @@ export default function FileTransferDemoPage() {
       // Only log milestone progress updates (10%, 30%, 50%, 70%, 90%, 100%)
       const milestones = [10, 30, 50, 70, 90, 100];
       if (milestones.includes(progress.percentage)) {
-        addLog(`Client progress: ${progress.percentage}% (${formatFileSize(progress.bytesTransferred)}/${formatFileSize(progress.fileSize)})`);
+        uiLogger.log(`Client progress: ${progress.percentage}% (${formatFileSize(progress.bytesTransferred)}/${formatFileSize(progress.fileSize)})`);
       }
     },
-    onComplete: (file, fileName) => addLog(`Client transfer completed: ${fileName}`),
+    onComplete: (file, fileName) => uiLogger.log(`Client transfer completed: ${fileName}`),
     onError: (error) => {
-      addLog(`Client error: ${error}`);
-      setErrorHistory(prev => [...prev, `Client: ${error}`]);
+      uiLogger.error(`Client error: ${error}`);
     }
   });
 
   const activeFileTransfer = activeTab === 'host' ? hostFileTransfer : clientFileTransfer;
-
-  function addLog(message: string) {
-    setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
-  }
 
 
   const createHost = async () => {
@@ -95,10 +141,10 @@ export default function FileTransferDemoPage() {
     setIsCreatingHost(true);
     try {
       await hostFileTransfer.createOrEnsureConnection();
-      addLog('Host created successfully');
+      uiLogger.log('Host created successfully');
     } catch (error) {
       console.error('[Demo] Failed to create host:', error);
-      addLog(`Error creating host: ${error}`);
+      uiLogger.error(`Error creating host: ${error}`);
     } finally {
       setIsCreatingHost(false);
     }
@@ -107,20 +153,20 @@ export default function FileTransferDemoPage() {
   const disconnectHost = () => {
     try {
       hostFileTransfer.disconnect();
-      addLog('Host disconnected');
+      uiLogger.log('Host disconnected');
     } catch (error) {
       console.error('Error disconnecting host:', error);
-      addLog(`Error disconnecting host: ${error}`);
+      uiLogger.error(`Error disconnecting host: ${error}`);
     }
   };
 
   const disconnectClient = () => {
     try {
       clientFileTransfer.disconnect();
-      addLog('Client disconnected');
+      uiLogger.log('Client disconnected');
     } catch (error) {
       console.error('Error disconnecting client:', error);
-      addLog(`Error disconnecting client: ${error}`);
+      uiLogger.error(`Error disconnecting client: ${error}`);
     }
   };
 
@@ -130,10 +176,10 @@ export default function FileTransferDemoPage() {
     setIsJoiningClient(true);
     try {
       await clientFileTransfer.createOrEnsureConnection();
-      addLog('Client joined successfully');
+      uiLogger.log('Client joined successfully');
     } catch (error) {
       console.error('[Demo] Failed to join as client:', error);
-      addLog(`Error joining as client: ${error}`);
+      uiLogger.error(`Error joining as client: ${error}`);
     } finally {
       setIsJoiningClient(false);
     }
@@ -143,7 +189,7 @@ export default function FileTransferDemoPage() {
     const file = event.target.files?.[0];
     if (file) {
       setSelectedFile(file);
-      addLog(`Selected file: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+      uiLogger.log(`Selected file: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
     }
   };
 
@@ -151,12 +197,12 @@ export default function FileTransferDemoPage() {
     if (!selectedFile || activeTab !== 'host') return;
     
     try {
-      addLog(`Starting file transfer: ${selectedFile.name}`);
+      uiLogger.log(`Starting file transfer: ${selectedFile.name}`);
       await hostFileTransfer.sendFile(selectedFile);
-      addLog(`File transfer completed: ${selectedFile.name}`);
+      uiLogger.log(`File transfer completed: ${selectedFile.name}`);
     } catch (error) {
       console.error('Error sending file:', error);
-      addLog(`Error sending file: ${error}`);
+      uiLogger.error(`Error sending file: ${error}`);
     }
   };
 
@@ -174,7 +220,7 @@ export default function FileTransferDemoPage() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        addLog(`Downloaded received file: ${fileName}`);
+        uiLogger.log(`Downloaded received file: ${fileName}`);
         return;
       }
     }
@@ -194,7 +240,7 @@ export default function FileTransferDemoPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    addLog(`Downloaded received file: ${finalFileName}`);
+    uiLogger.log(`Downloaded received file: ${finalFileName}`);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -241,7 +287,7 @@ export default function FileTransferDemoPage() {
   useEffect(() => {
     if (hostFileTransfer.ackProgress) {
       // Log all ACK progress updates (the smart frequency is handled in the hook)
-      addLog(`Host ACK: ${hostFileTransfer.ackProgress.percentage}% (${formatFileSize(hostFileTransfer.ackProgress.bytesAcknowledged)}/${formatFileSize(hostFileTransfer.ackProgress.fileSize)})`);
+      uiLogger.log(`Host ACK: ${hostFileTransfer.ackProgress.percentage}% (${formatFileSize(hostFileTransfer.ackProgress.bytesAcknowledged)}/${formatFileSize(hostFileTransfer.ackProgress.fileSize)})`);
     }
   }, [
     hostFileTransfer.ackProgress?.percentage,
@@ -472,7 +518,7 @@ export default function FileTransferDemoPage() {
                 <button
                   onClick={() => {
                     clientFileTransfer.clearTransfer();
-                    addLog('Cleared transfer state');
+                    uiLogger.log('Cleared transfer state');
                   }}
                   className="px-3 py-1 bg-muted text-muted-foreground rounded hover:bg-muted/80 text-sm"
                 >

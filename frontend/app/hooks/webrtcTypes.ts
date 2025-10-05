@@ -1,5 +1,7 @@
 'use client';
 
+import { Logger } from '../types/logger';
+
 export type WebRTCSignalKind = 'webrtc-offer' | 'webrtc-answer' | 'webrtc-ice';
 
 export interface WebRTCOfferPayload {
@@ -30,6 +32,7 @@ export interface WebRTCPeerConfig {
   iceGatheringTimeoutMs?: number; // Default: 15000ms (15 seconds)
   // Debug logging
   debug?: boolean; // Default: false
+  logger?: Logger; // Optional custom logger
   // Optional callbacks
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
   onIceConnectionStateChange?: (state: RTCIceConnectionState) => void;
