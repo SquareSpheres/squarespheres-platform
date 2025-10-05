@@ -20,6 +20,28 @@ export default function WebSocketTestPage() {
     setTestResults(prev => [...prev, `[${timestamp}] ${message}`])
   }, [])
 
+  const captureConsoleLogs = useCallback(() => {
+    originalConsoleLog.current = console.log
+    originalConsoleError.current = console.error
+    
+    console.log = (...args) => {
+      originalConsoleLog.current?.(...args)
+      const message = args.map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+      ).join(' ')
+      addResult(`LOG: ${message}`)
+    }
+    
+    console.error = (...args) => {
+      originalConsoleError.current?.(...args)
+      const message = args.map(arg => 
+        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+      ).join(' ')
+      addResult(`ERROR: ${message}`)
+      setLastError(message)
+    }
+  }, [addResult])
+
   // Initialize signaling client at component level
   const signalHost = useSignalHost({
     onOpen: () => {
@@ -54,28 +76,6 @@ export default function WebSocketTestPage() {
       restoreConsoleLogs()
     }
   }, [captureConsoleLogs, addResult])
-
-  const captureConsoleLogs = useCallback(() => {
-    originalConsoleLog.current = console.log
-    originalConsoleError.current = console.error
-    
-    console.log = (...args) => {
-      originalConsoleLog.current?.(...args)
-      const message = args.map(arg => 
-        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-      ).join(' ')
-      addResult(`LOG: ${message}`)
-    }
-    
-    console.error = (...args) => {
-      originalConsoleError.current?.(...args)
-      const message = args.map(arg => 
-        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-      ).join(' ')
-      addResult(`ERROR: ${message}`)
-      setLastError(message)
-    }
-  }, [addResult])
 
   const restoreConsoleLogs = () => {
     if (originalConsoleLog.current) {
