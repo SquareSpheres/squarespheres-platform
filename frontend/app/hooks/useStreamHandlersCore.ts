@@ -3,6 +3,48 @@ import type { Logger } from '../types/logger';
 import type { ProgressManager } from '../types/progressManager';
 import type { FileTransferConfig } from '../types/fileTransferConfig';
 import { FILE_SIZE_THRESHOLDS, TRANSFER_TIMEOUTS, MIN_ACK_INTERVAL_MS } from '../utils/fileTransferConstants';
+import { MESSAGE_TYPES } from '../constants/messageTypes';
+
+/**
+ * Message queue for non-blocking message processing
+ */
+class MessageQueue {
+  private queue: (string | ArrayBuffer | Blob)[] = [];
+  private processing = false;
+  private handler: ((data: string | ArrayBuffer | Blob) => Promise<void>) | null = null;
+
+  setHandler(handler: (data: string | ArrayBuffer | Blob) => Promise<void>) {
+    this.handler = handler;
+  }
+
+  enqueue(data: string | ArrayBuffer | Blob) {
+    this.queue.push(data);
+    if (!this.processing) {
+      this.process();
+    }
+  }
+
+  private async process() {
+    if (this.processing || !this.handler) return;
+    
+    this.processing = true;
+    
+    while (this.queue.length > 0) {
+      const data = this.queue.shift()!;
+      try {
+        await this.handler(data);
+      } catch (error) {
+        console.error('Message processing error:', error);
+      }
+    }
+    
+    this.processing = false;
+  }
+
+  clear() {
+    this.queue = [];
+  }
+}
 
 export function createStreamHandlersCore(params: {
   logger: Logger;
@@ -22,7 +64,8 @@ export function createStreamHandlersCore(params: {
   setReceivedFileName: React.Dispatch<React.SetStateAction<string | null>>;
   setAckProgress: React.Dispatch<React.SetStateAction<FileTransferAckProgress | null>>;
   config: FileTransferConfig;
-  sendAckWithPeers: (transferId: string, progress: number) => void;
+  sendAckWithPeers: (transferId: string, progress: number, messageType?: number) => void;
+  onIceStateChange?: (state: RTCIceConnectionState) => void;
 }) {
   const {
     logger,
@@ -36,6 +79,7 @@ export function createStreamHandlersCore(params: {
     setAckProgress,
     config,
     sendAckWithPeers,
+    onIceStateChange,
   } = params;
 
   const cleanupTransfer = (transferId: string) => {
@@ -117,17 +161,19 @@ export function createStreamHandlersCore(params: {
         startTime: Date.now()
       });
       
-      const timeoutMs = fileSize > FILE_SIZE_THRESHOLDS.SMALL ? TRANSFER_TIMEOUTS.LARGE : TRANSFER_TIMEOUTS.DEFAULT;
+      const baseTimeoutMs = fileSize > FILE_SIZE_THRESHOLDS.SMALL ? TRANSFER_TIMEOUTS.LARGE : TRANSFER_TIMEOUTS.DEFAULT;
+      const adaptiveTimeoutMs = calculateAdaptiveTimeout(fileSize, 0, Date.now(), baseTimeoutMs);
       
-      resetTimeout(transferId, timeoutMs, () => {
-        logger.error(`Transfer timeout for ${transferId} after ${timeoutMs}ms`);
-        handleFileError(transferId, `Transfer timeout after ${timeoutMs}ms - no progress detected`);
+      resetTimeout(transferId, adaptiveTimeoutMs, () => {
+        logger.error(`Transfer timeout for ${transferId} after ${adaptiveTimeoutMs}ms (adaptive, base: ${baseTimeoutMs}ms)`);
+        handleFileError(transferId, `Transfer timeout after ${adaptiveTimeoutMs}ms - no progress detected`);
       });
       
       logger.log('Stream transfer initialized:', { 
         transferId, 
         fileSize,
-        timeoutMs,
+        timeoutMs: adaptiveTimeoutMs,
+        baseTimeoutMs,
         hasBuffer: transferBuffersRef.current?.has(transferId),
         hasInfo: transferInfoRef.current?.has(transferId)
       });
@@ -176,10 +222,17 @@ export function createStreamHandlersCore(params: {
         }
       }
       
-      const timeoutMs = transferInfo.fileSize > FILE_SIZE_THRESHOLDS.SMALL ? TRANSFER_TIMEOUTS.LARGE : TRANSFER_TIMEOUTS.DEFAULT;
-      resetTimeout(transferId, timeoutMs, () => {
-        logger.error(`Transfer timeout for ${transferId} after ${timeoutMs}ms - no progress`);
-        handleFileError(transferId, `Transfer timeout after ${timeoutMs}ms - no progress detected`);
+      const baseTimeoutMs = transferInfo.fileSize > FILE_SIZE_THRESHOLDS.SMALL ? TRANSFER_TIMEOUTS.LARGE : TRANSFER_TIMEOUTS.DEFAULT;
+      const adaptiveTimeoutMs = calculateAdaptiveTimeout(
+        transferInfo.fileSize,
+        transferInfo.bytesReceived,
+        transferInfo.startTime,
+        baseTimeoutMs
+      );
+      
+      resetTimeout(transferId, adaptiveTimeoutMs, () => {
+        logger.error(`Transfer timeout for ${transferId} after ${adaptiveTimeoutMs}ms (adaptive, base: ${baseTimeoutMs}ms) - no progress`);
+        handleFileError(transferId, `Transfer timeout after ${adaptiveTimeoutMs}ms - no progress detected`);
       });
     } catch (error) {
       logger.error('Error in handleFileData:', error);
@@ -240,10 +293,98 @@ export function createStreamHandlersCore(params: {
     }
   };
 
+  const handleFileEnd = async (transferId: string) => {
+    try {
+      logger.log('Received FILE_END for transfer:', transferId);
+      
+      // Send FILE_END_ACK to confirm receipt
+      sendAckWithPeers(transferId, 100, MESSAGE_TYPES.FILE_END_ACK);
+      
+      // Client side: Complete the transfer immediately
+      if (config.role === 'client') {
+        await handleFileComplete(transferId);
+        logger.log('Sent FILE_END_ACK and completed transfer:', transferId);
+      } else {
+        logger.log('Sent FILE_END_ACK, waiting for completion confirmation:', transferId);
+      }
+    } catch (error) {
+      logger.error('Error in handleFileEnd:', error);
+      handleFileError(transferId, `Failed to handle file end: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleFileEndAck = async (transferId: string) => {
+    try {
+      logger.log('Received FILE_END_ACK for transfer:', transferId);
+      
+      // Host side: FILE_END_ACK confirms the client received the FILE_END
+      // Now we can complete the transfer on the host side
+      if (config.role === 'host') {
+        await handleFileComplete(transferId);
+        logger.log('Transfer completion confirmed and completed:', transferId);
+      } else {
+        logger.log('Transfer completion already handled by client:', transferId);
+      }
+    } catch (error) {
+      logger.error('Error in handleFileEndAck:', error);
+      handleFileError(transferId, `Failed to handle file end ack: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleIceStateChange = (state: RTCIceConnectionState) => {
+    if (state === 'disconnected' || state === 'failed') {
+      // Check if there are active transfers
+      const activeTransfers = Array.from(transferInfoRef.current?.keys() || []);
+      if (activeTransfers.length > 0) {
+        logger.warn(`ICE connection ${state} during active transfers:`, activeTransfers);
+        
+        // For failed connections, error out active transfers
+        if (state === 'failed') {
+          activeTransfers.forEach(transferId => {
+            handleFileError(transferId, `ICE connection failed during transfer`);
+          });
+        }
+      }
+    }
+    
+    onIceStateChange?.(state);
+  };
+
   return {
     handleFileError,
     handleFileStart,
     handleFileData,
-    handleFileComplete
+    handleFileComplete,
+    handleFileEnd,
+    handleFileEndAck,
+    handleIceStateChange,
+    MessageQueue
   };
 }
+
+/**
+ * Calculate adaptive timeout based on transfer rate and remaining bytes
+ */
+function calculateAdaptiveTimeout(
+  fileSize: number,
+  bytesReceived: number,
+  startTime: number,
+  baseTimeoutMs: number = 30000
+): number {
+  const elapsedTime = Date.now() - startTime;
+  const bytesRemaining = fileSize - bytesReceived;
+  
+  if (bytesReceived === 0 || elapsedTime === 0) {
+    return baseTimeoutMs;
+  }
+  
+  const bytesPerSecond = bytesReceived / (elapsedTime / 1000);
+  const estimatedRemainingSeconds = bytesRemaining / bytesPerSecond;
+  
+  // Add 3x buffer and ensure minimum timeout
+  const adaptiveTimeoutMs = Math.max(baseTimeoutMs, estimatedRemainingSeconds * 1000 * 3);
+  
+  return Math.min(adaptiveTimeoutMs, baseTimeoutMs * 5); // Cap at 5x base timeout
+}
+
+export { MessageQueue, calculateAdaptiveTimeout };

@@ -137,6 +137,10 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
           }, watchdog.getRetryDelay());
         }
       },
+      onIceConnectionStateChange: (state) => {
+        if (debug) console.log(`[WebRTC Client] ICE connection state: ${state}`);
+        config.onIceConnectionStateChange?.(state);
+      },
       onChannelOpen: config.onChannelOpen,
       onChannelClose: config.onChannelClose,
       onChannelMessage: config.onChannelMessage,
@@ -305,20 +309,10 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
 
   const send = useCallback((data: string | ArrayBuffer | Blob) => {
     const dc = dcRef.current;
-
     if (dc && dc.readyState === 'open') {
-      try {
-        dc.send(data as any);
-      } catch (error) {
-        if (debug) console.error(`[WebRTC Client] ❌ Failed to send data:`, error);
-      }
-    } else {
-      if (debug) console.warn(`[WebRTC Client] ⚠️ Cannot send data - data channel not ready:`, {
-        hasDataChannel: !!dc,
-        dataChannelState: dc?.readyState
-      });
+      dc.send(data as any);
     }
-  }, [debug]);
+  }, []);
 
   const close = useCallback(() => {
     if (watchdogRef.current) {

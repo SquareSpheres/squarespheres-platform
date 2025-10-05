@@ -211,22 +211,23 @@ export function createDataChannel(
 ): RTCDataChannel {
   const dcConfig: RTCDataChannelInit = {
     ordered: true,
+    // Use fully reliable channels for file transfers
+    // Remove maxRetransmits and maxPacketLifeTime to ensure unlimited retransmits
     ...(browserInfo.isChrome ? {
-      maxPacketLifeTime: 1000,
       protocol: 'sctp',
     } : browserInfo.isSafari ? {
-      // Safari-specific configuration - more conservative settings
-      maxRetransmits: 5,
+      // Safari-specific configuration - fully reliable
       ordered: true,
     } : {
-      maxRetransmits: 3,
+      // Default to fully reliable for other browsers
+      ordered: true,
     }),
   };
 
   const dc = pc.createDataChannel(label, dcConfig);
   
   if (debug) {
-    console.log(`[WebRTC Utils] Created data channel: ${label}`);
+    console.log(`[WebRTC Utils] Created data channel: ${label} with config:`, dcConfig);
   }
 
   return dc;
@@ -317,6 +318,7 @@ export interface WebRTCEventHandlerConfig {
   watchdog: ConnectionWatchdog;
   sendSignal: (payload: WebRTCSignalPayload, targetClientId?: string) => Promise<void>;
   onConnectionStateChange?: (state: RTCPeerConnectionState, clientId?: string) => void;
+  onIceConnectionStateChange?: (state: RTCIceConnectionState, clientId?: string) => void;
   onChannelOpen?: () => void;
   onChannelClose?: () => void;
   onChannelMessage?: (data: any) => void;
@@ -325,7 +327,7 @@ export interface WebRTCEventHandlerConfig {
 }
 
 export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): WebRTCEventHandlers {
-  const { role, clientId, pc, watchdog, sendSignal, onConnectionStateChange, onChannelOpen, onChannelClose, onChannelMessage, browserInfo, debug } = config;
+  const { role, clientId, pc, watchdog, sendSignal, onConnectionStateChange, onIceConnectionStateChange, onChannelOpen, onChannelClose, onChannelMessage, browserInfo, debug } = config;
   const prefix = role === 'host' ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ''}` : '[WebRTC Client]';
 
   return {
@@ -333,28 +335,10 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
       watchdog.handleConnectionStateChange(state);
       onConnectionStateChange?.(state, clientId);
 
-      // Enhanced logging for connection state changes
-      const timestamp = new Date().toISOString();
-      if (debug) {
-        console.log(`${prefix} 🔄 CONNECTION STATE CHANGE [${timestamp}]:`, {
-          state,
-          previousState: pc.connectionState,
-          iceConnectionState: pc.iceConnectionState,
-          iceGatheringState: pc.iceGatheringState,
-          signalingState: pc.signalingState
-        });
-      }
-
       if (state === 'connected') {
-        if (debug) console.log(`${prefix} ✅ Connection established!`);
+        if (debug) console.log(`${prefix} Connection established!`);
       } else if (state === 'failed') {
-        if (debug) console.error(`${prefix} ❌ Connection failed`);
-      } else if (state === 'disconnected') {
-        if (debug) console.warn(`${prefix} ⚠️ Connection disconnected`);
-      } else if (state === 'connecting') {
-        if (debug) console.log(`${prefix} 🔄 Connection connecting...`);
-      } else if (state === 'closed') {
-        if (debug) console.log(`${prefix} 🔒 Connection closed`);
+        if (debug) console.error(`${prefix} Connection failed`);
       }
     },
 
@@ -421,19 +405,11 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
     },
 
     onIceConnectionStateChange: (state: RTCIceConnectionState) => {
-      const timestamp = new Date().toISOString();
-      if (debug) {
-        console.log(`${prefix} 🧊 ICE CONNECTION STATE CHANGE [${timestamp}]:`, {
-          state,
-          connectionState: pc.connectionState,
-          iceGatheringState: pc.iceGatheringState,
-          signalingState: pc.signalingState
-        });
-      }
+      if (debug) console.log(`${prefix} ICE connection state: ${state}`);
 
       if (state === 'failed') {
         if (debug) {
-          console.warn(`${prefix} ❌ ICE connection failed`);
+          console.warn(`${prefix} ICE connection failed`);
           logIceConnectionDiagnostics(pc, prefix, debug);
         }
         // For Chrome and Safari, attempt ICE restart on failure
@@ -441,14 +417,14 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
           if (debug) console.log(`${prefix} ${browserInfo.name} ICE failed - attempting immediate restart`);
           try {
             pc.restartIce();
-            if (debug) console.log(`${prefix} 🔄 ICE restart initiated successfully`);
+            if (debug) console.log(`${prefix} ICE restart initiated successfully`);
           } catch (error) {
-            if (debug) console.error(`${prefix} ❌ ICE restart failed:`, error);
+            if (debug) console.error(`${prefix} ICE restart failed:`, error);
           }
         }
       } else if (state === 'disconnected') {
         if (debug) {
-          console.warn(`${prefix} ⚠️ ICE connection disconnected, waiting for reconnection...`);
+          console.warn(`${prefix} ICE connection disconnected, waiting for reconnection...`);
           logIceConnectionDiagnostics(pc, prefix, debug);
         }
         // For Chrome and Safari, attempt ICE restart after a short delay on disconnect
@@ -459,27 +435,24 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
               if (debug) console.log(`${prefix} ${browserInfo.name} ICE still disconnected after ${delay}ms, attempting restart`);
               try {
                 pc.restartIce();
-                if (debug) console.log(`${prefix} 🔄 ICE restart initiated successfully`);
+                if (debug) console.log(`${prefix} ICE restart initiated successfully`);
               } catch (error) {
-                if (debug) console.error(`${prefix} ❌ ICE restart failed:`, error);
+                if (debug) console.error(`${prefix} ICE restart failed:`, error);
               }
             } else {
-              if (debug) console.log(`${prefix} ✅ ICE connection recovered, no restart needed`);
+              if (debug) console.log(`${prefix} ICE connection recovered, no restart needed`);
             }
           }, delay);
         }
       } else if (state === 'connected') {
         if (debug) {
-          console.log(`${prefix} ✅ ICE connection established!`);
+          console.log(`${prefix} ICE connection established!`);
           logIceConnectionDiagnostics(pc, prefix, debug);
         }
-      } else if (state === 'checking') {
-        if (debug) console.log(`${prefix} 🔍 ICE connection checking...`);
-      } else if (state === 'completed') {
-        if (debug) console.log(`${prefix} ✅ ICE connection completed`);
-      } else if (state === 'closed') {
-        if (debug) console.log(`${prefix} 🔒 ICE connection closed`);
       }
+
+      // Call the user-provided callback
+      onIceConnectionStateChange?.(state, clientId);
     },
   };
 }
@@ -501,37 +474,13 @@ export function setupDataChannel(dc: RTCDataChannel, config: DataChannelConfig):
   // Set binary type to ArrayBuffer for consistent binary data handling
   dc.binaryType = 'arraybuffer';
 
-  // Enhanced data channel state monitoring
-  if (debug) {
-    console.log(`${prefix} 📡 Setting up data channel:`, {
-      label: dc.label,
-      ordered: dc.ordered,
-      maxPacketLifeTime: dc.maxPacketLifeTime,
-      maxRetransmits: dc.maxRetransmits,
-      protocol: dc.protocol,
-      readyState: dc.readyState,
-      binaryType: dc.binaryType
-    });
-  }
-
   dc.onopen = () => {
-    const timestamp = new Date().toISOString();
-    if (debug) {
-      console.log(`${prefix} 📡 DATA CHANNEL OPENED [${timestamp}]:`, {
-        label: dc.label,
-        readyState: dc.readyState,
-        binaryType: dc.binaryType,
-        ordered: dc.ordered,
-        maxPacketLifeTime: dc.maxPacketLifeTime,
-        maxRetransmits: dc.maxRetransmits,
-        protocol: dc.protocol
-      });
-    }
+    if (debug) console.log(`${prefix} Data channel opened (binaryType: ${dc.binaryType})`);
     
     // Detect and report maxMessageSize when channel is ready
     const maxMessageSize = getDataChannelMaxMessageSize(dc);
     if (debug) {
-      console.log(`${prefix} 📏 Data channel maxMessageSize: ${maxMessageSize} bytes`);
+      console.log(`${prefix} Data channel maxMessageSize: ${maxMessageSize} bytes`);
     }
     onDataChannelReady?.(maxMessageSize);
     
@@ -539,29 +488,11 @@ export function setupDataChannel(dc: RTCDataChannel, config: DataChannelConfig):
   };
 
   dc.onclose = () => {
-    const timestamp = new Date().toISOString();
-    if (debug) {
-      console.log(`${prefix} 📡 DATA CHANNEL CLOSED [${timestamp}]:`, {
-        label: dc.label,
-        readyState: dc.readyState
-      });
-    }
+    if (debug) console.log(`${prefix} Data channel closed`);
     onClose?.(dc.readyState);
   };
 
-  dc.onerror = (error) => {
-    const timestamp = new Date().toISOString();
-    if (debug) {
-      console.error(`${prefix} 📡 DATA CHANNEL ERROR [${timestamp}]:`, {
-        label: dc.label,
-        readyState: dc.readyState,
-        error: error
-      });
-    }
-  };
-
   dc.onmessage = (e) => {
-    // Don't log individual data messages to avoid log spam
     onMessage?.(e.data);
   };
 }
@@ -717,4 +648,41 @@ export function logIceConnectionDiagnostics(pc: RTCPeerConnection, prefix: strin
       console.log(`${prefix} ✅ Found ${relayCandidates.length} TURN relay candidate(s) - works in restrictive networks`);
     }
   }
+}
+
+/**
+ * Waits for a data channel's buffer to fully drain (bufferedAmount === 0)
+ * This ensures all data is transmitted before marking a transfer as complete
+ */
+export async function waitForBufferDrain(
+  dataChannel: RTCDataChannel,
+  timeoutMs: number = 5000,
+  debug = false
+): Promise<void> {
+  if (dataChannel.bufferedAmount === 0) {
+    if (debug) console.log('[WebRTC Utils] Buffer already drained');
+    return;
+  }
+
+  if (debug) console.log(`[WebRTC Utils] Waiting for buffer to drain (${dataChannel.bufferedAmount} bytes remaining)`);
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      if (debug) console.warn(`[WebRTC Utils] Buffer drain timeout after ${timeoutMs}ms, ${dataChannel.bufferedAmount} bytes still pending`);
+      reject(new Error(`Buffer drain timeout: ${dataChannel.bufferedAmount} bytes still pending`));
+    }, timeoutMs);
+
+    const checkBuffer = () => {
+      if (dataChannel.bufferedAmount === 0) {
+        clearTimeout(timeout);
+        if (debug) console.log('[WebRTC Utils] Buffer fully drained');
+        resolve();
+      } else {
+        if (debug) console.log(`[WebRTC Utils] Buffer drain progress: ${dataChannel.bufferedAmount} bytes remaining`);
+        setTimeout(checkBuffer, 100);
+      }
+    };
+
+    checkBuffer();
+  });
 }

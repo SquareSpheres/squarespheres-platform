@@ -54,22 +54,7 @@ export function useBackpressureManager(config: FileTransferConfig, logger: Logge
   const waitForBackpressure = useCallback(async (clientId: string): Promise<void> => {
     if (config.role !== 'host') return;
 
-    let dataChannel: RTCDataChannel | null = null;
-
-    if (clientId) {
-      const clientConn = hostPeer.clientConnectionsRef?.current?.get(clientId);
-      dataChannel = clientConn?.dc || null;
-    } else {
-      const clientConnections = hostPeer.clientConnectionsRef?.current;
-      if (clientConnections) {
-        for (const [, conn] of Array.from(clientConnections)) {
-          if (conn.dc && conn.dc.readyState === 'open') {
-            dataChannel = conn.dc;
-            break;
-          }
-        }
-      }
-    }
+    const dataChannel = hostPeer.getDataChannel(clientId);
 
     if (!dataChannel) {
       await new Promise(resolve => setTimeout(resolve, 1));

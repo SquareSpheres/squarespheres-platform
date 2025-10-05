@@ -32,6 +32,7 @@ export interface WebRTCPeerConfig {
   debug?: boolean; // Default: false
   // Optional callbacks
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
+  onIceConnectionStateChange?: (state: RTCIceConnectionState) => void;
   onChannelMessage?: (data: string | ArrayBuffer | Blob) => void;
   onChannelOpen?: () => void;
   onChannelClose?: () => void;

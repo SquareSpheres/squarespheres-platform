@@ -29,6 +29,7 @@ export interface WebRTCHostPeerApi {
   close: () => void;
   disconnect: () => void;
   disconnectClient: (clientId: string) => void;
+  getDataChannel: (clientId?: string) => RTCDataChannel | null;
   role: 'host';
   peerId?: string;
   connectedClients?: string[];
@@ -166,6 +167,10 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
 
         config.onConnectionStateChange?.(state);
       },
+      onIceConnectionStateChange: (state) => {
+        if (debug) console.log(`[WebRTC Host] Client ${clientId} ICE connection state: ${state}`);
+        config.onIceConnectionStateChange?.(state);
+      },
       onChannelOpen: config.onChannelOpen,
       onChannelClose: config.onChannelClose,
       onChannelMessage: config.onChannelMessage,
@@ -291,45 +296,31 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     if (clientId) {
       const clientConn = clientConnectionsRef.current.get(clientId);
       if (clientConn?.dc && clientConn.dc.readyState === 'open') {
-        try {
-          clientConn.dc.send(data as any);
-        } catch (error) {
-          if (debug) console.error(`[WebRTC Host] ❌ Failed to send to client ${clientId}:`, error);
-        }
-      } else {
-        if (debug) console.warn(`[WebRTC Host] ⚠️ Cannot send to client ${clientId} - connection not ready:`, {
-          hasConnection: !!clientConn,
-          dataChannelState: clientConn?.dc?.readyState
-        });
+        clientConn.dc.send(data as any);
       }
     } else {
-      let sentCount = 0;
-      let failedCount = 0;
-      clientConnectionsRef.current.forEach((clientConn, id) => {
+      clientConnectionsRef.current.forEach((clientConn) => {
         if (clientConn.dc && clientConn.dc.readyState === 'open') {
-          try {
-            clientConn.dc.send(data as any);
-            sentCount++;
-          } catch (error) {
-            failedCount++;
-            if (debug) console.error(`[WebRTC Host] ❌ Failed to send to client ${id}:`, error);
-          }
-        } else {
-          failedCount++;
-          if (debug) console.warn(`[WebRTC Host] ⚠️ Skipping client ${id} - connection not ready:`, {
-            dataChannelState: clientConn.dc?.readyState
-          });
+          clientConn.dc.send(data as any);
         }
       });
-      if (debug && (sentCount === 0 || failedCount > 0)) {
-        console.log(`[WebRTC Host] 📊 Broadcast summary:`, {
-          totalClients: clientConnectionsRef.current.size,
-          sentCount,
-          failedCount
-        });
-      }
     }
-  }, [debug]);
+  }, []);
+
+  const getDataChannel = useCallback((clientId?: string): RTCDataChannel | null => {
+    if (clientId) {
+      const clientConn = clientConnectionsRef.current.get(clientId);
+      return clientConn?.dc || null;
+    } else {
+      // Return first available data channel
+      for (const [, conn] of clientConnectionsRef.current) {
+        if (conn.dc && conn.dc.readyState === 'open') {
+          return conn.dc;
+        }
+      }
+      return null;
+    }
+  }, []);
 
   const disconnectClient = useCallback((clientId: string) => {
     const clientConn = clientConnectionsRef.current.get(clientId);
@@ -391,6 +382,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     close,
     disconnect,
     disconnectClient,
+    getDataChannel,
     role: 'host' as const,
     peerId: host.hostId,
     connectedClients: host.connectedClients,

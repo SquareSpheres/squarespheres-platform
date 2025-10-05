@@ -8,6 +8,8 @@ export const MESSAGE_TYPES = {
   FILE_START: 1,       // File metadata (start of transfer)
   FILE_DATA: 2,        // Raw file data chunk
   FILE_COMPLETE: 3,    // Explicit transfer completion
+  FILE_END: 6,         // End of file transfer (requires ACK)
+  FILE_END_ACK: 7,     // Acknowledgment of FILE_END
   FILE_ERROR: 4,       // Error or cancellation signal
   FILE_ACK: 5          // Progress acknowledgment
 } as const;

@@ -8,7 +8,7 @@ import type {
 import type { Logger } from '../types/logger';
 import type { ProgressManager } from '../types/progressManager';
 import type { FileTransferConfig } from '../types/fileTransferConfig';
-import { createStreamHandlersCore } from './useStreamHandlersCore';
+import { createStreamHandlersCore, MessageQueue } from './useStreamHandlersCore';
 import { createAckHandler } from './useStreamAckHandler';
 
 export function useStreamMessageHandlers({
@@ -44,7 +44,7 @@ export function useStreamMessageHandlers({
   sendAckWithPeers: (transferId: string, progress: number) => void;
 }) {
 
-  const { handleFileError, handleFileStart, handleFileData, handleFileComplete } = createStreamHandlersCore({
+  const { handleFileError, handleFileStart, handleFileData, handleFileComplete, handleFileEnd, handleFileEndAck, handleIceStateChange } = createStreamHandlersCore({
     logger,
     progressManager,
     transferBuffersRef,
@@ -64,6 +64,9 @@ export function useStreamMessageHandlers({
     setAckProgress,
   });
 
+  // Create message queue for non-blocking message processing
+  const messageQueue = new MessageQueue();
+
   const parseAndHandleMessage = useCallback(async (
     data: string | ArrayBuffer,
     handlers: {
@@ -72,35 +75,21 @@ export function useStreamMessageHandlers({
       handleFileComplete: (transferId: string, completionData?: { totalBytes?: number; checksum?: string; transferTime?: number }) => Promise<void>;
       handleFileError: (transferId: string, error: string) => void;
       handleFileAck: (transferId: string, progress: number) => void;
+      handleFileEnd: (transferId: string) => Promise<void>;
+      handleFileEndAck: (transferId: string) => Promise<void>;
       logger: Logger;
     }
   ) => {
-    const { handleFileStart, handleFileData, handleFileComplete, handleFileError, handleFileAck, logger } = handlers;
+    const { handleFileStart, handleFileData, handleFileComplete, handleFileError, handleFileAck, handleFileEnd, handleFileEndAck, logger } = handlers;
 
     if (typeof data === 'string') {
       try {
         const message = JSON.parse(data);
-        logger.log(`[FileTransfer] 📨 Parsed string message:`, {
-          type: message.type,
-          transferId: message.transferId,
-          messageSize: data.length
-        });
-        
         switch (message.type) {
           case MESSAGE_TYPES.FILE_START:
-            logger.log(`[FileTransfer] 🚀 Processing FILE_START:`, {
-              transferId: message.transferId,
-              fileName: message.fileName,
-              fileSize: message.fileSize
-            });
             await handleFileStart(message.transferId, message.fileName, message.fileSize);
             break;
           case MESSAGE_TYPES.FILE_COMPLETE:
-            logger.log(`[FileTransfer] ✅ Processing FILE_COMPLETE:`, {
-              transferId: message.transferId,
-              totalBytes: message.totalBytes,
-              transferTime: message.transferTime
-            });
             await handleFileComplete(message.transferId, {
               totalBytes: message.totalBytes,
               checksum: message.checksum,
@@ -108,18 +97,16 @@ export function useStreamMessageHandlers({
             });
             break;
           case MESSAGE_TYPES.FILE_ERROR:
-            logger.log(`[FileTransfer] ❌ Processing FILE_ERROR:`, {
-              transferId: message.transferId,
-              error: message.error
-            });
             handleFileError(message.transferId, message.error);
             break;
           case MESSAGE_TYPES.FILE_ACK:
-            logger.log(`[FileTransfer] 📋 Processing FILE_ACK:`, {
-              transferId: message.transferId,
-              progress: message.progress
-            });
             handleFileAck(message.transferId, message.progress);
+            break;
+          case MESSAGE_TYPES.FILE_END:
+            await handleFileEnd(message.transferId);
+            break;
+          case MESSAGE_TYPES.FILE_END_ACK:
+            await handleFileEndAck(message.transferId);
             break;
           default:
             logger.warn('Unknown string message type:', message.type);
@@ -163,26 +150,47 @@ export function useStreamMessageHandlers({
 
 
 
-  const handleMessage = useCallback(async (data: string | ArrayBuffer | Blob) => {
+  // Set up the message queue handler
+  messageQueue.setHandler(async (data: string | ArrayBuffer | Blob) => {
     if (data instanceof Blob) {
       try {
         const arrayBuffer = await data.arrayBuffer();
-        await handleMessage(arrayBuffer);
+        await parseAndHandleMessage(arrayBuffer, {
+          handleFileStart,
+          handleFileData,
+          handleFileComplete,
+          handleFileError,
+          handleFileAck,
+          handleFileEnd,
+          handleFileEndAck,
+          logger
+        });
       } catch (error) {
         logger.error('Failed to convert blob to array buffer:', error);
       }
       return;
     }
 
-    await parseAndHandleMessage(data, {
-      handleFileStart,
-      handleFileData,
-      handleFileComplete,
-      handleFileError,
-      handleFileAck,
-      logger
-    });
-  }, [handleFileStart, handleFileData, handleFileComplete, handleFileError, handleFileAck, logger, parseAndHandleMessage]);
+        await parseAndHandleMessage(data, {
+          handleFileStart,
+          handleFileData,
+          handleFileComplete,
+          handleFileError,
+          handleFileAck,
+          handleFileEnd,
+          handleFileEndAck,
+          logger
+        });
+  });
+
+  const handleMessage = useCallback((data: string | ArrayBuffer | Blob) => {
+    // Enqueue message for non-blocking processing
+    messageQueue.enqueue(data);
+  }, []);
+
+  const clearMessageQueue = useCallback(() => {
+    messageQueue.clear();
+  }, []);
 
   return {
     handleMessage,
@@ -191,5 +199,7 @@ export function useStreamMessageHandlers({
     handleFileComplete,
     handleFileAck,
     handleFileError,
+    handleIceStateChange,
+    clearMessageQueue,
   };
 }

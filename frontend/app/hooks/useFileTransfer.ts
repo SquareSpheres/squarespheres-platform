@@ -9,6 +9,7 @@ import {
   getOptimalChunkSize, 
   createLogger
 } from './fileTransferUtils';
+import { waitForBufferDrain } from './webrtcUtils';
 import {
   YIELD_CHUNK_INTERVAL,
   PROGRESS_MILESTONES,
@@ -92,7 +93,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       } else {
         logger.log('Message received before handlers initialized');
       }
-    }
+    },
   });
   
   const clientPeer = useWebRTCClientPeer({
@@ -103,16 +104,16 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       } else {
         logger.log('Message received before handlers initialized');
       }
-    }
+    },
   });
 
   const activePeer = config.role === 'host' ? hostPeer : clientPeer;
 
-  sendAckWithPeers = useCallback((transferId: string, progress: number) => {
+  sendAckWithPeers = useCallback((transferId: string, progress: number, messageType: number = MESSAGE_TYPES.FILE_ACK) => {
     const ackMessage = JSON.stringify({
-      type: MESSAGE_TYPES.FILE_ACK,
+      type: messageType,
       transferId,
-      progress
+      ...(messageType === MESSAGE_TYPES.FILE_ACK && { progress })
     });
     
     if (config.role === 'host') {
@@ -121,11 +122,13 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       clientPeer.send(ackMessage);
     }
     
-    logger.log(`Sent ACK for transfer ${transferId}: ${progress}%`);
+    const messageTypeName = messageType === MESSAGE_TYPES.FILE_END_ACK ? 'FILE_END_ACK' : 'FILE_ACK';
+    logger.log(`Sent ${messageTypeName} for transfer ${transferId}: ${progress}%`);
   }, [config.role, hostPeer, clientPeer, logger]);
 
   const {
     handleMessage,
+    clearMessageQueue,
   } = useStreamMessageHandlers({
     logger,
     progressManager,
@@ -233,10 +236,27 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
           await new Promise(resolve => setTimeout(resolve, 0));
         }
       }
+
+      // Wait for buffer to fully drain before marking transfer complete
+      try {
+        const dataChannel = hostPeer.getDataChannel(clientId);
+
+        if (dataChannel && dataChannel.readyState === 'open') {
+          logger.log('Waiting for buffer to drain before marking transfer complete...');
+          await waitForBufferDrain(dataChannel, 10000, config.debug);
+          logger.log('Buffer drained successfully, sending completion message');
+        } else {
+          logger.warn('No data channel available for buffer drain check, proceeding with completion');
+        }
+      } catch (error) {
+        logger.warn('Buffer drain failed, proceeding with completion:', error);
+      }
         
       const transferTime = Date.now() - startTime;
-      const completionMessage = JSON.stringify({
-        type: MESSAGE_TYPES.FILE_COMPLETE,
+      
+      // Send FILE_END instead of FILE_COMPLETE for proper handshake
+      const endMessage = JSON.stringify({
+        type: MESSAGE_TYPES.FILE_END,
         transferId,
         totalBytes: bytesTransferred,
         transferTime,
@@ -244,19 +264,15 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       });
       
       if (clientId) {
-        hostPeer.send(completionMessage, clientId);
+        hostPeer.send(endMessage, clientId);
       } else {
-        hostPeer.send(completionMessage);
+        hostPeer.send(endMessage);
       }
       
-      logger.log('Stream file transfer completed successfully:', {
-        transferId,
-        bytesTransferred,
-        transferTime,
-        transferRate: `${(bytesTransferred / (transferTime / 1000) / 1024 / 1024).toFixed(2)} MB/s`
-      });
+      logger.log('Sent FILE_END, waiting for FILE_END_ACK...');
       
-      progressManager.completeTransfer();
+      // Don't complete the transfer yet - wait for FILE_END_ACK
+      // The completion will happen in handleFileEndAck when client confirms receipt
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -310,8 +326,9 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     transferBuffersRef.current.clear();
     transferInfoRef.current.clear();
     setAckProgress(null);
+    clearMessageQueue();
     progressManager.clearTransfer();
-  }, [logger, progressManager]);
+  }, [logger, progressManager, clearMessageQueue]);
   
   // Return file transfer API
 
