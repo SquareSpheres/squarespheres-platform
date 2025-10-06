@@ -439,6 +439,23 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
         if (debug) {
           console.log(`${prefix} ICE connection established!`);
           logIceConnectionDiagnostics(pc, prefix, debug);
+          
+          // Get actual connection stats when connected
+          getConnectionStats(pc).then(stats => {
+            console.log(`${prefix} Actual connection method:`, {
+              type: stats.connectionType,
+              local: stats.localCandidate,
+              remote: stats.remoteCandidate,
+              rtt: stats.rtt,
+              bytesReceived: stats.bytesReceived,
+              bytesSent: stats.bytesSent
+            });
+            
+            // Call callback with actual connection type
+            onIceCandidate?.(null, `✅ ${stats.connectionType}`, clientId);
+          }).catch(error => {
+            if (debug) console.warn(`${prefix} Failed to get connection stats:`, error);
+          });
         }
       }
 
@@ -677,4 +694,121 @@ export async function waitForBufferDrain(
 
     checkBuffer();
   });
+}
+
+export interface ConnectionStats {
+  connectionType: 'DIRECT' | 'TURN' | 'LOCAL' | 'UNKNOWN';
+  localCandidate: string;
+  remoteCandidate: string;
+  candidatePair: any;
+  rtt?: number;
+  bytesReceived?: number;
+  bytesSent?: number;
+  packetsReceived?: number;
+  packetsSent?: number;
+  packetsLost?: number;
+  jitter?: number;
+}
+
+/**
+ * Gets the actual connection statistics using RTCPeerConnection.getStats()
+ * This provides the selected candidate pair and real connection metrics
+ */
+export async function getConnectionStats(pc: RTCPeerConnection): Promise<ConnectionStats> {
+  try {
+    const stats = await pc.getStats();
+    let selectedCandidatePair: any = null;
+    let localCandidate: any = null;
+    let remoteCandidate: any = null;
+
+    // Find the selected candidate pair (the one actually being used)
+    stats.forEach((stat: any, id: string) => {
+      if (stat.type === 'candidate-pair' && stat.state === 'succeeded') {
+        selectedCandidatePair = stat;
+        localCandidate = stats.get(stat.localCandidateId);
+        remoteCandidate = stats.get(stat.remoteCandidateId);
+      }
+    });
+
+    if (!selectedCandidatePair || !localCandidate || !remoteCandidate) {
+      return {
+        connectionType: 'UNKNOWN',
+        localCandidate: 'Unknown',
+        remoteCandidate: 'Unknown',
+        candidatePair: null
+      };
+    }
+
+    // Determine connection type based on candidate types
+    const localType = localCandidate.candidateType;
+    const remoteType = remoteCandidate.candidateType;
+    
+    let connectionType: 'DIRECT' | 'TURN' | 'LOCAL' | 'UNKNOWN' = 'UNKNOWN';
+    
+    // If either candidate is a relay (TURN), the connection goes through TURN
+    if (localType === 'relay' || remoteType === 'relay') {
+      connectionType = 'TURN';
+    } 
+    // If both are host candidates, it's a local connection
+    else if (localType === 'host' && remoteType === 'host') {
+      connectionType = 'LOCAL';
+    } 
+    // If at least one is srflx (STUN reflexive), it's a direct connection through NAT
+    else if (localType === 'srflx' || remoteType === 'srflx') {
+      connectionType = 'DIRECT';
+    }
+
+    return {
+      connectionType,
+      localCandidate: `${localType}:${localCandidate.ip}:${localCandidate.port}`,
+      remoteCandidate: `${remoteType}:${remoteCandidate.ip}:${remoteCandidate.port}`,
+      candidatePair: selectedCandidatePair,
+      rtt: selectedCandidatePair.currentRoundTripTime,
+      bytesReceived: selectedCandidatePair.bytesReceived,
+      bytesSent: selectedCandidatePair.bytesSent,
+      packetsReceived: selectedCandidatePair.packetsReceived,
+      packetsSent: selectedCandidatePair.packetsSent,
+      packetsLost: selectedCandidatePair.packetsLost,
+      jitter: selectedCandidatePair.currentRoundTripTime // RTT can be used as jitter indicator
+    };
+  } catch (error) {
+    console.error('Failed to get connection stats:', error);
+    return {
+      connectionType: 'UNKNOWN',
+      localCandidate: 'Error',
+      remoteCandidate: 'Error',
+      candidatePair: null
+    };
+  }
+}
+
+/**
+ * Gets detailed ICE candidate statistics for debugging
+ */
+export async function getIceCandidateStats(pc: RTCPeerConnection): Promise<{
+  localCandidates: any[];
+  remoteCandidates: any[];
+  candidatePairs: any[];
+}> {
+  try {
+    const stats = await pc.getStats();
+    const localCandidates: any[] = [];
+    const remoteCandidates: any[] = [];
+    const candidatePairs: any[] = [];
+
+    stats.forEach((stat: any, id: string) => {
+      if (stat.type === 'local-candidate') {
+        localCandidates.push(stat);
+      } else if (stat.type === 'remote-candidate') {
+        remoteCandidates.push(stat);
+      } else if (stat.type === 'candidate-pair') {
+        candidatePairs.push(stat);
+      }
+    });
+
+    return { localCandidates, remoteCandidates, candidatePairs };
+  } catch (error) {
+    console.error('Failed to get ICE candidate stats:', error);
+    return { localCandidates: [], remoteCandidates: [], candidatePairs: [] };
+  }
 }

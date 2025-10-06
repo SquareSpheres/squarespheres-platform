@@ -32,6 +32,7 @@ export interface WebRTCHostPeerApi {
   disconnect: () => void;
   disconnectClient: (clientId: string) => void;
   getDataChannel: (clientId?: string) => RTCDataChannel | null;
+  getPeerConnection: (clientId?: string) => RTCPeerConnection | null;
   role: 'host';
   peerId?: string;
   connectedClients?: string[];
@@ -333,6 +334,21 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     }
   }, []);
 
+  const getPeerConnection = useCallback((clientId?: string): RTCPeerConnection | null => {
+    if (clientId) {
+      const clientConn = clientConnectionsRef.current.get(clientId);
+      return clientConn?.pc || null;
+    } else {
+      // Return first available peer connection
+      for (const conn of Array.from(clientConnectionsRef.current.values())) {
+        if (conn.pc && conn.pc.connectionState !== 'closed') {
+          return conn.pc;
+        }
+      }
+      return null;
+    }
+  }, []);
+
   const disconnectClient = useCallback((clientId: string) => {
     const clientConn = clientConnectionsRef.current.get(clientId);
     if (clientConn) {
@@ -394,6 +410,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     disconnect,
     disconnectClient,
     getDataChannel,
+    getPeerConnection,
     role: 'host' as const,
     peerId: host.hostId,
     connectedClients: host.connectedClients,

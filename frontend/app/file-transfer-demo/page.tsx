@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useFileTransfer } from '../hooks/useFileTransfer';
-import { DEFAULT_ICE_SERVERS } from '../hooks/webrtcUtils';
+import { DEFAULT_ICE_SERVERS, getConnectionStats, ConnectionStats } from '../hooks/webrtcUtils';
 import { Logger, createLogger } from '../types/logger';
 
 export const dynamic = 'force-dynamic'
@@ -17,6 +17,10 @@ export default function FileTransferDemoPage() {
   const [errorHistory, setErrorHistory] = useState<string[]>([]);
   const [transferRates, setTransferRates] = useState<{ host: number; client: number }>({ host: 0, client: 0 });
   const [connectionTypes, setConnectionTypes] = useState<{ host: string; client: string }>({ host: 'Unknown', client: 'Unknown' });
+  const [actualConnectionStats, setActualConnectionStats] = useState<{ 
+    host: ConnectionStats | null; 
+    client: ConnectionStats | null 
+  }>({ host: null, client: null });
 
   // Create a UI-integrated logger
   const uiLogger: Logger = useMemo(() => ({
@@ -49,6 +53,27 @@ export default function FileTransferDemoPage() {
 
   const iceServers = useMemo(() => DEFAULT_ICE_SERVERS, []);
 
+  // Function to get actual connection stats
+  const updateConnectionStats = async (role: 'host' | 'client') => {
+    try {
+      const peer = role === 'host' ? hostFileTransfer : clientFileTransfer;
+      const pc = peer.getPeerConnection();
+      if (pc && pc.connectionState === 'connected') {
+        const stats = await getConnectionStats(pc);
+        setActualConnectionStats(prev => ({
+          ...prev,
+          [role]: stats
+        }));
+        uiLogger.log(`${role} actual connection: ${stats.connectionType} (${stats.localCandidate} ↔ ${stats.remoteCandidate})`);
+        if (stats.rtt) {
+          uiLogger.log(`${role} RTT: ${stats.rtt.toFixed(0)}ms`);
+        }
+      }
+    } catch (error) {
+      uiLogger.warn(`Failed to get ${role} connection stats:`, error);
+    }
+  };
+
   const hostFileTransfer = useFileTransfer({
     role: 'host',
     debug: true,
@@ -70,6 +95,10 @@ export default function FileTransferDemoPage() {
     onIceConnectionStateChange: (state: RTCIceConnectionState) => {
       if (state === 'connected' || state === 'failed') {
         uiLogger.log(`Host ICE: ${state}`);
+        if (state === 'connected') {
+          // Get actual connection stats when connected
+          setTimeout(() => updateConnectionStats('host'), 1000);
+        }
       }
     },
     onIceCandidate: (candidate: RTCIceCandidateInit | null, connectionType: string) => {
@@ -112,6 +141,10 @@ export default function FileTransferDemoPage() {
     onIceConnectionStateChange: (state: RTCIceConnectionState) => {
       if (state === 'connected' || state === 'failed') {
         uiLogger.log(`Client ICE: ${state}`);
+        if (state === 'connected') {
+          // Get actual connection stats when connected
+          setTimeout(() => updateConnectionStats('client'), 1000);
+        }
       }
     },
     onIceCandidate: (candidate: RTCIceCandidateInit | null, connectionType: string) => {
@@ -303,32 +336,87 @@ export default function FileTransferDemoPage() {
         
         {/* Connection Type Indicator */}
         <div className="bg-card rounded-lg shadow mb-4 border p-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-medium text-foreground">Connection Type</div>
-            <div className="flex gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Host:</span>
-                <span className={`px-2 py-1 rounded text-xs ${
-                  connectionTypes.host.includes('TURN') ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300' :
-                  connectionTypes.host.includes('Direct') ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' :
-                  connectionTypes.host.includes('Local') ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' :
-                  connectionTypes.host.includes('STUN') ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300' :
-                  'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300'
-                }`}>
-                  {connectionTypes.host}
-                </span>
+          <div className="space-y-3">
+            <div className="text-sm font-medium text-foreground">Connection Method</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Host Connection */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Host</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Candidate:</span>
+                  <span className={`px-2 py-1 rounded text-xs ${
+                    connectionTypes.host.includes('TURN') ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300' :
+                    connectionTypes.host.includes('Direct') ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' :
+                    connectionTypes.host.includes('Local') ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' :
+                    connectionTypes.host.includes('STUN') ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300' :
+                    'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300'
+                  }`}>
+                    {connectionTypes.host}
+                  </span>
+                </div>
+                {actualConnectionStats.host && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Actual:</span>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        actualConnectionStats.host.connectionType === 'TURN' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300' :
+                        actualConnectionStats.host.connectionType === 'DIRECT' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' :
+                        actualConnectionStats.host.connectionType === 'LOCAL' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300'
+                      }`}>
+                        {actualConnectionStats.host.connectionType}
+                      </span>
+                    </div>
+                    {actualConnectionStats.host.rtt && (
+                      <div className="text-xs text-muted-foreground">
+                        RTT: {actualConnectionStats.host.rtt.toFixed(0)}ms
+                      </div>
+                    )}
+                    <div className="text-xs text-muted-foreground truncate">
+                      {actualConnectionStats.host.localCandidate} ↔ {actualConnectionStats.host.remoteCandidate}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Client:</span>
-                <span className={`px-2 py-1 rounded text-xs ${
-                  connectionTypes.client.includes('TURN') ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300' :
-                  connectionTypes.client.includes('Direct') ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' :
-                  connectionTypes.client.includes('Local') ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' :
-                  connectionTypes.client.includes('STUN') ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300' :
-                  'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300'
-                }`}>
-                  {connectionTypes.client}
-                </span>
+
+              {/* Client Connection */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Client</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Candidate:</span>
+                  <span className={`px-2 py-1 rounded text-xs ${
+                    connectionTypes.client.includes('TURN') ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300' :
+                    connectionTypes.client.includes('Direct') ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' :
+                    connectionTypes.client.includes('Local') ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' :
+                    connectionTypes.client.includes('STUN') ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300' :
+                    'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300'
+                  }`}>
+                    {connectionTypes.client}
+                  </span>
+                </div>
+                {actualConnectionStats.client && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Actual:</span>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        actualConnectionStats.client.connectionType === 'TURN' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300' :
+                        actualConnectionStats.client.connectionType === 'DIRECT' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' :
+                        actualConnectionStats.client.connectionType === 'LOCAL' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300'
+                      }`}>
+                        {actualConnectionStats.client.connectionType}
+                      </span>
+                    </div>
+                    {actualConnectionStats.client.rtt && (
+                      <div className="text-xs text-muted-foreground">
+                        RTT: {actualConnectionStats.client.rtt.toFixed(0)}ms
+                      </div>
+                    )}
+                    <div className="text-xs text-muted-foreground truncate">
+                      {actualConnectionStats.client.localCandidate} ↔ {actualConnectionStats.client.remoteCandidate}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -876,8 +964,19 @@ export default function FileTransferDemoPage() {
                 ID: {activeFileTransfer.peerId || 'n/a'}
               </div>
               <div className="text-sm text-muted-foreground">
-                Type: {activeTab === 'host' ? connectionTypes.host : connectionTypes.client}
+                Candidate Type: {activeTab === 'host' ? connectionTypes.host : connectionTypes.client}
               </div>
+              {((activeTab === 'host' && actualConnectionStats.host) || (activeTab === 'client' && actualConnectionStats.client)) && (
+                <div className="text-sm text-muted-foreground">
+                  Actual Type: {activeTab === 'host' ? actualConnectionStats.host?.connectionType : actualConnectionStats.client?.connectionType}
+                  {activeTab === 'host' && actualConnectionStats.host?.rtt && (
+                    <span className="ml-2">(RTT: {actualConnectionStats.host.rtt.toFixed(0)}ms)</span>
+                  )}
+                  {activeTab === 'client' && actualConnectionStats.client?.rtt && (
+                    <span className="ml-2">(RTT: {actualConnectionStats.client.rtt.toFixed(0)}ms)</span>
+                  )}
+                </div>
+              )}
               {activeTab === 'host' ? (
                 <div className="text-sm text-muted-foreground">
                   Connected Clients: {hostFileTransfer.connectedClients?.length || 0}

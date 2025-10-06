@@ -95,6 +95,7 @@ export interface FileTransferApi {
   createOrEnsureConnection: () => Promise<void>;
   close: () => void;
   disconnect: () => void;
+  getPeerConnection: (clientId?: string) => RTCPeerConnection | null;
   role: 'host' | 'client';
   peerId?: string;
   connectedClients?: string[];

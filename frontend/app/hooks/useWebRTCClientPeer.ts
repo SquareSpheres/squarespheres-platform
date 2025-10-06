@@ -30,6 +30,7 @@ export interface WebRTCClientPeerApi {
   createOrEnsureConnection: () => Promise<void>;
   close: () => void;
   disconnect: () => void;
+  getPeerConnection: () => RTCPeerConnection | null;
   role: 'client';
   peerId?: string;
 }
@@ -346,6 +347,10 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
     pcRef.current = null;
   }, []);
 
+  const getPeerConnection = useCallback((): RTCPeerConnection | null => {
+    return pcRef.current;
+  }, []);
+
   const disconnect = useCallback(() => {
     close();
     client.disconnect();
@@ -361,6 +366,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
     createOrEnsureConnection,
     close,
     disconnect,
+    getPeerConnection,
     role: 'client' as const,
     peerId: client.clientId,
   };

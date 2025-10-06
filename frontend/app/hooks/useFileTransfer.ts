@@ -354,6 +354,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     createOrEnsureConnection: activePeer.createOrEnsureConnection,
     close: activePeer.close,
     disconnect: activePeer.disconnect,
+    getPeerConnection: activePeer.getPeerConnection,
     role: activePeer.role,
     peerId: activePeer.peerId,
     connectedClients: 'connectedClients' in activePeer ? activePeer.connectedClients : undefined,
