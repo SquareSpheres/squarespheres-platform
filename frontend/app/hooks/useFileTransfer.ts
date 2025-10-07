@@ -30,6 +30,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   onProgress?: (progress: FileTransferProgress) => void;
   onComplete?: (file: Blob | null, fileName: string | null) => void;
   onError?: (error: string) => void;
+  onConnectionRejected?: (reason: string, connectedClientId?: string) => void;
 }): FileTransferApi {
   const logger = createLogger(config.role, config.debug);
   
@@ -94,6 +95,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
         logger.log('Message received before handlers initialized');
       }
     },
+    onConnectionRejected: config.onConnectionRejected,
   });
   
   const clientPeer = useWebRTCClientPeer({
@@ -105,6 +107,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
         logger.log('Message received before handlers initialized');
       }
     },
+    onConnectionRejected: config.onConnectionRejected,
   });
 
   const activePeer = config.role === 'host' ? hostPeer : clientPeer;
@@ -146,7 +149,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   messageHandlerRef.current = handleMessage;
 
   const { waitForBackpressure } = useBackpressureManager(config, logger, hostPeer);
-  const sendFile = useCallback(async (file: File, clientId?: string) => {
+  const sendFile = useCallback(async (file: File) => {
     if (config.role !== 'host') {
       throw new Error('sendFile can only be called on host');
     }
@@ -157,8 +160,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     logger.log('Starting stream-based file transfer:', {
       fileName: file.name,
       fileSize: file.size,
-      transferId,
-      clientId: clientId || 'all clients'
+      transferId
     });
     
     // Start transfer progress tracking
@@ -183,11 +185,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
         fileSize: file.size
       });
       
-      if (clientId) {
-        hostPeer.send(startMessage, clientId);
-      } else {
-        hostPeer.send(startMessage);
-      }
+      hostPeer.send(startMessage);
 
       // Stream file data in chunks
       let bytesTransferred = 0;
@@ -211,11 +209,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
         new Uint8Array(buffer, 12).set(transferIdBytes);
         new Uint8Array(buffer, 12 + transferIdBytes.length).set(chunkData);
 
-        if (clientId) {
-          hostPeer.send(buffer, clientId);
-        } else {
-          hostPeer.send(buffer);
-        }
+        hostPeer.send(buffer);
 
         if (progressManager?.updateBytesTransferred) {
           progressManager.updateBytesTransferred(chunkData.length);
@@ -230,7 +224,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
           (file as any).lastLoggedPercentage = currentPercentage;
         }
 
-        await waitForBackpressure(clientId || 'default');
+        await waitForBackpressure('default');
         
         if (bytesTransferred % (CHUNK_SIZE * YIELD_CHUNK_INTERVAL) === 0) {
           await new Promise(resolve => setTimeout(resolve, 0));
@@ -239,7 +233,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
 
       // Wait for buffer to fully drain before marking transfer complete
       try {
-        const dataChannel = hostPeer.getDataChannel(clientId);
+        const dataChannel = hostPeer.getDataChannel();
 
         if (dataChannel && dataChannel.readyState === 'open') {
           logger.log('Waiting for buffer to drain before marking transfer complete...');
@@ -263,11 +257,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
         checksum: undefined // Can be added later for integrity verification
       });
       
-      if (clientId) {
-        hostPeer.send(endMessage, clientId);
-      } else {
-        hostPeer.send(endMessage);
-      }
+      hostPeer.send(endMessage);
       
       logger.log('Sent FILE_END, waiting for FILE_END_ACK...');
       
@@ -284,11 +274,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
         error: errorMessage
       });
       
-      if (clientId) {
-        hostPeer.send(errorMessage_str, clientId);
-      } else {
-        hostPeer.send(errorMessage_str);
-      }
+      hostPeer.send(errorMessage_str);
       
       progressManager.errorTransfer(errorMessage);
     }
@@ -357,8 +343,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     getPeerConnection: activePeer.getPeerConnection,
     role: activePeer.role,
     peerId: activePeer.peerId,
-    connectedClients: 'connectedClients' in activePeer ? activePeer.connectedClients : undefined,
-    clientConnections: 'clientConnections' in activePeer ? activePeer.clientConnections : undefined,
+    connectedClient: 'connectedClient' in activePeer ? activePeer.connectedClient : undefined,
     
     // Callbacks
     onProgress: config.onProgress,

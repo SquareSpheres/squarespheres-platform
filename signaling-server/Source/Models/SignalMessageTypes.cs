@@ -11,4 +11,5 @@ public static class SignalMessageTypes
     public const string ClientDisconnected = "client-disconnected";
 
     public const string HostDisconnected = "host-disconnected";
+    public const string Error = "error";
 }

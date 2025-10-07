@@ -26,24 +26,23 @@ import { createLogger, consoleLogger } from '../types/logger';
 export interface WebRTCHostPeerApi {
   connectionState: RTCPeerConnectionState;
   dataChannelState: RTCDataChannelState | undefined;
-  send: (data: string | ArrayBuffer | Blob, clientId?: string) => void;
+  send: (data: string | ArrayBuffer | Blob) => void;
   createOrEnsureConnection: () => Promise<void>;
   close: () => void;
   disconnect: () => void;
-  disconnectClient: (clientId: string) => void;
-  getDataChannel: (clientId?: string) => RTCDataChannel | null;
-  getPeerConnection: (clientId?: string) => RTCPeerConnection | null;
+  getDataChannel: () => RTCDataChannel | null;
+  getPeerConnection: () => RTCPeerConnection | null;
   role: 'host';
   peerId?: string;
-  connectedClients?: string[];
-  clientConnections?: Map<string, { connectionState: RTCPeerConnectionState; dataChannelState: RTCDataChannelState | undefined }>;
+  connectedClient?: string;
 }
 
-interface ClientConnection {
+interface HostConnection {
   pc: RTCPeerConnection;
   dc: RTCDataChannel | null;
   watchdog: ConnectionWatchdog;
   iceCandidateManager: ICECandidateManager;
+  clientId?: string;
 }
 
 export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
@@ -83,30 +82,41 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
   
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>('new');
   const [dataChannelState, setDataChannelState] = useState<RTCDataChannelState>();
-  const [clientConnections, setClientConnections] = useState<Map<string, { connectionState: RTCPeerConnectionState; dataChannelState: RTCDataChannelState | undefined }>>(new Map());
+  const [connectedClient, setConnectedClient] = useState<string>();
   
-  const clientConnectionsRef = useRef<Map<string, ClientConnection>>(new Map());
+  const hostConnectionRef = useRef<HostConnection | null>(null);
 
   const host = useSignalHost({
     onMessage: (message: SignalingMessage) => handleSignalMessage(message),
     onClientJoined: (clientId: string) => {
       if (debug) console.log(`[WebRTC Host] Client ${clientId} joined`);
+      // Only allow one client at a time
+      if (!connectedClient) {
+        setConnectedClient(clientId);
+      } else {
+        if (debug) console.warn(`[WebRTC Host] Ignoring additional client ${clientId} - already connected to ${connectedClient}`);
+      }
     },
     onClientDisconnected: (clientId: string) => {
       if (debug) console.log(`[WebRTC Host] Client ${clientId} disconnected`);
-      disconnectClient(clientId);
+      if (connectedClient === clientId) {
+        setConnectedClient(undefined);
+        close();
+      }
     },
   });
 
   const sendSignal = useCallback(
-    async (payload: WebRTCSignalPayload, targetClientId: string) => {
+    async (payload: WebRTCSignalPayload, targetClientId?: string) => {
+      const clientId = targetClientId || connectedClient;
+      if (!clientId) return;
       const serialized = JSON.stringify(payload);
-      host.sendMessageToClient(targetClientId, serialized);
+      host.sendMessageToClient(clientId, serialized);
     },
-    [host]
+    [host, connectedClient]
   );
 
-  const createClientConnection = useCallback((clientId: string): ClientConnection => {
+  const createHostConnection = useCallback((clientId: string): HostConnection => {
     const pc = createPeerConnection({
       iceServers,
       browserInfo,
@@ -139,33 +149,10 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       clientId,
       pc,
       watchdog,
-      sendSignal: (payload, targetClientId) => sendSignal(payload, targetClientId || clientId),
+      sendSignal: (payload) => sendSignal(payload, clientId),
       onConnectionStateChange: (state) => {
-        setClientConnections(prev => {
-          const newMap = new Map(prev);
-          const clientConn = clientConnectionsRef.current.get(clientId);
-          newMap.set(clientId, {
-            connectionState: state,
-            dataChannelState: clientConn?.dc?.readyState
-          });
-          
-          // Update host's overall connection state based on client connections
-          const connectedClients = Array.from(newMap.values()).filter(conn => conn.connectionState === 'connected');
-          if (connectedClients.length > 0) {
-            setConnectionState('connected');
-          } else {
-            const connectingClients = Array.from(newMap.values()).filter(conn => conn.connectionState === 'connecting');
-            if (connectingClients.length > 0) {
-              setConnectionState('connecting');
-            } else if (newMap.size === 0) {
-              setConnectionState('new');
-            } else {
-              setConnectionState('disconnected');
-            }
-          }
-          
-          return newMap;
-        });
+        setConnectionState(state);
+        setDataChannelState(hostConnectionRef.current?.dc?.readyState);
 
         if (debug && (state === 'connected' || state === 'failed')) {
           console.log(`[WebRTC Host] Client ${clientId}: ${state}`);
@@ -192,37 +179,22 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
 
     attachEventHandlers(pc, eventHandlers, debug);
 
-    // Set up data channel handling for this specific client connection
+    // Set up data channel handling for this host connection
     pc.ondatachannel = (evt) => {
       const dc = evt.channel;
-      // Update the client connection with the data channel
-      const currentConn = clientConnectionsRef.current.get(clientId);
-      if (currentConn) {
-        currentConn.dc = dc;
+      // Update the host connection with the data channel
+      if (hostConnectionRef.current) {
+        hostConnectionRef.current.dc = dc;
       }
 
       if (debug) console.log(`[WebRTC Host] Data channel received from client ${clientId}: ${dc.readyState}`);
 
       setupDataChannel(dc, {
         onOpen: (readyState) => {
-          setClientConnections(prev => {
-            const newMap = new Map(prev);
-            newMap.set(clientId, {
-              connectionState: pc.connectionState,
-              dataChannelState: readyState
-            });
-            return newMap;
-          });
+          setDataChannelState(readyState);
         },
         onClose: (readyState) => {
-          setClientConnections(prev => {
-            const newMap = new Map(prev);
-            newMap.set(clientId, {
-              connectionState: pc.connectionState,
-              dataChannelState: readyState
-            });
-            return newMap;
-          });
+          setDataChannelState(readyState);
         },
         onMessage: config.onChannelMessage,
         onDataChannelReady: config.onDataChannelReady,
@@ -232,7 +204,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       });
     };
 
-    return { pc, dc: null, watchdog, iceCandidateManager };
+    return { pc, dc: null, watchdog, iceCandidateManager, clientId };
   }, [iceServers, browserInfo, debug, connectionTimeoutMs, iceGatheringTimeoutMs, config, sendSignal]);
 
   const handleSignalMessage = useCallback(async (message: SignalingMessage) => {
@@ -254,13 +226,26 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       if (parsed.kind === 'webrtc-offer') {
         if (!message.clientId) return;
 
-        let clientConn = clientConnectionsRef.current.get(message.clientId);
-        if (!clientConn) {
-          clientConn = createClientConnection(message.clientId);
-          clientConnectionsRef.current.set(message.clientId, clientConn);
+        // Only allow one client connection at a time
+        if (hostConnectionRef.current && hostConnectionRef.current.clientId !== message.clientId) {
+          if (debug) console.warn(`[WebRTC Host] Rejecting offer from ${message.clientId} - already connected to ${hostConnectionRef.current.clientId}`);
+          
+          // Send a rejection message to the client
+          await sendSignal({ 
+            kind: 'webrtc-rejection', 
+            reason: 'Host is already connected to another client',
+            connectedClientId: hostConnectionRef.current.clientId 
+          }, message.clientId);
+          return;
         }
 
-        const pc = clientConn.pc;
+        let hostConn = hostConnectionRef.current;
+        if (!hostConn) {
+          hostConn = createHostConnection(message.clientId);
+          hostConnectionRef.current = hostConn;
+        }
+
+        const pc = hostConn.pc;
 
         if (debug) console.log(`[WebRTC Host] Received offer from client ${message.clientId}`);
         await pc.setRemoteDescription(parsed.sdp);
@@ -272,30 +257,30 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
         await sendSignal({ kind: 'webrtc-answer', sdp: answer }, message.clientId);
 
         // Add any pending ICE candidates for this client
-        await clientConn.iceCandidateManager.addPendingCandidates(pc, message.clientId);
+        await hostConn.iceCandidateManager.addPendingCandidates(pc, message.clientId);
       } else if (parsed.kind === 'webrtc-answer') {
         // Host doesn't receive answers, only sends them
         if (debug) console.warn('[WebRTC Host] Unexpected answer received from client');
       } else if (parsed.kind === 'webrtc-ice') {
         if (!message.clientId) return;
 
-        const clientConn = clientConnectionsRef.current.get(message.clientId);
-        if (!clientConn) return;
+        const hostConn = hostConnectionRef.current;
+        if (!hostConn || hostConn.clientId !== message.clientId) return;
 
-        await clientConn.iceCandidateManager.addCandidate(clientConn.pc, parsed.candidate, message.clientId);
+        await hostConn.iceCandidateManager.addCandidate(hostConn.pc, parsed.candidate, message.clientId);
       }
     } catch (error) {
       if (debug) {
         console.error(`[WebRTC Host] Error handling ${parsed.kind}:`, error);
       }
     }
-  }, [createClientConnection, sendSignal, debug]);
+  }, [createHostConnection, sendSignal, debug]);
 
   const createOrEnsureConnection = useCallback(async () => {
     try {
       if (!host.hostId) {
         await host.connect();
-        await host.registerHost();
+        await host.registerHost(1); // Set maxClients to 1 for single-client mode
       }
     } catch (error) {
       if (debug) console.error('[WebRTC Host] Connection failed:', error);
@@ -304,93 +289,36 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     }
   }, [host, config, debug]);
 
-  const send = useCallback((data: string | ArrayBuffer | Blob, clientId?: string) => {
-    if (clientId) {
-      const clientConn = clientConnectionsRef.current.get(clientId);
-      if (clientConn?.dc && clientConn.dc.readyState === 'open') {
-        clientConn.dc.send(data as any);
-      }
-    } else {
-      clientConnectionsRef.current.forEach((clientConn) => {
-        if (clientConn.dc && clientConn.dc.readyState === 'open') {
-          clientConn.dc.send(data as any);
-        }
-      });
+  const send = useCallback((data: string | ArrayBuffer | Blob) => {
+    const hostConn = hostConnectionRef.current;
+    if (hostConn?.dc && hostConn.dc.readyState === 'open') {
+      hostConn.dc.send(data as any);
     }
   }, []);
 
-  const getDataChannel = useCallback((clientId?: string): RTCDataChannel | null => {
-    if (clientId) {
-      const clientConn = clientConnectionsRef.current.get(clientId);
-      return clientConn?.dc || null;
-    } else {
-      // Return first available data channel
-      for (const conn of Array.from(clientConnectionsRef.current.values())) {
-        if (conn.dc && conn.dc.readyState === 'open') {
-          return conn.dc;
-        }
-      }
-      return null;
-    }
+  const getDataChannel = useCallback((): RTCDataChannel | null => {
+    const hostConn = hostConnectionRef.current;
+    return hostConn?.dc || null;
   }, []);
 
-  const getPeerConnection = useCallback((clientId?: string): RTCPeerConnection | null => {
-    if (clientId) {
-      const clientConn = clientConnectionsRef.current.get(clientId);
-      return clientConn?.pc || null;
-    } else {
-      // Return first available peer connection
-      for (const conn of Array.from(clientConnectionsRef.current.values())) {
-        if (conn.pc && conn.pc.connectionState !== 'closed') {
-          return conn.pc;
-        }
-      }
-      return null;
-    }
+  const getPeerConnection = useCallback((): RTCPeerConnection | null => {
+    const hostConn = hostConnectionRef.current;
+    return hostConn?.pc || null;
   }, []);
 
-  const disconnectClient = useCallback((clientId: string) => {
-    const clientConn = clientConnectionsRef.current.get(clientId);
-    if (clientConn) {
-      clientConn.watchdog.clearTimeouts();
-      clientConn.iceCandidateManager.clear(clientId);
-      clientConn.dc?.close();
-      clientConn.pc.close();
-      clientConnectionsRef.current.delete(clientId);
-      setClientConnections(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(clientId);
-        
-        // Update host's overall connection state based on remaining client connections
-        const connectedClients = Array.from(newMap.values()).filter(conn => conn.connectionState === 'connected');
-        if (connectedClients.length > 0) {
-          setConnectionState('connected');
-        } else {
-          const connectingClients = Array.from(newMap.values()).filter(conn => conn.connectionState === 'connecting');
-          if (connectingClients.length > 0) {
-            setConnectionState('connecting');
-          } else if (newMap.size === 0) {
-            setConnectionState('new');
-          } else {
-            setConnectionState('disconnected');
-          }
-        }
-        
-        return newMap;
-      });
-      if (debug) console.log(`[WebRTC Host] Disconnected client ${clientId}`);
-    }
-  }, [debug]);
 
   const close = useCallback(() => {
-    clientConnectionsRef.current.forEach((clientConn) => {
-      clientConn.watchdog.clearTimeouts();
-      clientConn.iceCandidateManager.clear();
-      clientConn.dc?.close();
-      clientConn.pc.close();
-    });
-    clientConnectionsRef.current.clear();
-    setClientConnections(new Map());
+    const hostConn = hostConnectionRef.current;
+    if (hostConn) {
+      hostConn.watchdog.clearTimeouts();
+      hostConn.iceCandidateManager.clear();
+      hostConn.dc?.close();
+      hostConn.pc.close();
+      hostConnectionRef.current = null;
+    }
+    setConnectionState('new');
+    setDataChannelState(undefined);
+    setConnectedClient(undefined);
   }, []);
 
   const disconnect = useCallback(() => {
@@ -408,12 +336,10 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     createOrEnsureConnection,
     close,
     disconnect,
-    disconnectClient,
     getDataChannel,
     getPeerConnection,
     role: 'host' as const,
     peerId: host.hostId,
-    connectedClients: host.connectedClients,
-    clientConnections,
+    connectedClient,
   };
 }

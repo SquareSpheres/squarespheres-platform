@@ -2,7 +2,7 @@
 
 import { Logger } from '../types/logger';
 
-export type WebRTCSignalKind = 'webrtc-offer' | 'webrtc-answer' | 'webrtc-ice';
+export type WebRTCSignalKind = 'webrtc-offer' | 'webrtc-answer' | 'webrtc-ice' | 'webrtc-rejection';
 
 export interface WebRTCOfferPayload {
   kind: 'webrtc-offer';
@@ -19,7 +19,13 @@ export interface WebRTCIcePayload {
   candidate: RTCIceCandidateInit;
 }
 
-export type WebRTCSignalPayload = WebRTCOfferPayload | WebRTCAnswerPayload | WebRTCIcePayload;
+export interface WebRTCRejectionPayload {
+  kind: 'webrtc-rejection';
+  reason: string;
+  connectedClientId?: string;
+}
+
+export type WebRTCSignalPayload = WebRTCOfferPayload | WebRTCAnswerPayload | WebRTCIcePayload | WebRTCRejectionPayload;
 
 export interface WebRTCPeerConfig {
   role: 'host' | 'client';
@@ -43,6 +49,7 @@ export interface WebRTCPeerConfig {
   onConnectionTimeout?: () => void;
   onConnectionFailed?: (error: Error) => void;
   onDataChannelReady?: (maxMessageSize: number) => void;
+  onConnectionRejected?: (reason: string, connectedClientId?: string) => void;
 }
 
 

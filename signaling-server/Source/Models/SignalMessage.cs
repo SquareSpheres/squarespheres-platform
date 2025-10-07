@@ -18,4 +18,7 @@ public class SignalMessage
 
     [JsonPropertyName("requestId")]
     public string? RequestId { get; set; }
+
+    [JsonPropertyName("maxClients")]
+    public int? MaxClients { get; set; }
 }

@@ -56,9 +56,14 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
         {
             case SignalMessageTypes.Host:
                 hostId = await signalRegistry.GenerateUniqueHostIdAsync();
+                var maxClients = msg.MaxClients ?? 10; // Default to 10 if not specified
 
-                signalRegistry.RegisterHost(hostId, socket);
-                logger.LogInformation("Host registered: {HostId}", hostId);
+                signalRegistry.RegisterHost(hostId, socket, maxClients);
+                logger.LogInformation(
+                    "Host registered: {HostId} with maxClients: {MaxClients}",
+                    hostId,
+                    maxClients
+                );
 
                 await socket.SendJsonAsync(
                     new SignalMessage
@@ -82,7 +87,30 @@ public class MessageHandler(ISignalRegistry signalRegistry, ILogger<MessageHandl
                 if (signalRegistry.TryGetHostSocket(msg.HostId, out hostSocket))
                 {
                     clientId = await signalRegistry.GenerateUniqueClientIdAsync();
-                    signalRegistry.RegisterClient(clientId, socket, msg.HostId);
+                    var clientRegistered = signalRegistry.RegisterClient(
+                        clientId,
+                        socket,
+                        msg.HostId
+                    );
+
+                    if (!clientRegistered)
+                    {
+                        logger.LogWarning(
+                            "Client {ClientId} rejected - host {HostId} is at capacity",
+                            clientId,
+                            msg.HostId
+                        );
+                        await socket.SendJsonAsync(
+                            new SignalMessage
+                            {
+                                Type = SignalMessageTypes.Error,
+                                Payload = "Host is at capacity",
+                                RequestId = msg.RequestId,
+                            }
+                        );
+                        return;
+                    }
+
                     logger.LogInformation(
                         "Client {ClientId} joined host {HostId}",
                         clientId,

@@ -116,6 +116,12 @@ export default function FileTransferDemoPage() {
     onComplete: (file, fileName) => uiLogger.log(`Host transfer completed: ${fileName}`),
     onError: (error) => {
       uiLogger.error(`Host error: ${error}`);
+    },
+    onConnectionRejected: (reason: string, connectedClientId?: string) => {
+      uiLogger.error(`🚫 Host rejected client: ${reason}${connectedClientId ? ` (Currently connected to ${connectedClientId})` : ''}`);
+    },
+    onConnectionFailed: (error: Error) => {
+      uiLogger.error(`❌ Host connection failed: ${error.message}`);
     }
   });
 
@@ -162,6 +168,12 @@ export default function FileTransferDemoPage() {
     onComplete: (file, fileName) => uiLogger.log(`Client transfer completed: ${fileName}`),
     onError: (error) => {
       uiLogger.error(`Client error: ${error}`);
+    },
+    onConnectionRejected: (reason: string, connectedClientId?: string) => {
+      uiLogger.error(`❌ Client connection rejected: ${reason}${connectedClientId ? ` (Host is connected to ${connectedClientId})` : ''}`);
+    },
+    onConnectionFailed: (error: Error) => {
+      uiLogger.error(`❌ Client connection failed: ${error.message}`);
     }
   });
 
@@ -471,29 +483,29 @@ export default function FileTransferDemoPage() {
                   Host ID: <span className="font-mono text-foreground">{hostFileTransfer.peerId || 'n/a'}</span>
                 </div>
 
-                {hostFileTransfer.connectedClients && hostFileTransfer.connectedClients.length > 0 && (
+                {hostFileTransfer.connectedClient && (
                   <div className="space-y-2">
                     <div className="text-sm font-medium text-foreground">
-                      Connected Clients ({hostFileTransfer.connectedClients.length})
+                      Connected Client
                     </div>
-                    <div className="space-y-1 max-h-32 overflow-y-auto">
-                      {hostFileTransfer.connectedClients.map((clientId) => {
-                        const clientConn = hostFileTransfer.clientConnections?.get(clientId);
-                        return (
-                          <div key={clientId} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs">{clientId}</span>
-                              <span className={`px-2 py-1 rounded text-xs ${
-                                clientConn?.connectionState === 'connected' ? 'bg-green-100 text-green-800' :
-                                clientConn?.connectionState === 'connecting' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-red-100 text-red-800'
-                              }`}>
-                                {clientConn?.connectionState || 'unknown'}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <div className="p-2 bg-muted rounded text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs">{hostFileTransfer.connectedClient}</span>
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          hostFileTransfer.connectionState === 'connected' ? 'bg-green-100 text-green-800' :
+                          hostFileTransfer.connectionState === 'connecting' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {hostFileTransfer.connectionState}
+                        </span>
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          hostFileTransfer.dataChannelState === 'open' ? 'bg-green-100 text-green-800' :
+                          hostFileTransfer.dataChannelState === 'connecting' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {hostFileTransfer.dataChannelState || 'no channel'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -979,7 +991,7 @@ export default function FileTransferDemoPage() {
               )}
               {activeTab === 'host' ? (
                 <div className="text-sm text-muted-foreground">
-                  Connected Clients: {hostFileTransfer.connectedClients?.length || 0}
+                  Connected Client: {hostFileTransfer.connectedClient ? 'Yes' : 'No'}
                 </div>
               ) : (
                 <div className="text-sm text-muted-foreground">

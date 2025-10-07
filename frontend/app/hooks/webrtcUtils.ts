@@ -313,9 +313,9 @@ export interface WebRTCEventHandlerConfig {
   pc: RTCPeerConnection; // Add peer connection reference
   watchdog: ConnectionWatchdog;
   sendSignal: (payload: WebRTCSignalPayload, targetClientId?: string) => Promise<void>;
-  onConnectionStateChange?: (state: RTCPeerConnectionState, clientId?: string) => void;
-  onIceConnectionStateChange?: (state: RTCIceConnectionState, clientId?: string) => void;
-  onIceCandidate?: (candidate: RTCIceCandidateInit | null, connectionType: string, clientId?: string) => void;
+  onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
+  onIceConnectionStateChange?: (state: RTCIceConnectionState) => void;
+  onIceCandidate?: (candidate: RTCIceCandidateInit | null, connectionType: string) => void;
   onChannelOpen?: () => void;
   onChannelClose?: () => void;
   onChannelMessage?: (data: any) => void;
@@ -331,7 +331,7 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
   return {
     onConnectionStateChange: (state: RTCPeerConnectionState) => {
       watchdog.handleConnectionStateChange(state);
-      onConnectionStateChange?.(state, clientId);
+      onConnectionStateChange?.(state);
 
       if (state === 'connected') {
         if (debug) logger.log(`${prefix} Connection established!`);
@@ -367,7 +367,7 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
         }
 
         // Call the callback with connection type information
-        onIceCandidate?.(candidate, connectionType, clientId);
+        onIceCandidate?.(candidate, connectionType);
 
         if (debug) {
           // Only log the connection type, not the full candidate details
@@ -382,7 +382,7 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
         sendSignal({ kind: 'webrtc-ice', candidate }, clientId);
       } else {
         // Call callback with null candidate to indicate end of candidates
-        onIceCandidate?.(null, 'End of candidates', clientId);
+        onIceCandidate?.(null, 'End of candidates');
         
         if (debug) {
           logger.log(`${prefix} ICE gathering completed`);
@@ -452,7 +452,7 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
             });
             
             // Call callback with actual connection type
-            onIceCandidate?.(null, `✅ ${stats.connectionType}`, clientId);
+            onIceCandidate?.(null, `✅ ${stats.connectionType}`);
           }).catch(error => {
             if (debug) console.warn(`${prefix} Failed to get connection stats:`, error);
           });
@@ -460,7 +460,7 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
       }
 
       // Call the user-provided callback
-      onIceConnectionStateChange?.(state, clientId);
+      onIceConnectionStateChange?.(state);
     },
   };
 }

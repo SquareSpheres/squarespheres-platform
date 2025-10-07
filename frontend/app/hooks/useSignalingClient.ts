@@ -9,6 +9,11 @@ export interface SignalingMessage {
   requestId?: string;
 }
 
+export interface HostRequest {
+  type: 'host';
+  maxClients?: number;
+}
+
 export interface HostResponse {
   type: 'host';
   hostId: string;
@@ -39,6 +44,7 @@ export interface MessageToClientRequest {
 export interface ErrorMessage {
   type: 'error';
   message: string;
+  code?: string;
 }
 
 export interface ClientJoinedNotification {
@@ -361,27 +367,35 @@ export interface SignalHost {
   disconnect: () => void;
   isConnected: boolean;
   hostId?: string;
-  registerHost: () => Promise<string>;
+  registerHost: (maxClients?: number) => Promise<string>;
   sendMessageToClient: (clientId: string, payload: string) => void;
-  connectedClients: string[];
+  connectedClient?: string;
   onClientJoined?: (clientId: string) => void;
   onClientDisconnected?: (clientId: string) => void;
 }
 
 export function useSignalHost(config: SignalingClientConfig = {}): SignalHost {
   const [hostId, setHostId] = useState<string>();
-  const [connectedClients, setConnectedClients] = useState<string[]>([]);
+  const [connectedClient, setConnectedClient] = useState<string>();
 
   const handleMessage = useCallback((message: SignalingMessage) => {
     if (message.type === 'client-joined' && message.clientId) {
-      setConnectedClients(prev => [...prev, message.clientId!]);
-      config.onClientJoined?.(message.clientId);
+      // Only allow one client at a time
+      if (!connectedClient) {
+        setConnectedClient(message.clientId);
+        config.onClientJoined?.(message.clientId);
+      } else {
+        // Log that we're ignoring additional clients
+        console.warn(`[SignalHost] Ignoring additional client ${message.clientId} - already connected to ${connectedClient}`);
+      }
     } else if (message.type === 'client-disconnected' && message.clientId) {
-      setConnectedClients(prev => prev.filter(id => id !== message.clientId));
-      config.onClientDisconnected?.(message.clientId);
+      if (connectedClient === message.clientId) {
+        setConnectedClient(undefined);
+        config.onClientDisconnected?.(message.clientId);
+      }
     }
     config.onMessage?.(message);
-  }, [config]);
+  }, [config, connectedClient]);
 
   const enhancedConfig = { ...config, onMessage: handleMessage };
   const { connect, disconnect: baseDisconnect, sendMessage, request, sendRequest, isConnected } = useWebSocketConnection(enhancedConfig);
@@ -389,11 +403,11 @@ export function useSignalHost(config: SignalingClientConfig = {}): SignalHost {
   const disconnect = useCallback(() => {
     baseDisconnect();
     setHostId(undefined);
-    setConnectedClients([]);
+    setConnectedClient(undefined);
   }, [baseDisconnect]);
 
-  const registerHost = useCallback(async (): Promise<string> => {
-    const msg: SignalingMessage = { type: 'host' };
+  const registerHost = useCallback(async (maxClients: number = 1): Promise<string> => {
+    const msg: HostRequest = { type: 'host', maxClients };
     const res = await sendRequest<HostResponse>(msg);
     setHostId(res.hostId);
     return res.hostId;
@@ -411,7 +425,7 @@ export function useSignalHost(config: SignalingClientConfig = {}): SignalHost {
     hostId,
     registerHost,
     sendMessageToClient,
-    connectedClients,
+    connectedClient,
     onClientJoined: config.onClientJoined,
     onClientDisconnected: config.onClientDisconnected
   };

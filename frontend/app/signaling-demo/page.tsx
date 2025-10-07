@@ -9,16 +9,16 @@ export default function SignalingDemo() {
   const [messageInput, setMessageInput] = useState('');
   const [targetClientId, setTargetClientId] = useState('');
   const [activeTab, setActiveTab] = useState<'host' | 'client'>('host');
-  const [connectedClients, setConnectedClients] = useState<string[]>([]);
+  const [connectedClient, setConnectedClient] = useState<string>();
 
   const hostClient = useSignalHost({
     onMessage: (message) => {
       setMessages(prev => [...prev, { ...message, timestamp: new Date().toISOString() }]);
       
       if (message.type === 'client-joined' && message.clientId) {
-        setConnectedClients(prev => [...prev, message.clientId!]);
+        setConnectedClient(message.clientId);
       } else if (message.type === 'client-disconnected' && message.clientId) {
-        setConnectedClients(prev => prev.filter(id => id !== message.clientId));
+        setConnectedClient(undefined);
       }
     },
     onError: (error) => {
@@ -152,7 +152,7 @@ export default function SignalingDemo() {
     } else if (activeTab === 'client') {
       clientClient.disconnect();
     }
-    setConnectedClients([]);
+    setConnectedClient(undefined);
   };
 
   const getCurrentStatus = () => {
@@ -284,20 +284,16 @@ export default function SignalingDemo() {
           )}
         </div>
 
-        {/* Connected Clients (Host Only) */}
+        {/* Connected Client (Host Only) */}
         {activeTab === 'host' && hostClient.isConnected && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4 text-card-foreground">Connected Clients ({connectedClients.length})</h2>
-            {connectedClients.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {connectedClients.map((clientId) => (
-                  <div key={clientId} className="p-2 bg-primary/10 rounded border border-border">
-                    <p className="font-mono text-sm break-all text-card-foreground">{clientId}</p>
-                  </div>
-                ))}
+            <h2 className="text-xl font-semibold mb-4 text-card-foreground">Connected Client</h2>
+            {connectedClient ? (
+              <div className="p-2 bg-primary/10 rounded border border-border">
+                <p className="font-mono text-sm break-all text-card-foreground">{connectedClient}</p>
               </div>
             ) : (
-              <p className="text-muted-foreground text-center py-4">No clients connected yet</p>
+              <p className="text-muted-foreground text-center py-4">No client connected yet</p>
             )}
           </div>
         )}

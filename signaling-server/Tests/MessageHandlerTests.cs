@@ -190,7 +190,7 @@ public class MessageHandlerTests
         var handler = new MessageHandler(_registry.Object, _logger.Object);
         await handler.HandleMessage(socket, raw);
 
-        _registry.Verify(r => r.RegisterHost("host-abc", socket), Times.Once);
+        _registry.Verify(r => r.RegisterHost("host-abc", socket, 10), Times.Once);
         var response = JsonSerializer.Deserialize<SignalMessage>(socket.SentMessages[0]);
         Assert.Multiple(() =>
         {
@@ -215,6 +215,7 @@ public class MessageHandlerTests
             );
 
         _registry.Setup(r => r.GenerateUniqueClientIdAsync()).ReturnsAsync("client-77");
+        _registry.Setup(r => r.RegisterClient("client-77", socket, "room123")).Returns(true);
 
         var raw = JsonSerializer.Serialize(
             new SignalMessage { Type = SignalMessageTypes.JoinHost, HostId = "room123" }
@@ -231,6 +232,41 @@ public class MessageHandlerTests
             Assert.That(response?.Type, Is.EqualTo(SignalMessageTypes.JoinHost));
             Assert.That(response?.HostId, Is.EqualTo("room123"));
             Assert.That(response?.ClientId, Is.EqualTo("client-77"));
+        });
+    }
+
+    [Test]
+    public async Task JoinHost_RejectsClient_WhenHostAtCapacity()
+    {
+        var socket = new TestWebSocket();
+
+        _registry
+            .Setup(r => r.TryGetHostSocket("room123", out It.Ref<WebSocket>.IsAny!))
+            .Returns(
+                (string _, out WebSocket ws) =>
+                {
+                    ws = new Mock<WebSocket>().Object;
+                    return true;
+                }
+            );
+
+        _registry.Setup(r => r.GenerateUniqueClientIdAsync()).ReturnsAsync("client-77");
+        _registry.Setup(r => r.RegisterClient("client-77", socket, "room123")).Returns(false); // Simulate capacity reached
+
+        var raw = JsonSerializer.Serialize(
+            new SignalMessage { Type = SignalMessageTypes.JoinHost, HostId = "room123" }
+        );
+
+        var handler = new MessageHandler(_registry.Object, _logger.Object);
+        await handler.HandleMessage(socket, raw);
+
+        _registry.Verify(r => r.RegisterClient("client-77", socket, "room123"), Times.Once);
+
+        var response = JsonSerializer.Deserialize<SignalMessage>(socket.SentMessages[0]);
+        Assert.Multiple(() =>
+        {
+            Assert.That(response?.Type, Is.EqualTo(SignalMessageTypes.Error));
+            Assert.That(response?.Payload, Is.EqualTo("Host is at capacity"));
         });
     }
 

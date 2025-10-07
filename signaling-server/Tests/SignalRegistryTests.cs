@@ -67,7 +67,7 @@ public class SignalRegistryTests
     public void RegisterHost_And_TryGetHostSocket_Works()
     {
         var socket = CreateSocket();
-        var result = _registry.RegisterHost("host1", socket);
+        var result = _registry.RegisterHost("host1", socket, 10);
         Assert.That(result, Is.True);
 
         var found = _registry.TryGetHostSocket("host1", out var retrieved);
@@ -82,7 +82,7 @@ public class SignalRegistryTests
     public void TryGetHostId_ReturnsCorrectId()
     {
         var socket = CreateSocket();
-        _registry.RegisterHost("hostX", socket);
+        _registry.RegisterHost("hostX", socket, 10);
 
         var found = _registry.TryGetHostId(socket, out var hostId);
         Assert.Multiple(() =>
@@ -153,7 +153,7 @@ public class SignalRegistryTests
     public void RemoveHost_ById_RemovesHost()
     {
         var socket = CreateSocket();
-        _registry.RegisterHost("host88", socket);
+        _registry.RegisterHost("host88", socket, 10);
 
         var removed = _registry.RemoveHost("host88");
         Assert.Multiple(() =>
@@ -167,7 +167,7 @@ public class SignalRegistryTests
     public void RemoveHost_BySocket_RemovesHost()
     {
         var socket = CreateSocket();
-        _registry.RegisterHost("hostZ", socket);
+        _registry.RegisterHost("hostZ", socket, 10);
 
         var removed = _registry.RemoveHost(socket);
         Assert.Multiple(() =>

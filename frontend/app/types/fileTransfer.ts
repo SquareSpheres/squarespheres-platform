@@ -22,17 +22,15 @@ export interface WebRTCPeer {
   disconnect: () => void;
   role: 'host' | 'client';
   peerId?: string;
-  send: (data: string | ArrayBuffer, clientId?: string) => void;
+  send: (data: string | ArrayBuffer) => void;
 }
 
 /**
- * Extended interface for the host peer, managing multiple clients.
+ * Extended interface for the host peer, managing a single client.
  */
 export interface WebRTCHostPeer extends WebRTCPeer {
-  connectedClients?: string[];
-  clientConnections?: Map<string, ClientConnection>;
-  clientConnectionsRef?: { current: Map<string, ClientConnection> };
-  getDataChannel: (clientId?: string) => RTCDataChannel | null;
+  connectedClient?: string;
+  getDataChannel: () => RTCDataChannel | null;
 }
 
 /**
@@ -71,7 +69,7 @@ export interface FileTransferAckProgress {
  */
 export interface FileTransferApi {
   // Host methods
-  sendFile: (file: File, clientId?: string) => Promise<void>;
+  sendFile: (file: File) => Promise<void>;
   cancelTransfer: (transferId?: string) => void;
 
   // Client methods
@@ -95,11 +93,10 @@ export interface FileTransferApi {
   createOrEnsureConnection: () => Promise<void>;
   close: () => void;
   disconnect: () => void;
-  getPeerConnection: (clientId?: string) => RTCPeerConnection | null;
+  getPeerConnection: () => RTCPeerConnection | null;
   role: 'host' | 'client';
   peerId?: string;
-  connectedClients?: string[];
-  clientConnections?: Map<string, ClientConnection>;
+  connectedClient?: string;
 
   // Fixed chunk size
   getCurrentChunkSize: () => number;

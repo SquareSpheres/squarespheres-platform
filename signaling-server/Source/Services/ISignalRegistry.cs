@@ -8,7 +8,7 @@ public interface ISignalRegistry
     Task<string> GenerateUniqueHostIdAsync();
     Task<string> GenerateUniqueClientIdAsync();
 
-    bool RegisterHost(string hostId, WebSocket socket);
+    bool RegisterHost(string hostId, WebSocket socket, int maxClients = 10);
 
     bool TryGetHostSocket(string hostId, [NotNullWhen(true)] out WebSocket? socket);
     bool TryGetHostId(WebSocket socket, [NotNullWhen(true)] out string? hostId);

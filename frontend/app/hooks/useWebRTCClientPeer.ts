@@ -254,6 +254,16 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
         if (!pc) return;
 
         await iceCandidateManagerRef.current?.addCandidate(pc, parsed.candidate);
+      } else if (parsed.kind === 'webrtc-rejection') {
+        if (debug) console.log(`[WebRTC Client] Connection rejected: ${parsed.reason}`);
+        config.onConnectionRejected?.(parsed.reason, parsed.connectedClientId);
+        
+        // Close the peer connection since we were rejected
+        const pc = pcRef.current;
+        if (pc) {
+          pc.close();
+          pcRef.current = null;
+        }
       }
     } catch (error) {
       if (debug) {
