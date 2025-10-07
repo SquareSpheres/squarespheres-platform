@@ -320,12 +320,8 @@ export default function FileTransferDemoPage() {
     
     setTransferRates({ host: hostRate, client: clientRate });
   }, [
-    hostFileTransfer.transferProgress?.bytesTransferred,
-    hostFileTransfer.transferProgress?.status,
-    hostFileTransfer.transferProgress?.startTime,
-    clientFileTransfer.transferProgress?.bytesTransferred,
-    clientFileTransfer.transferProgress?.status,
-    clientFileTransfer.transferProgress?.startTime
+    hostFileTransfer.transferProgress,
+    clientFileTransfer.transferProgress
   ]);
 
   // Log ACK progress updates
@@ -335,10 +331,8 @@ export default function FileTransferDemoPage() {
       uiLogger.log(`Host ACK: ${hostFileTransfer.ackProgress.percentage}% (${formatFileSize(hostFileTransfer.ackProgress.bytesAcknowledged)}/${formatFileSize(hostFileTransfer.ackProgress.fileSize)})`);
     }
   }, [
-    hostFileTransfer.ackProgress?.percentage,
-    hostFileTransfer.ackProgress?.bytesAcknowledged,
-    hostFileTransfer.ackProgress?.fileSize,
-    hostFileTransfer.ackProgress?.status
+    hostFileTransfer.ackProgress,
+    uiLogger
   ]);
 
   return (

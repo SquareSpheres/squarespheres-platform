@@ -54,7 +54,7 @@ export function useBackpressureManager(config: FileTransferConfig, logger: Logge
   const waitForBackpressure = useCallback(async (clientId: string): Promise<void> => {
     if (config.role !== 'host') return;
 
-    const dataChannel = hostPeer.getDataChannel(clientId);
+    const dataChannel = hostPeer.getDataChannel();
 
     if (!dataChannel) {
       await new Promise(resolve => setTimeout(resolve, 1));

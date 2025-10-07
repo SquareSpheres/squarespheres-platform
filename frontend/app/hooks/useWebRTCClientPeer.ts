@@ -270,7 +270,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
         console.error(`[WebRTC Client] Error handling ${parsed.kind}:`, error);
       }
     }
-  }, [debug, sendSignal]);
+  }, [debug, sendSignal, config]);
 
   const createOrEnsureConnection = useCallback(async () => {
     try {
