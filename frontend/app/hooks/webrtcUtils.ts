@@ -944,25 +944,48 @@ interface CandidatePairs {
 }
 
 function findCandidatePairs(stats: RTCStatsReport): CandidatePairs {
-  let nominated: any = null;
-  let selected: any = null;
-  let active: any = null;
-  let maxBytes = 0;
+  const pairs: any[] = [];
 
   stats.forEach((stat: any) => {
     if (stat.type === "candidate-pair" && stat.state === "succeeded") {
-      if (stat.nominated) nominated = stat;
-      if (stat.selected) selected = stat;
-
       const totalBytes = (stat.bytesReceived || 0) + (stat.bytesSent || 0);
-      if (totalBytes > maxBytes) {
-        maxBytes = totalBytes;
-        active = stat;
-      }
+      pairs.push({
+        pair: stat,
+        bytes: totalBytes,
+        nominated: stat.nominated || false,
+        selected: stat.selected || false,
+      });
     }
   });
 
-  return { nominated, selected, active, maxBytes };
+  // Sort by priority: bytes first (most traffic), then nominated, then selected
+  pairs.sort((a, b) => {
+    // Pairs with traffic always win
+    if (a.bytes > 0 && b.bytes === 0) return -1;
+    if (b.bytes > 0 && a.bytes === 0) return 1;
+    
+    // Both have traffic: prefer most bytes
+    if (a.bytes !== b.bytes) return b.bytes - a.bytes;
+    
+    // Same bytes: prefer nominated
+    if (a.nominated !== b.nominated) return a.nominated ? -1 : 1;
+    
+    // Fall back to selected
+    if (a.selected !== b.selected) return a.selected ? -1 : 1;
+    
+    return 0;
+  });
+
+  const best = pairs[0];
+  const nominated = pairs.find(p => p.nominated);
+  const selected = pairs.find(p => p.selected);
+
+  return {
+    nominated: nominated?.pair || null,
+    selected: selected?.pair || null,
+    active: best?.pair || null,
+    maxBytes: best?.bytes || 0,
+  };
 }
 
 /**
@@ -1007,13 +1030,13 @@ export async function getConnectionStats(
       }
     }
 
-    const selectedCandidatePair = 
-    (pairs.maxBytes > 0 ? pairs.active : null) || 
-    pairs.nominated || 
-    pairs.selected;
+    // Select best pair: ALWAYS use the one with most traffic
+    // Nomination can differ between peers due to timing, traffic is the ground truth
+    const selectedCandidatePair = pairs.active;
 
     if (debug && selectedCandidatePair) {
-      const method = pairs.nominated ? "nominated" : pairs.selected ? "selected" : `bytes (${pairs.maxBytes})`;
+      const isNominated = pairs.nominated === pairs.active;
+      const method = `bytes (${pairs.maxBytes})${isNominated ? ' [nominated]' : ''}`;
       console.log(`[WebRTC Stats] Selected pair by: ${method}`);
     }
 

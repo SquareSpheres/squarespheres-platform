@@ -19,11 +19,6 @@ interface UseWebRTCConfigOptions {
    * @default DEFAULT_ICE_SERVERS
    */
   fallbackIceServers?: RTCIceServer[]
-  /**
-   * Whether to merge TURN servers with fallback STUN servers
-   * @default true
-   */
-  mergeWithFallback?: boolean
 }
 
 interface UseWebRTCConfigReturn {
@@ -49,8 +44,7 @@ export function useWebRTCConfig(options: UseWebRTCConfigOptions = {}): UseWebRTC
   const {
     includeTurnServers = true,
     turnExpiryInSeconds: customExpiry,
-    fallbackIceServers = DEFAULT_ICE_SERVERS,
-    mergeWithFallback = true
+    fallbackIceServers = DEFAULT_ICE_SERVERS
   } = options
 
   const {
@@ -69,21 +63,9 @@ export function useWebRTCConfig(options: UseWebRTCConfigOptions = {}): UseWebRTC
       return fallbackIceServers
     }
 
-    // If merging with fallback, combine both STUN and TURN servers
-    if (mergeWithFallback) {
-      // Extract STUN servers from fallback
-      const stunServers = fallbackIceServers.filter(server => {
-        const urls = Array.isArray(server.urls) ? server.urls : [server.urls]
-        return urls.some(url => url.startsWith('stun:'))
-      })
-      
-      // Combine STUN servers with TURN servers
-      return [...stunServers, ...turnIceServers]
-    }
-
-    // Use only TURN servers
+    // Use TURN servers from API (they already include STUN servers)
     return turnIceServers
-  }, [includeTurnServers, turnIceServers, fallbackIceServers, mergeWithFallback])
+  }, [includeTurnServers, turnIceServers, fallbackIceServers])
 
   const usingTurnServers = includeTurnServers && turnIceServers !== null && turnServersError === null
 
