@@ -20,7 +20,6 @@ export default function WebRTCDemoPage() {
   // Using dynamic TURN servers with fallback to STUN-only configuration
   const { iceServers, usingTurnServers, isLoadingTurnServers, turnServersError } = useWebRTCConfig({
     includeTurnServers: true,
-    mergeWithFallback: true,
     fallbackIceServers: DEFAULT_ICE_SERVERS
   });
 

@@ -74,7 +74,6 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
   // Use dynamic TURN servers with fallback to default STUN servers
   const { iceServers, usingTurnServers, isLoadingTurnServers } = useWebRTCConfig({
     includeTurnServers: true,
-    mergeWithFallback: true,
     fallbackIceServers: config.iceServers ?? DEFAULT_ICE_SERVERS
   });
   const connectionTimeoutMs = config.connectionTimeoutMs ?? (browserInfo.isChrome ? 45000 : 30000);
