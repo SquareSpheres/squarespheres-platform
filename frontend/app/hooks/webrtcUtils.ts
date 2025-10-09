@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { WebRTCSignalPayload } from './webrtcTypes';
-import { SignalingMessage } from './useSignalingClient';
-import { detectBrowser } from '../utils/browserUtils';
-import { Logger, consoleLogger } from '../types/logger';
+import { WebRTCSignalPayload } from "./webrtcTypes";
+import { SignalingMessage } from "./useSignalingClient";
+import { detectBrowser } from "../utils/browserUtils";
+import { Logger, consoleLogger } from "../types/logger";
+
 
 export interface PeerConnectionConfig {
   iceServers: RTCIceServer[];
   browserInfo: ReturnType<typeof detectBrowser>;
   debug?: boolean;
 }
-
 
 export class ConnectionWatchdog {
   private connectionTimeoutRef: NodeJS.Timeout | null = null;
@@ -26,7 +26,7 @@ export class ConnectionWatchdog {
   startConnectionTimeout(): void {
     this.clearConnectionTimeout();
     this.connectionTimeoutRef = setTimeout(() => {
-      this.log('Connection timeout reached');
+      this.log("Connection timeout reached");
       this.config.onConnectionTimeout?.();
     }, this.config.connectionTimeoutMs);
   }
@@ -34,7 +34,7 @@ export class ConnectionWatchdog {
   startIceGatheringTimeout(): void {
     this.clearIceGatheringTimeout();
     this.iceGatheringTimeoutRef = setTimeout(() => {
-      this.log('ICE gathering timeout reached');
+      this.log("ICE gathering timeout reached");
     }, this.config.iceGatheringTimeoutMs);
   }
 
@@ -87,18 +87,18 @@ export class ConnectionWatchdog {
   }
 
   handleConnectionStateChange(state: RTCPeerConnectionState): void {
-    if (state === 'connected' || state === 'failed' || state === 'closed') {
+    if (state === "connected" || state === "failed" || state === "closed") {
       this.clearTimeouts();
     }
 
-    if (state === 'connected') {
+    if (state === "connected") {
       this.resetRetryCount();
-      this.log('Connection established successfully');
+      this.log("Connection established successfully");
     }
 
-    if (state === 'failed') {
-      this.log('Connection failed');
-      this.config.onConnectionFailed?.(new Error('WebRTC connection failed'));
+    if (state === "failed") {
+      this.log("Connection failed");
+      this.config.onConnectionFailed?.(new Error("WebRTC connection failed"));
     }
   }
 
@@ -110,23 +110,25 @@ export class ConnectionWatchdog {
   }
 }
 
-export function createPeerConnection(config: PeerConnectionConfig): RTCPeerConnection {
+export function createPeerConnection(
+  config: PeerConnectionConfig
+): RTCPeerConnection {
   const { browserInfo } = config;
-  
+
   const pcConfig: RTCConfiguration = {
     iceServers: config.iceServers,
     iceCandidatePoolSize: 0, // Set to 0 for all browsers to prevent overwhelming signaling
-    bundlePolicy: 'max-bundle',
-    rtcpMuxPolicy: 'require',
+    bundlePolicy: "max-bundle",
+    rtcpMuxPolicy: "require",
     // Always use 'all' to ensure TURN servers are used when available
     // TODO: When TURN servers are added, this will automatically use them for restrictive networks
-    iceTransportPolicy: 'all',
+    iceTransportPolicy: "all",
   };
 
   const pc = new RTCPeerConnection(pcConfig);
-  
+
   if (config.debug) {
-    console.log('[WebRTC Utils] Created peer connection with config:', {
+    console.log("[WebRTC Utils] Created peer connection with config:", {
       iceServers: pcConfig.iceServers,
       iceCandidatePoolSize: pcConfig.iceCandidatePoolSize,
       bundlePolicy: pcConfig.bundlePolicy,
@@ -138,18 +140,32 @@ export function createPeerConnection(config: PeerConnectionConfig): RTCPeerConne
     });
 
     // Log ICE server configuration
-    const stunServers = pcConfig.iceServers?.filter(server =>
-      server.urls && typeof server.urls === 'string' && server.urls.startsWith('stun:')
-    ) || [];
-    const turnServers = pcConfig.iceServers?.filter(server =>
-      server.urls && typeof server.urls === 'string' && server.urls.startsWith('turn:')
-    ) || [];
-    
-    console.log(`[WebRTC Utils] STUN servers configured: ${stunServers.length} server(s)`);
+    const stunServers =
+      pcConfig.iceServers?.filter(
+        (server) =>
+          server.urls &&
+          typeof server.urls === "string" &&
+          server.urls.startsWith("stun:")
+      ) || [];
+    const turnServers =
+      pcConfig.iceServers?.filter(
+        (server) =>
+          server.urls &&
+          typeof server.urls === "string" &&
+          (server.urls.startsWith("turn:") || server.urls.startsWith("turns:"))
+      ) || [];
+
+    console.log(
+      `[WebRTC Utils] STUN servers configured: ${stunServers.length} server(s)`
+    );
     if (turnServers.length > 0) {
-      console.log(`[WebRTC Utils] TURN servers configured: ${turnServers.length} server(s)`);
+      console.log(
+        `[WebRTC Utils] TURN servers configured: ${turnServers.length} server(s)`
+      );
     } else {
-      console.log('[WebRTC Utils] ℹ️ Using STUN-only configuration - TURN servers can be added for restrictive networks');
+      console.log(
+        "[WebRTC Utils] ℹ️ Using STUN-only configuration - TURN servers can be added for restrictive networks"
+      );
     }
   }
 
@@ -212,59 +228,75 @@ export function createDataChannel(
     ordered: true,
     // Use fully reliable channels for file transfers
     // Remove maxRetransmits and maxPacketLifeTime to ensure unlimited retransmits
-    ...(browserInfo.isChrome ? {
-      protocol: 'sctp',
-    } : browserInfo.isSafari ? {
-      // Safari-specific configuration - fully reliable
-      ordered: true,
-    } : {
-      // Default to fully reliable for other browsers
-      ordered: true,
-    }),
+    ...(browserInfo.isChrome
+      ? {
+          protocol: "sctp",
+        }
+      : browserInfo.isSafari
+      ? {
+          // Safari-specific configuration - fully reliable
+          ordered: true,
+        }
+      : {
+          // Default to fully reliable for other browsers
+          ordered: true,
+        }),
   };
 
   const dc = pc.createDataChannel(label, dcConfig);
-  
+
   if (debug) {
-    console.log(`[WebRTC Utils] Created data channel: ${label} with config:`, dcConfig);
+    console.log(
+      `[WebRTC Utils] Created data channel: ${label} with config:`,
+      dcConfig
+    );
   }
 
   return dc;
 }
 
 // Detect the maximum message size for a WebRTC data channel
-export function getDataChannelMaxMessageSize(dataChannel: RTCDataChannel): number {
+export function getDataChannelMaxMessageSize(
+  dataChannel: RTCDataChannel
+): number {
   // Try to get the maxMessageSize property if available
-  if ('maxMessageSize' in dataChannel && typeof dataChannel.maxMessageSize === 'number') {
+  if (
+    "maxMessageSize" in dataChannel &&
+    typeof dataChannel.maxMessageSize === "number"
+  ) {
     return dataChannel.maxMessageSize;
   }
-  
+
   // Fallback to conservative estimates based on browser
-  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-  
-  if (userAgent.includes('Chrome') || userAgent.includes('Chromium')) {
+  const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
+
+  if (userAgent.includes("Chrome") || userAgent.includes("Chromium")) {
     return 256 * 1024; // 256KB for Chrome
-  } else if (userAgent.includes('Firefox')) {
+  } else if (userAgent.includes("Firefox")) {
     return 256 * 1024; // 256KB for Firefox
-  } else if (userAgent.includes('Safari')) {
-    return 64 * 1024;  // 64KB for Safari (more conservative)
+  } else if (userAgent.includes("Safari")) {
+    return 64 * 1024; // 64KB for Safari (more conservative)
   }
-  
+
   // Conservative fallback for unknown browsers
   return 64 * 1024; // 64KB
 }
 
 export function isChrome(): boolean {
-  return typeof window !== 'undefined' && 
-    typeof navigator !== 'undefined' &&
-    /Chrome/.test(navigator.userAgent) && 
-    !/Edge|Edg/.test(navigator.userAgent);
+  return (
+    typeof window !== "undefined" &&
+    typeof navigator !== "undefined" &&
+    /Chrome/.test(navigator.userAgent) &&
+    !/Edge|Edg/.test(navigator.userAgent)
+  );
 }
 
 export function isLocalhost(): boolean {
-  return typeof window !== 'undefined' && 
-    (window.location.hostname === 'localhost' || 
-     window.location.hostname === '127.0.0.1');
+  return (
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1")
+  );
 }
 
 /**
@@ -273,18 +305,20 @@ export function isLocalhost(): boolean {
  */
 export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   // Reliable STUN servers for NAT traversal
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:global.stun.twilio.com:3478' },
-  { urls: 'stun:stun.cloudflare.com:3478' },
-  { urls: 'stun:stun.services.mozilla.com:3478' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:global.stun.twilio.com:3478" },
+  { urls: "stun:stun.cloudflare.com:3478" },
+  { urls: "stun:stun.services.mozilla.com:3478" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun2.l.google.com:19302" },
+
   // TURN servers are now dynamically loaded via useWebRTCConfig hook
   // This provides better reliability and works in restrictive networks
 ];
 
-export function createEnhancedIceServers(customServers?: RTCIceServer[]): RTCIceServer[] {
+export function createEnhancedIceServers(
+  customServers?: RTCIceServer[]
+): RTCIceServer[] {
   const baseServers = customServers || DEFAULT_ICE_SERVERS;
 
   // TODO: Add TURN servers for production use when needed
@@ -302,20 +336,35 @@ export function createEnhancedIceServers(customServers?: RTCIceServer[]): RTCIce
 // For now, we're using STUN-only configuration for simplicity
 
 export interface SignalingHandlers {
-  onOffer: (sdp: RTCSessionDescriptionInit, message: SignalingMessage) => Promise<void>;
-  onAnswer: (sdp: RTCSessionDescriptionInit, message: SignalingMessage) => Promise<void>;
-  onIceCandidate: (candidate: RTCIceCandidateInit | null, message: SignalingMessage) => Promise<void>;
+  onOffer: (
+    sdp: RTCSessionDescriptionInit,
+    message: SignalingMessage
+  ) => Promise<void>;
+  onAnswer: (
+    sdp: RTCSessionDescriptionInit,
+    message: SignalingMessage
+  ) => Promise<void>;
+  onIceCandidate: (
+    candidate: RTCIceCandidateInit | null,
+    message: SignalingMessage
+  ) => Promise<void>;
 }
 
 export interface WebRTCEventHandlerConfig {
-  role: 'client' | 'host';
+  role: "client" | "host";
   clientId?: string; // For host role, the client ID this connection is for
   pc: RTCPeerConnection; // Add peer connection reference
   watchdog: ConnectionWatchdog;
-  sendSignal: (payload: WebRTCSignalPayload, targetClientId?: string) => Promise<void>;
+  sendSignal: (
+    payload: WebRTCSignalPayload,
+    targetClientId?: string
+  ) => Promise<void>;
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
   onIceConnectionStateChange?: (state: RTCIceConnectionState) => void;
-  onIceCandidate?: (candidate: RTCIceCandidateInit | null, connectionType: string) => void;
+  onIceCandidate?: (
+    candidate: RTCIceCandidateInit | null,
+    connectionType: string
+  ) => void;
   onChannelOpen?: () => void;
   onChannelClose?: () => void;
   onChannelMessage?: (data: any) => void;
@@ -324,18 +373,38 @@ export interface WebRTCEventHandlerConfig {
   logger?: Logger;
 }
 
-export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): WebRTCEventHandlers {
-  const { role, clientId, pc, watchdog, sendSignal, onConnectionStateChange, onIceConnectionStateChange, onIceCandidate, onChannelOpen, onChannelClose, onChannelMessage, browserInfo, debug, logger = consoleLogger } = config;
-  const prefix = role === 'host' ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ''}` : '[WebRTC Client]';
+export function createWebRTCEventHandlers(
+  config: WebRTCEventHandlerConfig
+): WebRTCEventHandlers {
+  const {
+    role,
+    clientId,
+    pc,
+    watchdog,
+    sendSignal,
+    onConnectionStateChange,
+    onIceConnectionStateChange,
+    onIceCandidate,
+    onChannelOpen,
+    onChannelClose,
+    onChannelMessage,
+    browserInfo,
+    debug,
+    logger = consoleLogger,
+  } = config;
+  const prefix =
+    role === "host"
+      ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ""}`
+      : "[WebRTC Client]";
 
   return {
     onConnectionStateChange: (state: RTCPeerConnectionState) => {
       watchdog.handleConnectionStateChange(state);
       onConnectionStateChange?.(state);
 
-      if (state === 'connected') {
+      if (state === "connected") {
         if (debug) logger.log(`${prefix} Connection established!`);
-      } else if (state === 'failed') {
+      } else if (state === "failed") {
         if (debug) logger.error(`${prefix} Connection failed`);
       }
     },
@@ -352,18 +421,21 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
 
     onIceCandidate: (candidate: RTCIceCandidateInit | null) => {
       if (candidate) {
-        const candidateType = candidate.candidate?.split(' ')[7] || 'unknown';
-        const isHost = candidateType === 'host';
-        const isSrflx = candidateType === 'srflx';
-        const isRelay = candidateType === 'relay';
+        const candidateType = candidate.candidate?.split(" ")[7] || "unknown";
+        const isHost = candidateType === "host";
+        const isSrflx = candidateType === "srflx";
+        const isPrflx = candidateType === "prflx";
+        const isRelay = candidateType === "relay";
 
-        let connectionType = '🔗 DIRECT';
+        let connectionType = "🔗 DIRECT";
         if (isRelay) {
-          connectionType = '🔄 RELAY (TURN)';
+          connectionType = "🔄 RELAY (TURN)";
         } else if (isHost) {
-          connectionType = '🏠 HOST (Local)';
+          connectionType = "🏠 HOST (Local)";
         } else if (isSrflx) {
-          connectionType = '🌐 SRFLX (STUN)';
+          connectionType = "🌐 SRFLX (STUN)";
+        } else if (isPrflx) {
+          connectionType = "🔍 PRFLX (Peer Reflexive)";
         }
 
         // Call the callback with connection type information
@@ -372,22 +444,32 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
         if (debug) {
           // Only log the connection type, not the full candidate details
           if (isRelay) {
-            logger.log(`${prefix} ✅ TURN relay candidate - works in restrictive networks`);
+            logger.log(
+              `${prefix} ✅ TURN relay candidate - works in restrictive networks`
+            );
           } else if (isSrflx) {
-            logger.log(`${prefix} 📡 STUN reflexive candidate - direct connection through NAT`);
+            logger.log(
+              `${prefix} 📡 STUN reflexive candidate - direct connection through NAT`
+            );
+          } else if (isPrflx) {
+            logger.log(
+              `${prefix} 🔍 Peer reflexive candidate - discovered during connectivity checks`
+            );
           } else if (isHost) {
-            logger.log(`${prefix} 🏠 Host candidate - local network connection`);
+            logger.log(
+              `${prefix} 🏠 Host candidate - local network connection`
+            );
           }
         }
-        sendSignal({ kind: 'webrtc-ice', candidate }, clientId);
+        sendSignal({ kind: "webrtc-ice", candidate }, clientId);
       } else {
         // Call callback with null candidate to indicate end of candidates
-        onIceCandidate?.(null, 'End of candidates');
-        
+        onIceCandidate?.(null, "End of candidates");
+
         if (debug) {
           logger.log(`${prefix} ICE gathering completed`);
         }
-        sendSignal({ kind: 'webrtc-ice', candidate: null as any }, clientId);
+        sendSignal({ kind: "webrtc-ice", candidate: null as any }, clientId);
       }
     },
 
@@ -398,64 +480,90 @@ export function createWebRTCEventHandlers(config: WebRTCEventHandlerConfig): Web
     onIceConnectionStateChange: (state: RTCIceConnectionState) => {
       if (debug) console.log(`${prefix} ICE connection state: ${state}`);
 
-      if (state === 'failed') {
+      if (state === "failed") {
         if (debug) {
           console.warn(`${prefix} ICE connection failed`);
           logIceConnectionDiagnostics(pc, prefix, debug);
         }
         // For Chrome and Safari, attempt ICE restart on failure
-        if ((browserInfo.isChrome || browserInfo.isSafari) && pc.remoteDescription) {
-          if (debug) console.log(`${prefix} ${browserInfo.name} ICE failed - attempting immediate restart`);
+        if (
+          (browserInfo.isChrome || browserInfo.isSafari) &&
+          pc.remoteDescription
+        ) {
+          if (debug)
+            console.log(
+              `${prefix} ${browserInfo.name} ICE failed - attempting immediate restart`
+            );
           try {
             pc.restartIce();
-            if (debug) console.log(`${prefix} ICE restart initiated successfully`);
+            if (debug)
+              console.log(`${prefix} ICE restart initiated successfully`);
           } catch (error) {
             if (debug) console.error(`${prefix} ICE restart failed:`, error);
           }
         }
-      } else if (state === 'disconnected') {
+      } else if (state === "disconnected") {
         if (debug) {
-          console.warn(`${prefix} ICE connection disconnected, waiting for reconnection...`);
+          console.warn(
+            `${prefix} ICE connection disconnected, waiting for reconnection...`
+          );
           logIceConnectionDiagnostics(pc, prefix, debug);
         }
         // For Chrome and Safari, attempt ICE restart after a short delay on disconnect
-        if ((browserInfo.isChrome || browserInfo.isSafari) && pc.remoteDescription) {
+        if (
+          (browserInfo.isChrome || browserInfo.isSafari) &&
+          pc.remoteDescription
+        ) {
           const delay = browserInfo.isSafari ? 3000 : 2000; // Safari needs a bit more time
           setTimeout(() => {
-            if (pc.iceConnectionState === 'disconnected') {
-              if (debug) console.log(`${prefix} ${browserInfo.name} ICE still disconnected after ${delay}ms, attempting restart`);
+            if (pc.iceConnectionState === "disconnected") {
+              if (debug)
+                console.log(
+                  `${prefix} ${browserInfo.name} ICE still disconnected after ${delay}ms, attempting restart`
+                );
               try {
                 pc.restartIce();
-                if (debug) console.log(`${prefix} ICE restart initiated successfully`);
+                if (debug)
+                  console.log(`${prefix} ICE restart initiated successfully`);
               } catch (error) {
-                if (debug) console.error(`${prefix} ICE restart failed:`, error);
+                if (debug)
+                  console.error(`${prefix} ICE restart failed:`, error);
               }
             } else {
-              if (debug) console.log(`${prefix} ICE connection recovered, no restart needed`);
+              if (debug)
+                console.log(
+                  `${prefix} ICE connection recovered, no restart needed`
+                );
             }
           }, delay);
         }
-      } else if (state === 'connected') {
+      } else if (state === "connected") {
         if (debug) {
           console.log(`${prefix} ICE connection established!`);
           logIceConnectionDiagnostics(pc, prefix, debug);
-          
+
           // Get actual connection stats when connected
-          getConnectionStats(pc).then(stats => {
-            console.log(`${prefix} Actual connection method:`, {
-              type: stats.connectionType,
-              local: stats.localCandidate,
-              remote: stats.remoteCandidate,
-              rtt: stats.rtt,
-              bytesReceived: stats.bytesReceived,
-              bytesSent: stats.bytesSent
+          getConnectionStats(pc, debug)
+            .then((stats) => {
+              console.log(`${prefix} Actual connection method:`, {
+                type: stats.connectionType,
+                local: stats.localCandidate,
+                remote: stats.remoteCandidate,
+                rtt: stats.rtt,
+                bytesReceived: stats.bytesReceived,
+                bytesSent: stats.bytesSent,
+              });
+
+              // Call callback with actual connection type
+              onIceCandidate?.(null, `✅ ${stats.connectionType}`);
+            })
+            .catch((error) => {
+              if (debug)
+                console.warn(
+                  `${prefix} Failed to get connection stats:`,
+                  error
+                );
             });
-            
-            // Call callback with actual connection type
-            onIceCandidate?.(null, `✅ ${stats.connectionType}`);
-          }).catch(error => {
-            if (debug) console.warn(`${prefix} Failed to get connection stats:`, error);
-          });
         }
       }
 
@@ -471,27 +579,46 @@ export interface DataChannelConfig {
   onMessage?: (data: any) => void;
   onDataChannelReady?: (maxMessageSize: number) => void;
   debug?: boolean;
-  role?: 'client' | 'host';
+  role?: "client" | "host";
   clientId?: string; // For host role
 }
 
-export function setupDataChannel(dc: RTCDataChannel, config: DataChannelConfig): void {
-  const { onOpen, onClose, onMessage, onDataChannelReady, debug, role = 'client', clientId } = config;
-  const prefix = role === 'host' ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ''}` : '[WebRTC Client]';
+export function setupDataChannel(
+  dc: RTCDataChannel,
+  config: DataChannelConfig
+): void {
+  const {
+    onOpen,
+    onClose,
+    onMessage,
+    onDataChannelReady,
+    debug,
+    role = "client",
+    clientId,
+  } = config;
+  const prefix =
+    role === "host"
+      ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ""}`
+      : "[WebRTC Client]";
 
   // Set binary type to ArrayBuffer for consistent binary data handling
-  dc.binaryType = 'arraybuffer';
+  dc.binaryType = "arraybuffer";
 
   dc.onopen = () => {
-    if (debug) console.log(`${prefix} Data channel opened (binaryType: ${dc.binaryType})`);
-    
+    if (debug)
+      console.log(
+        `${prefix} Data channel opened (binaryType: ${dc.binaryType})`
+      );
+
     // Detect and report maxMessageSize when channel is ready
     const maxMessageSize = getDataChannelMaxMessageSize(dc);
     if (debug) {
-      console.log(`${prefix} Data channel maxMessageSize: ${maxMessageSize} bytes`);
+      console.log(
+        `${prefix} Data channel maxMessageSize: ${maxMessageSize} bytes`
+      );
     }
     onDataChannelReady?.(maxMessageSize);
-    
+
     onOpen?.(dc.readyState);
   };
 
@@ -509,58 +636,108 @@ export class ICECandidateManager {
   private pendingCandidates: Map<string, RTCIceCandidateInit[]> = new Map();
   private browserInfo: ReturnType<typeof detectBrowser>;
   private debug: boolean;
-  private role: 'client' | 'host';
+  private role: "client" | "host";
   private prefix: string;
 
-  constructor(browserInfo: ReturnType<typeof detectBrowser>, debug = false, role: 'client' | 'host' = 'client', clientId?: string) {
+  constructor(
+    browserInfo: ReturnType<typeof detectBrowser>,
+    debug = false,
+    role: "client" | "host" = "client",
+    clientId?: string
+  ) {
     this.browserInfo = browserInfo;
     this.debug = debug;
     this.role = role;
-    this.prefix = role === 'host' ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ''}` : '[WebRTC Client]';
+    this.prefix =
+      role === "host"
+        ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ""}`
+        : "[WebRTC Client]";
   }
 
-  storePendingCandidate(candidate: RTCIceCandidateInit, clientId?: string): void {
-    const key = clientId || 'default';
+  storePendingCandidate(
+    candidate: RTCIceCandidateInit,
+    clientId?: string
+  ): void {
+    const key = clientId || "default";
     if (!this.pendingCandidates.has(key)) {
       this.pendingCandidates.set(key, []);
     }
     this.pendingCandidates.get(key)!.push(candidate);
-    if (this.debug) console.log(`${this.prefix} Storing ICE candidate as pending for ${key}`);
+    if (this.debug)
+      console.log(`${this.prefix} Storing ICE candidate as pending for ${key}`);
   }
 
-  async addPendingCandidates(pc: RTCPeerConnection, clientId?: string): Promise<void> {
-    const key = clientId || 'default';
+  async addPendingCandidates(
+    pc: RTCPeerConnection,
+    clientId?: string
+  ): Promise<void> {
+    const key = clientId || "default";
     const candidates = this.pendingCandidates.get(key) || [];
 
     for (const candidate of candidates) {
       try {
-        if (this.debug) console.log(`${this.prefix} Adding pending ICE candidate for ${key}:`, candidate.candidate);
+        if (this.debug)
+          console.log(
+            `${this.prefix} Adding pending ICE candidate for ${key}:`,
+            candidate.candidate
+          );
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        if (this.debug) console.log(`${this.prefix} Successfully added pending ICE candidate`);
+        if (this.debug)
+          console.log(
+            `${this.prefix} Successfully added pending ICE candidate`
+          );
       } catch (error) {
-        if (this.debug) console.warn(`${this.prefix} Failed to add pending ICE candidate:`, error);
+        if (this.debug)
+          console.warn(
+            `${this.prefix} Failed to add pending ICE candidate:`,
+            error
+          );
       }
     }
 
     this.pendingCandidates.delete(key);
   }
 
-  async addCandidate(pc: RTCPeerConnection, candidate: RTCIceCandidateInit | null, clientId?: string): Promise<void> {
+  async addCandidate(
+    pc: RTCPeerConnection,
+    candidate: RTCIceCandidateInit | null,
+    clientId?: string
+  ): Promise<void> {
     if (!candidate) {
-      if (this.debug) console.log(`${this.prefix} Received end-of-candidates${clientId ? ` from ${clientId}` : ''}`);
+      if (this.debug)
+        console.log(
+          `${this.prefix} Received end-of-candidates${
+            clientId ? ` from ${clientId}` : ""
+          }`
+        );
       return;
     }
 
     try {
-      if (this.debug) console.log(`${this.prefix} Adding ICE candidate${clientId ? ` from ${clientId}` : ''}:`, candidate.candidate);
+      if (this.debug)
+        console.log(
+          `${this.prefix} Adding ICE candidate${
+            clientId ? ` from ${clientId}` : ""
+          }:`,
+          candidate.candidate
+        );
       await pc.addIceCandidate(new RTCIceCandidate(candidate));
     } catch (error) {
       if (pc.remoteDescription === null) {
         this.storePendingCandidate(candidate, clientId);
-      } else if (this.browserInfo.isChrome && (error as Error).name === 'OperationError') {
-        if (this.debug) console.log(`${this.prefix} Chrome ICE candidate error (likely duplicate), ignoring`);
+      } else if (
+        this.browserInfo.isChrome &&
+        (error as Error).name === "OperationError"
+      ) {
+        if (this.debug)
+          console.log(
+            `${this.prefix} Chrome ICE candidate error (likely duplicate), ignoring`
+          );
       } else {
-        if (this.debug) console.warn(`${this.prefix} ICE candidate addition failed but remote description is set - this might be normal`);
+        if (this.debug)
+          console.warn(
+            `${this.prefix} ICE candidate addition failed but remote description is set - this might be normal`
+          );
       }
     }
   }
@@ -584,7 +761,9 @@ export interface WatchdogConfig {
   logger?: Logger;
 }
 
-export function createConnectionWatchdog(config: WatchdogConfig): ConnectionWatchdog {
+export function createConnectionWatchdog(
+  config: WatchdogConfig
+): ConnectionWatchdog {
   return new ConnectionWatchdog(config);
 }
 
@@ -600,19 +779,22 @@ export function createSignalingMessageHandler(
       parsed = JSON.parse(message.payload);
     } catch (error) {
       if (debug) {
-        console.warn('[WebRTC Utils] Failed to parse signaling message:', error);
+        console.warn(
+          "[WebRTC Utils] Failed to parse signaling message:",
+          error
+        );
       }
       return;
     }
 
-    if (!parsed || typeof parsed !== 'object' || !('kind' in parsed)) return;
+    if (!parsed || typeof parsed !== "object" || !("kind" in parsed)) return;
 
     try {
-      if (parsed.kind === 'webrtc-offer') {
+      if (parsed.kind === "webrtc-offer") {
         await handlers.onOffer(parsed.sdp, message);
-      } else if (parsed.kind === 'webrtc-answer') {
+      } else if (parsed.kind === "webrtc-answer") {
         await handlers.onAnswer(parsed.sdp, message);
-      } else if (parsed.kind === 'webrtc-ice') {
+      } else if (parsed.kind === "webrtc-ice") {
         await handlers.onIceCandidate(parsed.candidate, message);
       }
     } catch (error) {
@@ -623,7 +805,11 @@ export function createSignalingMessageHandler(
   };
 }
 
-export function logIceConnectionDiagnostics(pc: RTCPeerConnection, prefix: string, debug = false): void {
+export function logIceConnectionDiagnostics(
+  pc: RTCPeerConnection,
+  prefix: string,
+  debug = false
+): void {
   if (!debug) return;
 
   console.log(`${prefix} ICE Connection Diagnostics:`, {
@@ -648,13 +834,18 @@ export function logIceConnectionDiagnostics(pc: RTCPeerConnection, prefix: strin
       relay: relayCandidates.length,
       host: hostCandidates.length,
       srflx: srflxCandidates.length,
-      total: relayCandidates.length + hostCandidates.length + srflxCandidates.length
+      total:
+        relayCandidates.length + hostCandidates.length + srflxCandidates.length,
     });
 
     if (relayCandidates.length === 0) {
-      console.log(`${prefix} ℹ️ Using STUN-only configuration - TURN servers can be added for restrictive networks`);
+      console.log(
+        `${prefix} ℹ️ Connected without TURN relay - using direct/STUN connection (faster)`
+      );
     } else {
-      console.log(`${prefix} ✅ Found ${relayCandidates.length} TURN relay candidate(s) - works in restrictive networks`);
+      console.log(
+        `${prefix} ✅ Using ${relayCandidates.length} TURN relay candidate(s) - works in restrictive networks`
+      );
     }
   }
 }
@@ -669,25 +860,38 @@ export async function waitForBufferDrain(
   debug = false
 ): Promise<void> {
   if (dataChannel.bufferedAmount === 0) {
-    if (debug) console.log('[WebRTC Utils] Buffer already drained');
+    if (debug) console.log("[WebRTC Utils] Buffer already drained");
     return;
   }
 
-  if (debug) console.log(`[WebRTC Utils] Waiting for buffer to drain (${dataChannel.bufferedAmount} bytes remaining)`);
+  if (debug)
+    console.log(
+      `[WebRTC Utils] Waiting for buffer to drain (${dataChannel.bufferedAmount} bytes remaining)`
+    );
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      if (debug) console.warn(`[WebRTC Utils] Buffer drain timeout after ${timeoutMs}ms, ${dataChannel.bufferedAmount} bytes still pending`);
-      reject(new Error(`Buffer drain timeout: ${dataChannel.bufferedAmount} bytes still pending`));
+      if (debug)
+        console.warn(
+          `[WebRTC Utils] Buffer drain timeout after ${timeoutMs}ms, ${dataChannel.bufferedAmount} bytes still pending`
+        );
+      reject(
+        new Error(
+          `Buffer drain timeout: ${dataChannel.bufferedAmount} bytes still pending`
+        )
+      );
     }, timeoutMs);
 
     const checkBuffer = () => {
       if (dataChannel.bufferedAmount === 0) {
         clearTimeout(timeout);
-        if (debug) console.log('[WebRTC Utils] Buffer fully drained');
+        if (debug) console.log("[WebRTC Utils] Buffer fully drained");
         resolve();
       } else {
-        if (debug) console.log(`[WebRTC Utils] Buffer drain progress: ${dataChannel.bufferedAmount} bytes remaining`);
+        if (debug)
+          console.log(
+            `[WebRTC Utils] Buffer drain progress: ${dataChannel.bufferedAmount} bytes remaining`
+          );
         setTimeout(checkBuffer, 100);
       }
     };
@@ -697,7 +901,7 @@ export async function waitForBufferDrain(
 }
 
 export interface ConnectionStats {
-  connectionType: 'DIRECT' | 'TURN' | 'LOCAL' | 'UNKNOWN';
+  connectionType: "DIRECT" | "TURN" | "LOCAL" | "UNKNOWN";
   localCandidate: string;
   remoteCandidate: string;
   candidatePair: any;
@@ -710,58 +914,156 @@ export interface ConnectionStats {
   jitter?: number;
 }
 
+function isLocalAddress(address: string): boolean {
+  if (!address) return false;
+
+  // mDNS .local addresses (Firefox/WebRTC privacy)
+  if (address.endsWith(".local")) return true;
+
+  // IPv4 private ranges
+  if (address.startsWith("192.168.")) return true;
+  if (address.startsWith("10.")) return true;
+  if (address.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) return true;
+
+  // Localhost
+  if (address.startsWith("127.")) return true;
+  if (address === "::1" || address === "localhost") return true;
+
+  // Link-local
+  if (address.startsWith("169.254.")) return true;
+  if (address.startsWith("fe80:")) return true;
+
+  return false;
+}
+
+interface CandidatePairs {
+  nominated: any;
+  selected: any;
+  active: any;
+  maxBytes: number;
+}
+
+function findCandidatePairs(stats: RTCStatsReport): CandidatePairs {
+  let nominated: any = null;
+  let selected: any = null;
+  let active: any = null;
+  let maxBytes = 0;
+
+  stats.forEach((stat: any) => {
+    if (stat.type === "candidate-pair" && stat.state === "succeeded") {
+      if (stat.nominated) nominated = stat;
+      if (stat.selected) selected = stat;
+
+      const totalBytes = (stat.bytesReceived || 0) + (stat.bytesSent || 0);
+      if (totalBytes > maxBytes) {
+        maxBytes = totalBytes;
+        active = stat;
+      }
+    }
+  });
+
+  return { nominated, selected, active, maxBytes };
+}
+
 /**
  * Gets the actual connection statistics using RTCPeerConnection.getStats()
  * This provides the selected candidate pair and real connection metrics
  */
-export async function getConnectionStats(pc: RTCPeerConnection): Promise<ConnectionStats> {
+export async function getConnectionStats(
+  pc: RTCPeerConnection,
+  debug = false
+): Promise<ConnectionStats> {
   try {
-    const stats = await pc.getStats();
-    let selectedCandidatePair: any = null;
-    let localCandidate: any = null;
-    let remoteCandidate: any = null;
+    // Guard: Don't check stats until connection is stable
+    const isConnectionReady =
+      pc.connectionState === "connected" ||
+      pc.iceConnectionState === "connected" ||
+      pc.iceConnectionState === "completed";
 
-    // Find the selected candidate pair (the one actually being used)
-    stats.forEach((stat: any, id: string) => {
-      if (stat.type === 'candidate-pair' && stat.state === 'succeeded') {
-        selectedCandidatePair = stat;
-        localCandidate = stats.get(stat.localCandidateId);
-        remoteCandidate = stats.get(stat.remoteCandidateId);
+    if (!isConnectionReady) {
+      if (debug) {
+        console.log("[WebRTC Stats] Connection not ready:", pc.connectionState, pc.iceConnectionState);
       }
-    });
-
-    if (!selectedCandidatePair || !localCandidate || !remoteCandidate) {
       return {
-        connectionType: 'UNKNOWN',
-        localCandidate: 'Unknown',
-        remoteCandidate: 'Unknown',
-        candidatePair: null
+        connectionType: "UNKNOWN",
+        localCandidate: "Connecting...",
+        remoteCandidate: "Connecting...",
+        candidatePair: null,
       };
     }
 
-    // Determine connection type based on candidate types
+    // Find candidate pairs with retry logic if no traffic yet
+    let stats = await pc.getStats();
+    let pairs = findCandidatePairs(stats);
+
+    // If no definitive pair found, wait briefly for traffic to flow
+    if (!pairs.nominated && !pairs.selected && pairs.maxBytes === 0) {
+      if (debug) console.log("[WebRTC Stats] No traffic yet, waiting 200ms...");
+      await new Promise(resolve => setTimeout(resolve, 200));
+      stats = await pc.getStats();
+      pairs = findCandidatePairs(stats);
+      if (debug) {
+        console.log(`[WebRTC Stats] After wait: bytes=${pairs.maxBytes}, nominated=${!!pairs.nominated}, selected=${!!pairs.selected}`);
+      }
+    }
+
+    const selectedCandidatePair = 
+    (pairs.maxBytes > 0 ? pairs.active : null) || 
+    pairs.nominated || 
+    pairs.selected;
+
+    if (debug && selectedCandidatePair) {
+      const method = pairs.nominated ? "nominated" : pairs.selected ? "selected" : `bytes (${pairs.maxBytes})`;
+      console.log(`[WebRTC Stats] Selected pair by: ${method}`);
+    }
+
+    // Get candidates from the selected pair
+    const localCandidate = selectedCandidatePair ? stats.get(selectedCandidatePair.localCandidateId) : null;
+    const remoteCandidate = selectedCandidatePair ? stats.get(selectedCandidatePair.remoteCandidateId) : null;
+
+    if (!selectedCandidatePair || !localCandidate || !remoteCandidate) {
+      return {
+        connectionType: "UNKNOWN",
+        localCandidate: "Negotiating...",
+        remoteCandidate: "Negotiating...",
+        candidatePair: null,
+      };
+    }
+
+    // Determine connection type
     const localType = localCandidate.candidateType;
     const remoteType = remoteCandidate.candidateType;
-    
-    let connectionType: 'DIRECT' | 'TURN' | 'LOCAL' | 'UNKNOWN' = 'UNKNOWN';
-    
-    // If either candidate is a relay (TURN), the connection goes through TURN
-    if (localType === 'relay' || remoteType === 'relay') {
-      connectionType = 'TURN';
-    } 
-    // If both are host candidates, it's a local connection
-    else if (localType === 'host' && remoteType === 'host') {
-      connectionType = 'LOCAL';
-    } 
-    // If at least one is srflx (STUN reflexive), it's a direct connection through NAT
-    else if (localType === 'srflx' || remoteType === 'srflx') {
-      connectionType = 'DIRECT';
+    const localIP = localCandidate.address || localCandidate.ip;
+    const remoteIP = remoteCandidate.address || remoteCandidate.ip;
+
+    let connectionType: "DIRECT" | "TURN" | "LOCAL" | "UNKNOWN" = "UNKNOWN";
+
+    if (localType === "relay" || remoteType === "relay") {
+      connectionType = "TURN";
+    } else if (isLocalAddress(localIP) && isLocalAddress(remoteIP)) {
+      connectionType = "LOCAL";
+    } else if (localType === "srflx" || remoteType === "srflx" || localType === "prflx" || remoteType === "prflx") {
+      connectionType = "DIRECT";
+    } else if (localType === "host" && remoteType === "host") {
+      connectionType = "DIRECT";
+    }
+
+    // Get jitter from RTP stats
+    let jitter: number | undefined;
+    stats.forEach((stat: any) => {
+      if (stat.type === "inbound-rtp" && stat.jitter !== undefined) {
+        jitter = stat.jitter;
+      }
+    });
+
+    if (debug) {
+      console.log(`[WebRTC Stats] ${connectionType}: ${localType} ↔ ${remoteType}`);
     }
 
     return {
       connectionType,
-      localCandidate: `${localType}:${localCandidate.ip}:${localCandidate.port}`,
-      remoteCandidate: `${remoteType}:${remoteCandidate.ip}:${remoteCandidate.port}`,
+      localCandidate: `${localType}:${localIP}:${localCandidate.port}`,
+      remoteCandidate: `${remoteType}:${remoteIP}:${remoteCandidate.port}`,
       candidatePair: selectedCandidatePair,
       rtt: selectedCandidatePair.currentRoundTripTime,
       bytesReceived: selectedCandidatePair.bytesReceived,
@@ -769,15 +1071,15 @@ export async function getConnectionStats(pc: RTCPeerConnection): Promise<Connect
       packetsReceived: selectedCandidatePair.packetsReceived,
       packetsSent: selectedCandidatePair.packetsSent,
       packetsLost: selectedCandidatePair.packetsLost,
-      jitter: selectedCandidatePair.currentRoundTripTime // RTT can be used as jitter indicator
+      jitter,
     };
   } catch (error) {
-    console.error('Failed to get connection stats:', error);
+    console.error("Failed to get connection stats:", error);
     return {
-      connectionType: 'UNKNOWN',
-      localCandidate: 'Error',
-      remoteCandidate: 'Error',
-      candidatePair: null
+      connectionType: "UNKNOWN",
+      localCandidate: "Error",
+      remoteCandidate: "Error",
+      candidatePair: null,
     };
   }
 }
@@ -797,18 +1099,18 @@ export async function getIceCandidateStats(pc: RTCPeerConnection): Promise<{
     const candidatePairs: any[] = [];
 
     stats.forEach((stat: any, id: string) => {
-      if (stat.type === 'local-candidate') {
+      if (stat.type === "local-candidate") {
         localCandidates.push(stat);
-      } else if (stat.type === 'remote-candidate') {
+      } else if (stat.type === "remote-candidate") {
         remoteCandidates.push(stat);
-      } else if (stat.type === 'candidate-pair') {
+      } else if (stat.type === "candidate-pair") {
         candidatePairs.push(stat);
       }
     });
 
     return { localCandidates, remoteCandidates, candidatePairs };
   } catch (error) {
-    console.error('Failed to get ICE candidate stats:', error);
+    console.error("Failed to get ICE candidate stats:", error);
     return { localCandidates: [], remoteCandidates: [], candidatePairs: [] };
   }
 }
