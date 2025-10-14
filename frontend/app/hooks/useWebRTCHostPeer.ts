@@ -92,16 +92,19 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       // Only allow one client at a time
       if (!connectedClient) {
         setConnectedClient(clientId);
+        config.onClientJoined?.(clientId);
       } else {
         if (debug) console.warn(`[WebRTC Host] Ignoring additional client ${clientId} - already connected to ${connectedClient}`);
       }
     },
     onClientDisconnected: (clientId: string) => {
-      if (debug) console.log(`[WebRTC Host] Client ${clientId} disconnected`);
-      if (connectedClient === clientId) {
-        setConnectedClient(undefined);
-        close();
-      }
+      if (debug) console.log(`[WebRTC Host] Client ${clientId} disconnected from signaling server`);
+      // Always notify callback - server notification is authoritative
+      // connectedClient may already be cleared by WebRTC layer
+      setConnectedClient(undefined);
+      close();
+      config.onClientDisconnected?.(clientId);
+      if (debug) console.log(`[WebRTC Host] Forwarded onClientDisconnected callback for ${clientId}`);
     },
   });
 
@@ -155,6 +158,17 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
 
         if (debug && (state === 'connected' || state === 'failed')) {
           console.log(`[WebRTC Host] Client ${clientId}: ${state}`);
+        }
+
+        // Clear connected client when connection fails or closes
+        if (state === 'failed' || state === 'closed') {
+          setConnectedClient(current => {
+            if (current === clientId) {
+              if (debug) console.log(`[WebRTC Host] Cleared connected client ${clientId} due to ${state} state`);
+              return undefined;
+            }
+            return current;
+          });
         }
 
         config.onConnectionStateChange?.(state);

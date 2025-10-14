@@ -31,6 +31,8 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   onComplete?: (file: Blob | null, fileName: string | null) => void;
   onError?: (error: string) => void;
   onConnectionRejected?: (reason: string, connectedClientId?: string) => void;
+  onClientJoined?: (clientId: string) => void;
+  onClientDisconnected?: (clientId: string) => void;
 }): FileTransferApi {
   const logger = createLogger(config.role, config.debug);
   
@@ -96,6 +98,8 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       }
     },
     onConnectionRejected: config.onConnectionRejected,
+    onClientJoined: config.onClientJoined,
+    onClientDisconnected: config.onClientDisconnected,
   });
   
   const clientPeer = useWebRTCClientPeer({

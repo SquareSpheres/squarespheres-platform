@@ -50,6 +50,9 @@ export interface WebRTCPeerConfig {
   onConnectionFailed?: (error: Error) => void;
   onDataChannelReady?: (maxMessageSize: number) => void;
   onConnectionRejected?: (reason: string, connectedClientId?: string) => void;
+  // Signaling callbacks (host only)
+  onClientJoined?: (clientId: string) => void;
+  onClientDisconnected?: (clientId: string) => void;
 }
 
 

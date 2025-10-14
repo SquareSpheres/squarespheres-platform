@@ -337,7 +337,7 @@ function useWebSocketConnection(config: SignalingClientConfig) {
       opts
     );
     if ((res as any).type === 'error') {
-      const serverMsg = (res as any).message ?? 'Server error';
+      const serverMsg = (res as any).payload ?? (res as any).message ?? 'Server error';
       throw new SignalError(serverMsg, { code: 'SERVER_ERROR', details: res });
     }
     return res as T;
@@ -389,10 +389,12 @@ export function useSignalHost(config: SignalingClientConfig = {}): SignalHost {
         console.warn(`[SignalHost] Ignoring additional client ${message.clientId} - already connected to ${connectedClient}`);
       }
     } else if (message.type === 'client-disconnected' && message.clientId) {
-      if (connectedClient === message.clientId) {
-        setConnectedClient(undefined);
-        config.onClientDisconnected?.(message.clientId);
-      }
+      console.log(`[SignalHost] Received client-disconnected for ${message.clientId}, current connectedClient: ${connectedClient}`);
+      // Always clear and notify, even if already cleared by WebRTC layer
+      // The server notification is authoritative
+      setConnectedClient(undefined);
+      config.onClientDisconnected?.(message.clientId);
+      console.log(`[SignalHost] Called onClientDisconnected for ${message.clientId}`);
     }
     config.onMessage?.(message);
   }, [config, connectedClient]);
