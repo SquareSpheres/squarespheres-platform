@@ -4,6 +4,30 @@ import { WebRTCSignalPayload } from "./webrtcTypes";
 import { SignalingMessage } from "./useSignalingClient";
 import { detectBrowser } from "../utils/browserUtils";
 import { Logger, consoleLogger } from "../types/logger";
+import { WebRTCDebugLogger, createDebugLogger } from "../utils/webrtcDebug";
+import {
+  ConnectionStats,
+  isConnectionReady,
+  getStatsWithRetry,
+  getCandidatesFromPair,
+  determineConnectionType,
+  extractJitterFromStats,
+  createConnectionStats,
+  createUnknownStats,
+} from "../utils/webrtcStats";
+import {
+  getMaxRetries,
+  getRetryDelay,
+  getIceRestartDelay,
+  supportsAutoIceRestart,
+  getDataChannelConfig,
+  shouldIgnoreDuplicateIceErrors,
+} from "../utils/webrtcBrowserConfig";
+
+// Re-export for backward compatibility
+export type { ConnectionStats } from "../utils/webrtcStats";
+export { getIceCandidateStats } from "../utils/webrtcDebug";
+export type { IceCandidateStats } from "../utils/webrtcDebug";
 
 
 export interface PeerConnectionConfig {
@@ -59,8 +83,7 @@ export class ConnectionWatchdog {
 
   canRetry(): boolean {
     const { browserInfo } = this.config;
-    // Safari needs more retries, Chrome needs fewer to avoid interference
-    const maxRetries = browserInfo.isChrome ? 0 : browserInfo.isSafari ? 3 : 2;
+    const maxRetries = getMaxRetries(browserInfo);
     return this.retryCount < maxRetries && !this.retryInProgress;
   }
 
@@ -80,10 +103,7 @@ export class ConnectionWatchdog {
 
   getRetryDelay(): number {
     const { browserInfo } = this.config;
-    // Safari needs longer delays, Chrome needs very long delays
-    if (browserInfo.isChrome) return 15000;
-    if (browserInfo.isSafari) return 5000; // Safari needs more time but not as much as Chrome
-    return 3000; // Default for other browsers
+    return getRetryDelay(browserInfo);
   }
 
   handleConnectionStateChange(state: RTCPeerConnectionState): void {
@@ -117,57 +137,26 @@ export function createPeerConnection(
 
   const pcConfig: RTCConfiguration = {
     iceServers: config.iceServers,
-    iceCandidatePoolSize: 0, // Set to 0 for all browsers to prevent overwhelming signaling
+    iceCandidatePoolSize: 0,
     bundlePolicy: "max-bundle",
     rtcpMuxPolicy: "require",
-    // Always use 'all' to ensure TURN servers are used when available
-    // TODO: When TURN servers are added, this will automatically use them for restrictive networks
     iceTransportPolicy: "all",
   };
 
   const pc = new RTCPeerConnection(pcConfig);
 
-  if (config.debug) {
-    console.log("[WebRTC Utils] Created peer connection with config:", {
-      iceServers: pcConfig.iceServers,
-      iceCandidatePoolSize: pcConfig.iceCandidatePoolSize,
-      bundlePolicy: pcConfig.bundlePolicy,
-      rtcpMuxPolicy: pcConfig.rtcpMuxPolicy,
-      iceTransportPolicy: pcConfig.iceTransportPolicy,
-      browser: browserInfo.name,
-      isSafari: browserInfo.isSafari,
-      isChrome: browserInfo.isChrome,
-    });
-
-    // Log ICE server configuration
-    const stunServers =
-      pcConfig.iceServers?.filter(
-        (server) =>
-          server.urls &&
-          typeof server.urls === "string" &&
-          server.urls.startsWith("stun:")
-      ) || [];
-    const turnServers =
-      pcConfig.iceServers?.filter(
-        (server) =>
-          server.urls &&
-          typeof server.urls === "string" &&
-          (server.urls.startsWith("turn:") || server.urls.startsWith("turns:"))
-      ) || [];
-
-    console.log(
-      `[WebRTC Utils] STUN servers configured: ${stunServers.length} server(s)`
-    );
-    if (turnServers.length > 0) {
-      console.log(
-        `[WebRTC Utils] TURN servers configured: ${turnServers.length} server(s)`
-      );
-    } else {
-      console.log(
-        "[WebRTC Utils] ℹ️ Using STUN-only configuration - TURN servers can be added for restrictive networks"
-      );
-    }
-  }
+  const debugLogger = createDebugLogger(config.debug || false, '[WebRTC Utils]');
+  
+  debugLogger.logPeerConnectionCreation({
+    iceServers: pcConfig.iceServers || [],
+    iceCandidatePoolSize: pcConfig.iceCandidatePoolSize || 0,
+    bundlePolicy: pcConfig.bundlePolicy || "max-bundle",
+    rtcpMuxPolicy: pcConfig.rtcpMuxPolicy || "require",
+    iceTransportPolicy: pcConfig.iceTransportPolicy || "all",
+    browser: browserInfo.name,
+    isSafari: browserInfo.isSafari,
+    isChrome: browserInfo.isChrome,
+  });
 
   return pc;
 }
@@ -188,17 +177,17 @@ export function attachEventHandlers(
   handlers: WebRTCEventHandlers,
   debug = false
 ): void {
+  const debugLogger = createDebugLogger(debug, '[WebRTC]');
+
   pc.onconnectionstatechange = () => {
     const state = pc.connectionState;
-    if (debug) {
-      console.log(`[WebRTC] Connection state changed to: ${state}`);
-    }
+    debugLogger.logConnectionStateChange(state);
     handlers.onConnectionStateChange?.(state);
   };
 
   pc.onicecandidate = (evt) => {
-    if (debug && evt.candidate) {
-      console.log(`[WebRTC] ICE candidate:`, evt.candidate.candidate);
+    if (evt.candidate) {
+      debugLogger.logIceCandidate(evt.candidate.candidate);
     }
     handlers.onIceCandidate?.(evt.candidate?.toJSON() || null);
   };
@@ -208,14 +197,9 @@ export function attachEventHandlers(
   };
 
   pc.oniceconnectionstatechange = () => {
-    if (debug) {
-      console.log(`[WebRTC] ICE connection state: ${pc.iceConnectionState}`);
-    }
+    debugLogger.logIceConnectionState(pc.iceConnectionState);
     handlers.onIceConnectionStateChange?.(pc.iceConnectionState);
   };
-
-  // Note: Data channel handling is done specifically in each hook
-  // to avoid conflicts between host and client implementations
 }
 
 export function createDataChannel(
@@ -224,33 +208,11 @@ export function createDataChannel(
   browserInfo: ReturnType<typeof detectBrowser>,
   debug = false
 ): RTCDataChannel {
-  const dcConfig: RTCDataChannelInit = {
-    ordered: true,
-    // Use fully reliable channels for file transfers
-    // Remove maxRetransmits and maxPacketLifeTime to ensure unlimited retransmits
-    ...(browserInfo.isChrome
-      ? {
-          protocol: "sctp",
-        }
-      : browserInfo.isSafari
-      ? {
-          // Safari-specific configuration - fully reliable
-          ordered: true,
-        }
-      : {
-          // Default to fully reliable for other browsers
-          ordered: true,
-        }),
-  };
-
+  const dcConfig = getDataChannelConfig(browserInfo);
   const dc = pc.createDataChannel(label, dcConfig);
 
-  if (debug) {
-    console.log(
-      `[WebRTC Utils] Created data channel: ${label} with config:`,
-      dcConfig
-    );
-  }
+  const debugLogger = createDebugLogger(debug, '[WebRTC Utils]');
+  debugLogger.logDataChannelCreation(label, dcConfig);
 
   return dc;
 }
@@ -392,10 +354,13 @@ export function createWebRTCEventHandlers(
     debug,
     logger = consoleLogger,
   } = config;
+  
   const prefix =
     role === "host"
       ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ""}`
       : "[WebRTC Client]";
+
+  const debugLogger = createDebugLogger(debug || false, prefix, logger);
 
   return {
     onConnectionStateChange: (state: RTCPeerConnectionState) => {
@@ -403,9 +368,9 @@ export function createWebRTCEventHandlers(
       onConnectionStateChange?.(state);
 
       if (state === "connected") {
-        if (debug) logger.log(`${prefix} Connection established!`);
+        debugLogger.log("Connection established!");
       } else if (state === "failed") {
-        if (debug) logger.error(`${prefix} Connection failed`);
+        debugLogger.error("Connection failed");
       }
     },
 
@@ -438,136 +403,77 @@ export function createWebRTCEventHandlers(
           connectionType = "🔍 PRFLX (Peer Reflexive)";
         }
 
-        // Call the callback with connection type information
         onIceCandidate?.(candidate, connectionType);
-
-        if (debug) {
-          // Only log the connection type, not the full candidate details
-          if (isRelay) {
-            logger.log(
-              `${prefix} ✅ TURN relay candidate - works in restrictive networks`
-            );
-          } else if (isSrflx) {
-            logger.log(
-              `${prefix} 📡 STUN reflexive candidate - direct connection through NAT`
-            );
-          } else if (isPrflx) {
-            logger.log(
-              `${prefix} 🔍 Peer reflexive candidate - discovered during connectivity checks`
-            );
-          } else if (isHost) {
-            logger.log(
-              `${prefix} 🏠 Host candidate - local network connection`
-            );
-          }
-        }
+        debugLogger.logIceCandidateType(candidateType, isRelay, isSrflx, isPrflx, isHost);
         sendSignal({ kind: "webrtc-ice", candidate }, clientId);
       } else {
-        // Call callback with null candidate to indicate end of candidates
         onIceCandidate?.(null, "End of candidates");
-
-        if (debug) {
-          logger.log(`${prefix} ICE gathering completed`);
-        }
+        debugLogger.logIceGatheringComplete();
         sendSignal({ kind: "webrtc-ice", candidate: null as any }, clientId);
       }
     },
 
     onIceGatheringStateChange: (state: RTCIceGatheringState) => {
-      if (debug) console.log(`${prefix} ICE gathering state: ${state}`);
+      debugLogger.logIceGatheringState(state);
     },
 
     onIceConnectionStateChange: (state: RTCIceConnectionState) => {
-      if (debug) console.log(`${prefix} ICE connection state: ${state}`);
+      debugLogger.logIceConnectionState(state);
 
       if (state === "failed") {
-        if (debug) {
-          console.warn(`${prefix} ICE connection failed`);
-          logIceConnectionDiagnostics(pc, prefix, debug);
-        }
-        // For Chrome and Safari, attempt ICE restart on failure
-        if (
-          (browserInfo.isChrome || browserInfo.isSafari) &&
-          pc.remoteDescription
-        ) {
-          if (debug)
-            console.log(
-              `${prefix} ${browserInfo.name} ICE failed - attempting immediate restart`
-            );
+        debugLogger.logIceConnectionFailed();
+        debugLogger.logIceConnectionDiagnostics(pc);
+        
+        if (supportsAutoIceRestart(browserInfo) && pc.remoteDescription) {
+          debugLogger.logIceRestart(browserInfo.name, 'failed');
           try {
             pc.restartIce();
-            if (debug)
-              console.log(`${prefix} ICE restart initiated successfully`);
+            debugLogger.logIceRestartSuccess();
           } catch (error) {
-            if (debug) console.error(`${prefix} ICE restart failed:`, error);
+            debugLogger.logIceRestartFailed(error);
           }
         }
       } else if (state === "disconnected") {
-        if (debug) {
-          console.warn(
-            `${prefix} ICE connection disconnected, waiting for reconnection...`
-          );
-          logIceConnectionDiagnostics(pc, prefix, debug);
-        }
-        // For Chrome and Safari, attempt ICE restart after a short delay on disconnect
-        if (
-          (browserInfo.isChrome || browserInfo.isSafari) &&
-          pc.remoteDescription
-        ) {
-          const delay = browserInfo.isSafari ? 3000 : 2000; // Safari needs a bit more time
+        debugLogger.logIceConnectionDisconnected();
+        debugLogger.logIceConnectionDiagnostics(pc);
+        
+        if (supportsAutoIceRestart(browserInfo) && pc.remoteDescription) {
+          const delay = getIceRestartDelay(browserInfo);
           setTimeout(() => {
             if (pc.iceConnectionState === "disconnected") {
-              if (debug)
-                console.log(
-                  `${prefix} ${browserInfo.name} ICE still disconnected after ${delay}ms, attempting restart`
-                );
+              debugLogger.logIceRestart(browserInfo.name, 'disconnected');
               try {
                 pc.restartIce();
-                if (debug)
-                  console.log(`${prefix} ICE restart initiated successfully`);
+                debugLogger.logIceRestartSuccess();
               } catch (error) {
-                if (debug)
-                  console.error(`${prefix} ICE restart failed:`, error);
+                debugLogger.logIceRestartFailed(error);
               }
             } else {
-              if (debug)
-                console.log(
-                  `${prefix} ICE connection recovered, no restart needed`
-                );
+              debugLogger.logIceConnectionRecovered();
             }
           }, delay);
         }
       } else if (state === "connected") {
-        if (debug) {
-          console.log(`${prefix} ICE connection established!`);
-          logIceConnectionDiagnostics(pc, prefix, debug);
-
-          // Get actual connection stats when connected
-          getConnectionStats(pc, debug)
-            .then((stats) => {
-              console.log(`${prefix} Actual connection method:`, {
-                type: stats.connectionType,
-                local: stats.localCandidate,
-                remote: stats.remoteCandidate,
-                rtt: stats.rtt,
-                bytesReceived: stats.bytesReceived,
-                bytesSent: stats.bytesSent,
-              });
-
-              // Call callback with actual connection type
-              onIceCandidate?.(null, `✅ ${stats.connectionType}`);
-            })
-            .catch((error) => {
-              if (debug)
-                console.warn(
-                  `${prefix} Failed to get connection stats:`,
-                  error
-                );
+        debugLogger.logIceConnectionEstablished();
+        debugLogger.logIceConnectionDiagnostics(pc);
+        
+        getConnectionStats(pc, debug)
+          .then((stats) => {
+            debugLogger.logConnectionStats({
+              type: stats.connectionType,
+              local: stats.localCandidate,
+              remote: stats.remoteCandidate,
+              rtt: stats.rtt,
+              bytesReceived: stats.bytesReceived,
+              bytesSent: stats.bytesSent,
             });
-        }
+            onIceCandidate?.(null, `✅ ${stats.connectionType}`);
+          })
+          .catch((error) => {
+            debugLogger.logConnectionStatsError(error);
+          });
       }
 
-      // Call the user-provided callback
       onIceConnectionStateChange?.(state);
     },
   };
@@ -596,34 +502,28 @@ export function setupDataChannel(
     role = "client",
     clientId,
   } = config;
+  
   const prefix =
     role === "host"
       ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ""}`
       : "[WebRTC Client]";
 
-  // Set binary type to ArrayBuffer for consistent binary data handling
+  const debugLogger = createDebugLogger(debug || false, prefix);
+
   dc.binaryType = "arraybuffer";
 
   dc.onopen = () => {
-    if (debug)
-      console.log(
-        `${prefix} Data channel opened (binaryType: ${dc.binaryType})`
-      );
-
-    // Detect and report maxMessageSize when channel is ready
+    debugLogger.logDataChannelOpen(dc.binaryType);
+    
     const maxMessageSize = getDataChannelMaxMessageSize(dc);
-    if (debug) {
-      console.log(
-        `${prefix} Data channel maxMessageSize: ${maxMessageSize} bytes`
-      );
-    }
+    debugLogger.logDataChannelMaxMessageSize(maxMessageSize);
     onDataChannelReady?.(maxMessageSize);
 
     onOpen?.(dc.readyState);
   };
 
   dc.onclose = () => {
-    if (debug) console.log(`${prefix} Data channel closed`);
+    debugLogger.logDataChannelClosed();
     onClose?.(dc.readyState);
   };
 
@@ -635,9 +535,8 @@ export function setupDataChannel(
 export class ICECandidateManager {
   private pendingCandidates: Map<string, RTCIceCandidateInit[]> = new Map();
   private browserInfo: ReturnType<typeof detectBrowser>;
-  private debug: boolean;
+  private debugLogger: WebRTCDebugLogger;
   private role: "client" | "host";
-  private prefix: string;
 
   constructor(
     browserInfo: ReturnType<typeof detectBrowser>,
@@ -646,12 +545,13 @@ export class ICECandidateManager {
     clientId?: string
   ) {
     this.browserInfo = browserInfo;
-    this.debug = debug;
     this.role = role;
-    this.prefix =
-      role === "host"
-        ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ""}`
-        : "[WebRTC Client]";
+    
+    const prefix = role === "host"
+      ? `[WebRTC Host]${clientId ? ` Client ${clientId}` : ""}`
+      : "[WebRTC Client]";
+    
+    this.debugLogger = createDebugLogger(debug, prefix);
   }
 
   storePendingCandidate(
@@ -663,8 +563,7 @@ export class ICECandidateManager {
       this.pendingCandidates.set(key, []);
     }
     this.pendingCandidates.get(key)!.push(candidate);
-    if (this.debug)
-      console.log(`${this.prefix} Storing ICE candidate as pending for ${key}`);
+    this.debugLogger.log(`Storing ICE candidate as pending for ${key}`);
   }
 
   async addPendingCandidates(
@@ -676,22 +575,11 @@ export class ICECandidateManager {
 
     for (const candidate of candidates) {
       try {
-        if (this.debug)
-          console.log(
-            `${this.prefix} Adding pending ICE candidate for ${key}:`,
-            candidate.candidate
-          );
+        this.debugLogger.log(`Adding pending ICE candidate for ${key}:`, candidate.candidate);
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        if (this.debug)
-          console.log(
-            `${this.prefix} Successfully added pending ICE candidate`
-          );
+        this.debugLogger.log('Successfully added pending ICE candidate');
       } catch (error) {
-        if (this.debug)
-          console.warn(
-            `${this.prefix} Failed to add pending ICE candidate:`,
-            error
-          );
+        this.debugLogger.warn('Failed to add pending ICE candidate:', error);
       }
     }
 
@@ -704,40 +592,20 @@ export class ICECandidateManager {
     clientId?: string
   ): Promise<void> {
     if (!candidate) {
-      if (this.debug)
-        console.log(
-          `${this.prefix} Received end-of-candidates${
-            clientId ? ` from ${clientId}` : ""
-          }`
-        );
+      this.debugLogger.log(`Received end-of-candidates${clientId ? ` from ${clientId}` : ""}`);
       return;
     }
 
     try {
-      if (this.debug)
-        console.log(
-          `${this.prefix} Adding ICE candidate${
-            clientId ? ` from ${clientId}` : ""
-          }:`,
-          candidate.candidate
-        );
+      this.debugLogger.log(`Adding ICE candidate${clientId ? ` from ${clientId}` : ""}:`, candidate.candidate);
       await pc.addIceCandidate(new RTCIceCandidate(candidate));
     } catch (error) {
       if (pc.remoteDescription === null) {
         this.storePendingCandidate(candidate, clientId);
-      } else if (
-        this.browserInfo.isChrome &&
-        (error as Error).name === "OperationError"
-      ) {
-        if (this.debug)
-          console.log(
-            `${this.prefix} Chrome ICE candidate error (likely duplicate), ignoring`
-          );
+      } else if (shouldIgnoreDuplicateIceErrors(this.browserInfo) && (error as Error).name === "OperationError") {
+        this.debugLogger.log('Browser-specific ICE candidate error (likely duplicate), ignoring');
       } else {
-        if (this.debug)
-          console.warn(
-            `${this.prefix} ICE candidate addition failed but remote description is set - this might be normal`
-          );
+        this.debugLogger.warn('ICE candidate addition failed but remote description is set - this might be normal');
       }
     }
   }
@@ -805,51 +673,6 @@ export function createSignalingMessageHandler(
   };
 }
 
-export function logIceConnectionDiagnostics(
-  pc: RTCPeerConnection,
-  prefix: string,
-  debug = false
-): void {
-  if (!debug) return;
-
-  console.log(`${prefix} ICE Connection Diagnostics:`, {
-    iceConnectionState: pc.iceConnectionState,
-    iceGatheringState: pc.iceGatheringState,
-    connectionState: pc.connectionState,
-    signalingState: pc.signalingState,
-    hasLocalDescription: !!pc.localDescription,
-    hasRemoteDescription: !!pc.remoteDescription,
-    localDescriptionType: pc.localDescription?.type,
-    remoteDescriptionType: pc.remoteDescription?.type,
-  });
-
-  // Check ICE candidate types
-  if (pc.localDescription) {
-    const sdp = pc.localDescription.sdp;
-    const relayCandidates = sdp.match(/candidate:.*typ relay/g) || [];
-    const hostCandidates = sdp.match(/candidate:.*typ host/g) || [];
-    const srflxCandidates = sdp.match(/candidate:.*typ srflx/g) || [];
-
-    console.log(`${prefix} ICE Candidate Summary:`, {
-      relay: relayCandidates.length,
-      host: hostCandidates.length,
-      srflx: srflxCandidates.length,
-      total:
-        relayCandidates.length + hostCandidates.length + srflxCandidates.length,
-    });
-
-    if (relayCandidates.length === 0) {
-      console.log(
-        `${prefix} ℹ️ Connected without TURN relay - using direct/STUN connection (faster)`
-      );
-    } else {
-      console.log(
-        `${prefix} ✅ Using ${relayCandidates.length} TURN relay candidate(s) - works in restrictive networks`
-      );
-    }
-  }
-}
-
 /**
  * Waits for a data channel's buffer to fully drain (bufferedAmount === 0)
  * This ensures all data is transmitted before marking a transfer as complete
@@ -859,22 +682,18 @@ export async function waitForBufferDrain(
   timeoutMs: number = 5000,
   debug = false
 ): Promise<void> {
+  const debugLogger = createDebugLogger(debug, '[WebRTC Utils]');
+
   if (dataChannel.bufferedAmount === 0) {
-    if (debug) console.log("[WebRTC Utils] Buffer already drained");
+    debugLogger.logBufferAlreadyDrained();
     return;
   }
 
-  if (debug)
-    console.log(
-      `[WebRTC Utils] Waiting for buffer to drain (${dataChannel.bufferedAmount} bytes remaining)`
-    );
+  debugLogger.logBufferDrainWaiting(dataChannel.bufferedAmount);
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      if (debug)
-        console.warn(
-          `[WebRTC Utils] Buffer drain timeout after ${timeoutMs}ms, ${dataChannel.bufferedAmount} bytes still pending`
-        );
+      debugLogger.logBufferDrainTimeout(timeoutMs, dataChannel.bufferedAmount);
       reject(
         new Error(
           `Buffer drain timeout: ${dataChannel.bufferedAmount} bytes still pending`
@@ -885,107 +704,16 @@ export async function waitForBufferDrain(
     const checkBuffer = () => {
       if (dataChannel.bufferedAmount === 0) {
         clearTimeout(timeout);
-        if (debug) console.log("[WebRTC Utils] Buffer fully drained");
+        debugLogger.logBufferDrained();
         resolve();
       } else {
-        if (debug)
-          console.log(
-            `[WebRTC Utils] Buffer drain progress: ${dataChannel.bufferedAmount} bytes remaining`
-          );
+        debugLogger.logBufferDrainProgress(dataChannel.bufferedAmount);
         setTimeout(checkBuffer, 100);
       }
     };
 
     checkBuffer();
   });
-}
-
-export interface ConnectionStats {
-  connectionType: "DIRECT" | "TURN" | "LOCAL" | "UNKNOWN";
-  localCandidate: string;
-  remoteCandidate: string;
-  candidatePair: any;
-  rtt?: number;
-  bytesReceived?: number;
-  bytesSent?: number;
-  packetsReceived?: number;
-  packetsSent?: number;
-  packetsLost?: number;
-  jitter?: number;
-}
-
-function isLocalAddress(address: string): boolean {
-  if (!address) return false;
-
-  // mDNS .local addresses (Firefox/WebRTC privacy)
-  if (address.endsWith(".local")) return true;
-
-  // IPv4 private ranges
-  if (address.startsWith("192.168.")) return true;
-  if (address.startsWith("10.")) return true;
-  if (address.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) return true;
-
-  // Localhost
-  if (address.startsWith("127.")) return true;
-  if (address === "::1" || address === "localhost") return true;
-
-  // Link-local
-  if (address.startsWith("169.254.")) return true;
-  if (address.startsWith("fe80:")) return true;
-
-  return false;
-}
-
-interface CandidatePairs {
-  nominated: any;
-  selected: any;
-  active: any;
-  maxBytes: number;
-}
-
-function findCandidatePairs(stats: RTCStatsReport): CandidatePairs {
-  const pairs: any[] = [];
-
-  stats.forEach((stat: any) => {
-    if (stat.type === "candidate-pair" && stat.state === "succeeded") {
-      const totalBytes = (stat.bytesReceived || 0) + (stat.bytesSent || 0);
-      pairs.push({
-        pair: stat,
-        bytes: totalBytes,
-        nominated: stat.nominated || false,
-        selected: stat.selected || false,
-      });
-    }
-  });
-
-  // Sort by priority: bytes first (most traffic), then nominated, then selected
-  pairs.sort((a, b) => {
-    // Pairs with traffic always win
-    if (a.bytes > 0 && b.bytes === 0) return -1;
-    if (b.bytes > 0 && a.bytes === 0) return 1;
-    
-    // Both have traffic: prefer most bytes
-    if (a.bytes !== b.bytes) return b.bytes - a.bytes;
-    
-    // Same bytes: prefer nominated
-    if (a.nominated !== b.nominated) return a.nominated ? -1 : 1;
-    
-    // Fall back to selected
-    if (a.selected !== b.selected) return a.selected ? -1 : 1;
-    
-    return 0;
-  });
-
-  const best = pairs[0];
-  const nominated = pairs.find(p => p.nominated);
-  const selected = pairs.find(p => p.selected);
-
-  return {
-    nominated: nominated?.pair || null,
-    selected: selected?.pair || null,
-    active: best?.pair || null,
-    maxBytes: best?.bytes || 0,
-  };
 }
 
 /**
@@ -996,144 +724,44 @@ export async function getConnectionStats(
   pc: RTCPeerConnection,
   debug = false
 ): Promise<ConnectionStats> {
+  const debugLogger = createDebugLogger(debug, '[WebRTC Stats]');
+
   try {
-    // Guard: Don't check stats until connection is stable
-    const isConnectionReady =
-      pc.connectionState === "connected" ||
-      pc.iceConnectionState === "connected" ||
-      pc.iceConnectionState === "completed";
+    if (!isConnectionReady(pc)) {
+      debugLogger.logConnectionNotReady(pc.connectionState, pc.iceConnectionState);
+      return createUnknownStats("Connecting...");
+    }
 
-    if (!isConnectionReady) {
-      if (debug) {
-        console.log("[WebRTC Stats] Connection not ready:", pc.connectionState, pc.iceConnectionState);
+    const { stats, candidatePair } = await getStatsWithRetry(
+      pc,
+      () => debugLogger.logNoTrafficYetWaiting(),
+      (maxBytes, nominated, selected) => {
+        debugLogger.logAfterWait(maxBytes, nominated, selected);
+        if (candidatePair) {
+          debugLogger.logSelectedPairMethod(maxBytes, nominated);
+        }
       }
-      return {
-        connectionType: "UNKNOWN",
-        localCandidate: "Connecting...",
-        remoteCandidate: "Connecting...",
-        candidatePair: null,
-      };
+    );
+
+    const { localCandidate, remoteCandidate } = getCandidatesFromPair(stats, candidatePair);
+
+    if (!candidatePair || !localCandidate || !remoteCandidate) {
+      return createUnknownStats("Negotiating...");
     }
 
-    // Find candidate pairs with retry logic if no traffic yet
-    let stats = await pc.getStats();
-    let pairs = findCandidatePairs(stats);
+    const connectionType = determineConnectionType(localCandidate, remoteCandidate);
+    const jitter = extractJitterFromStats(stats);
 
-    // If no definitive pair found, wait briefly for traffic to flow
-    if (!pairs.nominated && !pairs.selected && pairs.maxBytes === 0) {
-      if (debug) console.log("[WebRTC Stats] No traffic yet, waiting 200ms...");
-      await new Promise(resolve => setTimeout(resolve, 200));
-      stats = await pc.getStats();
-      pairs = findCandidatePairs(stats);
-      if (debug) {
-        console.log(`[WebRTC Stats] After wait: bytes=${pairs.maxBytes}, nominated=${!!pairs.nominated}, selected=${!!pairs.selected}`);
-      }
-    }
-
-    // Select best pair: ALWAYS use the one with most traffic
-    // Nomination can differ between peers due to timing, traffic is the ground truth
-    const selectedCandidatePair = pairs.active;
-
-    if (debug && selectedCandidatePair) {
-      const isNominated = pairs.nominated === pairs.active;
-      const method = `bytes (${pairs.maxBytes})${isNominated ? ' [nominated]' : ''}`;
-      console.log(`[WebRTC Stats] Selected pair by: ${method}`);
-    }
-
-    // Get candidates from the selected pair
-    const localCandidate = selectedCandidatePair ? stats.get(selectedCandidatePair.localCandidateId) : null;
-    const remoteCandidate = selectedCandidatePair ? stats.get(selectedCandidatePair.remoteCandidateId) : null;
-
-    if (!selectedCandidatePair || !localCandidate || !remoteCandidate) {
-      return {
-        connectionType: "UNKNOWN",
-        localCandidate: "Negotiating...",
-        remoteCandidate: "Negotiating...",
-        candidatePair: null,
-      };
-    }
-
-    // Determine connection type
-    const localType = localCandidate.candidateType;
-    const remoteType = remoteCandidate.candidateType;
-    const localIP = localCandidate.address || localCandidate.ip;
-    const remoteIP = remoteCandidate.address || remoteCandidate.ip;
-
-    let connectionType: "DIRECT" | "TURN" | "LOCAL" | "UNKNOWN" = "UNKNOWN";
-
-    if (localType === "relay" || remoteType === "relay") {
-      connectionType = "TURN";
-    } else if (isLocalAddress(localIP) && isLocalAddress(remoteIP)) {
-      connectionType = "LOCAL";
-    } else if (localType === "srflx" || remoteType === "srflx" || localType === "prflx" || remoteType === "prflx") {
-      connectionType = "DIRECT";
-    } else if (localType === "host" && remoteType === "host") {
-      connectionType = "DIRECT";
-    }
-
-    // Get jitter from RTP stats
-    let jitter: number | undefined;
-    stats.forEach((stat: any) => {
-      if (stat.type === "inbound-rtp" && stat.jitter !== undefined) {
-        jitter = stat.jitter;
-      }
-    });
-
-    if (debug) {
-      console.log(`[WebRTC Stats] ${connectionType}: ${localType} ↔ ${remoteType}`);
-    }
-
-    return {
+    debugLogger.logConnectionType(
       connectionType,
-      localCandidate: `${localType}:${localIP}:${localCandidate.port}`,
-      remoteCandidate: `${remoteType}:${remoteIP}:${remoteCandidate.port}`,
-      candidatePair: selectedCandidatePair,
-      rtt: selectedCandidatePair.currentRoundTripTime,
-      bytesReceived: selectedCandidatePair.bytesReceived,
-      bytesSent: selectedCandidatePair.bytesSent,
-      packetsReceived: selectedCandidatePair.packetsReceived,
-      packetsSent: selectedCandidatePair.packetsSent,
-      packetsLost: selectedCandidatePair.packetsLost,
-      jitter,
-    };
+      localCandidate.candidateType,
+      remoteCandidate.candidateType
+    );
+
+    return createConnectionStats(connectionType, localCandidate, remoteCandidate, candidatePair, jitter);
   } catch (error) {
     console.error("Failed to get connection stats:", error);
-    return {
-      connectionType: "UNKNOWN",
-      localCandidate: "Error",
-      remoteCandidate: "Error",
-      candidatePair: null,
-    };
+    return createUnknownStats("Error");
   }
 }
 
-/**
- * Gets detailed ICE candidate statistics for debugging
- */
-export async function getIceCandidateStats(pc: RTCPeerConnection): Promise<{
-  localCandidates: any[];
-  remoteCandidates: any[];
-  candidatePairs: any[];
-}> {
-  try {
-    const stats = await pc.getStats();
-    const localCandidates: any[] = [];
-    const remoteCandidates: any[] = [];
-    const candidatePairs: any[] = [];
-
-    stats.forEach((stat: any, id: string) => {
-      if (stat.type === "local-candidate") {
-        localCandidates.push(stat);
-      } else if (stat.type === "remote-candidate") {
-        remoteCandidates.push(stat);
-      } else if (stat.type === "candidate-pair") {
-        candidatePairs.push(stat);
-      }
-    });
-
-    return { localCandidates, remoteCandidates, candidatePairs };
-  } catch (error) {
-    console.error("Failed to get ICE candidate stats:", error);
-    return { localCandidates: [], remoteCandidates: [], candidatePairs: [] };
-  }
-}

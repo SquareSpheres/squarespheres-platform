@@ -1,93 +1,38 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getWebSocketTimeout, detectBrowser } from '../utils/browserUtils';
+import { detectBrowser } from '../utils/browserUtils';
+import {
+  SignalingMessage,
+  SignalingClientConfig,
+  SignalError,
+  normalizeMessageType,
+  HostRequest,
+  HostResponse,
+  JoinHostRequest,
+  JoinHostResponse,
+  MessageToHostRequest,
+  MessageToClientRequest,
+} from '../types/signalingTypes';
+import {
+  getConnectionDelay,
+  getConnectionTimeout,
+  getMaxRetries,
+  getRetryDelay,
+  shouldRetryOnError,
+} from '../utils/signalingConfig';
+import { createSignalingLogger, testWebSocketConnection } from '../utils/signalingDebug';
+import { SignalingRequestManager, generateRequestId } from '../utils/signalingRequestManager';
 
-export interface SignalingMessage {
-  type: string;
-  hostId?: string;
-  clientId?: string;
-  payload?: string;
-  requestId?: string;
-}
-
-export interface HostRequest {
-  type: 'host';
-  maxClients?: number;
-}
-
-export interface HostResponse {
-  type: 'host';
-  hostId: string;
-}
-
-export interface JoinHostRequest {
-  type: 'join-host';
-  hostId: string;
-}
-
-export interface JoinHostResponse {
-  type: 'join-host';
-  hostId: string;
-  clientId: string;
-}
-
-export interface MessageToHostRequest {
-  type: 'msg-to-host';
-  payload: string;
-}
-
-export interface MessageToClientRequest {
-  type: 'msg-to-client';
-  clientId: string;
-  payload: string;
-}
-
-export interface ErrorMessage {
-  type: 'error';
-  message: string;
-  code?: string;
-}
-
-export interface ClientJoinedNotification {
-  type: 'client-joined';
-  hostId: string;
-  clientId: string;
-}
-
-export interface ClientDisconnectedNotification {
-  type: 'client-disconnected';
-  hostId: string;
-  clientId: string;
-}
-
-export interface HostDisconnectedNotification {
-  type: 'host-disconnected';
-  hostId: string;
-}
-
-export type SignalingResponse = HostResponse | JoinHostResponse | ErrorMessage | ClientJoinedNotification | ClientDisconnectedNotification | HostDisconnectedNotification;
-
-export interface SignalingClientConfig {
-  url?: string;
-  onMessage?: (message: SignalingMessage) => void;
-  onError?: (error: Error) => void;
-  onOpen?: () => void;
-  onClose?: () => void;
-  onClientJoined?: (clientId: string) => void;
-  onClientDisconnected?: (clientId: string) => void;
-}
-
-class SignalError extends Error {
-  code?: string;
-  details?: unknown;
-  action?: string;
-  constructor(message: string, opts?: { code?: string; details?: unknown; action?: string }) {
-    super(message);
-    this.name = 'SignalError';
-    this.code = opts?.code;
-    this.details = opts?.details;
-    this.action = opts?.action;
-  }
-}
+// Re-export types for backward compatibility
+export type {
+  SignalingMessage,
+  HostRequest,
+  HostResponse,
+  JoinHostRequest,
+  JoinHostResponse,
+  MessageToHostRequest,
+  MessageToClientRequest,
+  SignalingClientConfig,
+} from '../types/signalingTypes';
 
 function useWebSocketConnection(config: SignalingClientConfig) {
   const {
@@ -102,23 +47,10 @@ function useWebSocketConnection(config: SignalingClientConfig) {
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const retryCountRef = useRef(0);
-  const maxRetries = 3;
-  const pendingWaitersRef = useRef<Set<{
-    match: (message: SignalingMessage) => boolean;
-    resolve: (message: SignalingMessage) => void;
-    reject: (error: Error) => void;
-    timeoutId: ReturnType<typeof setTimeout>;
-  }>>(new Set());
+  const requestManager = useRef(new SignalingRequestManager());
 
   const clearAllWaiters = useCallback((reason: Error) => {
-    const waiters = pendingWaitersRef.current;
-    Array.from(waiters).forEach((waiter) => {
-      clearTimeout(waiter.timeoutId);
-      try { waiter.reject(reason); } catch (error) {
-        console.warn('Error rejecting waiter:', error);
-      }
-      waiters.delete(waiter);
-    });
+    requestManager.current.clearAllWaiters(reason);
   }, []);
 
   const connect = useCallback(async (): Promise<void> => {
@@ -128,88 +60,66 @@ function useWebSocketConnection(config: SignalingClientConfig) {
         return;
       }
 
+      const browser = detectBrowser();
+      const logger = createSignalingLogger(true);
+      const maxRetriesForBrowser = getMaxRetries(browser);
+
       let wsUrl: string;
       try {
         wsUrl = new URL(url).toString();
-        const browser = detectBrowser();
-        console.log(`[SignalingClient] Connecting to WebSocket URL: ${wsUrl}`, {
-          browser: browser.name,
-          isSafari: browser.isSafari,
-          isIOS: browser.isIOS,
-          retryAttempt: retryCountRef.current
-        });
+        logger.logConnection(wsUrl, browser, retryCountRef.current);
       } catch {
         reject(new SignalError('Invalid signaling URL', { code: 'URL_INVALID', details: { url } }));
         return;
       }
 
-      // Safari iOS workaround: Add small delay before connection
-      const browser = detectBrowser();
-      const connectionDelay = browser.isSafari && browser.isIOS ? 100 : 0;
+      const connectionDelay = getConnectionDelay(browser);
       
       setTimeout(() => {
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
+        const connectionTimeout = getConnectionTimeout(browser);
+      
+        const timeoutId = setTimeout(() => {
+          if (ws.readyState === WebSocket.CONNECTING) {
+            logger.logTimeout(wsUrl, connectionTimeout);
+            ws.close();
+            reject(new SignalError('WebSocket connection timeout', { code: 'WS_TIMEOUT' }));
+          }
+        }, connectionTimeout);
+
         ws.onopen = () => {
-          console.log(`[SignalingClient] Successfully connected to: ${wsUrl}`);
+          clearTimeout(timeoutId);
+          logger.logConnected(wsUrl);
           setIsConnected(true);
-          retryCountRef.current = 0; // Reset retry count on successful connection
+          retryCountRef.current = 0;
           onOpen?.();
           resolve();
         };
 
-      // Browser-specific connection timeout
-      const connectionTimeout = getWebSocketTimeout();
-      
-      const timeoutId = setTimeout(() => {
-        if (ws.readyState === WebSocket.CONNECTING) {
-          console.error(`[SignalingClient] Connection timeout after ${connectionTimeout}ms`);
-          ws.close();
-          reject(new SignalError('WebSocket connection timeout', { code: 'WS_TIMEOUT' }));
-        }
-      }, connectionTimeout);
-
-      // Clear timeout on successful connection
-      ws.addEventListener('open', () => {
-        clearTimeout(timeoutId);
-      });
-
-
-      ws.onclose = (event) => {
-        console.log(`[SignalingClient] Connection closed to: ${wsUrl}`, {
-          code: event.code,
-          reason: event.reason,
-          wasClean: event.wasClean
-        });
-        
-        
-        setIsConnected(false);
-        clearAllWaiters(new SignalError('WebSocket closed', { code: 'WS_CLOSED' }));
-        onClose?.();
-      };
+        ws.onclose = (event) => {
+          clearTimeout(timeoutId);
+          logger.logClosed(wsUrl, event.code, event.reason, event.wasClean);
+          setIsConnected(false);
+          clearAllWaiters(new SignalError('WebSocket closed', { code: 'WS_CLOSED' }));
+          onClose?.();
+        };
 
         ws.onerror = (error) => {
-          const browser = detectBrowser();
-          console.error(`[SignalingClient] Connection error to: ${wsUrl}`, {
-            error,
-            browser: browser.name,
-            isSafari: browser.isSafari,
-            isIOS: browser.isIOS,
-            retryAttempt: retryCountRef.current,
-            maxRetries
-          });
+          clearTimeout(timeoutId);
+          logger.logError(wsUrl, browser, retryCountRef.current, maxRetriesForBrowser, error);
           
-          // Safari iOS retry logic
-          if (browser.isSafari && browser.isIOS && retryCountRef.current < maxRetries) {
+          // Browser-specific retry logic
+          if (shouldRetryOnError(browser) && retryCountRef.current < maxRetriesForBrowser) {
             retryCountRef.current++;
-            console.log(`[SignalingClient] Safari iOS retry attempt ${retryCountRef.current}/${maxRetries}`);
+            logger.logRetry(retryCountRef.current, maxRetriesForBrowser);
             
-            // Close current connection and retry after delay
             ws.close();
+            const retryDelay = getRetryDelay(browser, retryCountRef.current);
             setTimeout(() => {
               connect().then(resolve).catch(reject);
-            }, 1000 * retryCountRef.current); // Exponential backoff
+            }, retryDelay);
             return;
           }
           
@@ -221,17 +131,15 @@ function useWebSocketConnection(config: SignalingClientConfig) {
         ws.onmessage = (event) => {
           try {
             const raw: SignalingMessage = JSON.parse(event.data);
-            const message: SignalingMessage = { ...raw, type: String(raw.type || '').toLowerCase() };
+            const message = normalizeMessageType(raw);
 
-            Array.from(pendingWaitersRef.current).some((waiter) => {
-              if (!waiter.match(message)) return false;
-              pendingWaitersRef.current.delete(waiter);
-              clearTimeout(waiter.timeoutId);
-              waiter.resolve(message);
-              return true;
-            });
-
-            onMessage?.(message);
+            // Check if this message matches any pending request
+            const wasHandled = requestManager.current.handleIncomingMessage(message);
+            
+            // If not handled by request manager, pass to general message handler
+            if (!wasHandled && onMessage) {
+              onMessage(message);
+            }
           } catch (error) {
             onError?.(new SignalError('Failed to parse message', { code: 'PARSE_ERROR', details: { data: event.data } }));
           }
@@ -250,7 +158,7 @@ function useWebSocketConnection(config: SignalingClientConfig) {
 
   const sendMessage = useCallback((message: SignalingMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      const normalized = { ...message, type: String(message.type || '').toLowerCase() };
+      const normalized = normalizeMessageType(message);
       wsRef.current.send(JSON.stringify(normalized));
     } else {
       throw new SignalError('WebSocket not connected', { code: 'WS_NOT_OPEN', details: { message } });
@@ -263,67 +171,8 @@ function useWebSocketConnection(config: SignalingClientConfig) {
     opts?: { timeoutMs?: number }
   ): Promise<T> => {
     await connect();
-    return new Promise<T>((resolve, reject) => {
-      const timeoutMs = opts?.timeoutMs ?? 10000;
-      const waiter = {
-        match,
-        resolve: resolve as (m: SignalingMessage) => void,
-        reject,
-        timeoutId: setTimeout(() => {
-          pendingWaitersRef.current.delete(waiter);
-          reject(new SignalError('Request timed out', { code: 'TIMEOUT' }));
-        }, timeoutMs)
-      };
-      pendingWaitersRef.current.add(waiter);
-      try {
-        send();
-      } catch (err) {
-        pendingWaitersRef.current.delete(waiter);
-        clearTimeout(waiter.timeoutId);
-        reject(err instanceof Error ? err : new SignalError('Send failed', { code: 'SEND_FAILED', details: err }));
-      }
-    });
+    return requestManager.current.createRequest<T>(send, match, opts);
   }, [connect]);
-
-  const generateRequestId = useCallback((): string => {
-    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-      return (crypto as any).randomUUID();
-    }
-    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  }, []);
-
-  // Safari iOS connection test utility
-  const testWebSocketConnection = useCallback(async (testUrl: string): Promise<boolean> => {
-    return new Promise((resolve) => {
-      const browser = detectBrowser();
-      if (!browser.isSafari || !browser.isIOS) {
-        resolve(true);
-        return;
-      }
-
-      console.log(`[SignalingClient] Testing Safari iOS WebSocket connection to: ${testUrl}`);
-      const testWs = new WebSocket(testUrl);
-      
-      const timeout = setTimeout(() => {
-        testWs.close();
-        console.log(`[SignalingClient] Safari iOS connection test timeout`);
-        resolve(false);
-      }, 5000);
-
-      testWs.onopen = () => {
-        clearTimeout(timeout);
-        testWs.close();
-        console.log(`[SignalingClient] Safari iOS connection test successful`);
-        resolve(true);
-      };
-
-      testWs.onerror = (error) => {
-        clearTimeout(timeout);
-        console.error(`[SignalingClient] Safari iOS connection test failed:`, error);
-        resolve(false);
-      };
-    });
-  }, []);
 
   const sendRequest = useCallback(async <T extends SignalingMessage>(
     message: SignalingMessage,
@@ -341,7 +190,7 @@ function useWebSocketConnection(config: SignalingClientConfig) {
       throw new SignalError(serverMsg, { code: 'SERVER_ERROR', details: res });
     }
     return res as T;
-  }, [generateRequestId, request, sendMessage]);
+  }, [request, sendMessage]);
 
   useEffect(() => {
     return () => {
@@ -358,7 +207,7 @@ function useWebSocketConnection(config: SignalingClientConfig) {
     request,
     isConnected,
     wsRef,
-    testWebSocketConnection
+    testWebSocketConnection: (testUrl: string) => testWebSocketConnection(testUrl, detectBrowser())
   };
 }
 

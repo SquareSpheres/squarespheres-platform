@@ -6,7 +6,7 @@ import './globals.css'
 import Link from 'next/link'
 import React from 'react'
 import StaticBackground from './StaticBackground'
-import { Share2, ArrowUpCircle, ArrowDownCircle, Wifi, Zap, Download, FileText, TestTube } from 'lucide-react'
+import { Share2, ArrowUpCircle, ArrowDownCircle, TestTube } from 'lucide-react'
 import { ThemeProvider } from './Provider'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
 import { ClerkThemeProvider } from "./components/ClerkThemeProvider"
@@ -65,18 +65,6 @@ export default function RootLayout({
                   <Link href="/receive" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Receive">
                     <ArrowDownCircle className="h-5 w-5" />
                     <span className="hidden lg:inline font-medium text-sm">Receive</span>
-                  </Link>
-                  <Link href="/signaling-demo" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Signaling Demo">
-                    <Wifi className="h-5 w-5" />
-                    <span className="hidden lg:inline font-medium text-sm">Signaling</span>
-                  </Link>
-                  <Link href="/webrtc-demo" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="WebRTC Demo">
-                    <Zap className="h-5 w-5" />
-                    <span className="hidden lg:inline font-medium text-sm">WebRTC</span>
-                  </Link>
-                  <Link href="/file-transfer-demo" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="File Transfer Demo">
-                    <FileText className="h-5 w-5" />
-                    <span className="hidden lg:inline font-medium text-sm">File Test</span>
                   </Link>
                   <Link href="/turn-test" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="TURN Servers Test">
                     <TestTube className="h-5 w-5" />

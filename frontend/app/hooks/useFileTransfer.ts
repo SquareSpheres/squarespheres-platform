@@ -10,10 +10,6 @@ import {
   createLogger
 } from './fileTransferUtils';
 import { waitForBufferDrain } from './webrtcUtils';
-import {
-  YIELD_CHUNK_INTERVAL,
-  PROGRESS_MILESTONES,
-} from '../utils/fileTransferConstants';
 import { MESSAGE_TYPES } from '../constants/messageTypes';
 import { encodeMessage } from '../utils/binaryMessageCodec';
 import {
@@ -23,6 +19,19 @@ import {
 } from '../types/fileTransfer';
 import { useBackpressureManager } from './useBackpressureManager';
 import { useStreamMessageHandlers } from './useStreamMessageHandlers';
+import {
+  generateTransferId,
+  createTransferStartMessage,
+  createTransferEndMessage,
+  createTransferErrorMessage,
+  encodeFileChunk,
+  readFileChunk,
+  getChunkEnd,
+  shouldLogProgress,
+  shouldYield,
+  yieldToEventLoop,
+} from '../utils/fileTransferOrchestrator';
+import { createFileTransferLogger } from '../utils/fileTransferDebug';
 
 
 export function useFileTransfer(config: WebRTCPeerConfig & { 
@@ -35,6 +44,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   onClientDisconnected?: (clientId: string) => void;
 }): FileTransferApi {
   const logger = createLogger(config.role, config.debug);
+  const debugLogger = createFileTransferLogger(logger, config.debug);
   
   const [receivedFile, setReceivedFile] = useState<Blob | null>(null);
   const [receivedFileName, setReceivedFileName] = useState<string | null>(null);
@@ -77,8 +87,8 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
   });
 
   const sendAck = useCallback((transferId: string, progress: number) => {
-    logger.log(`Sent ACK for transfer ${transferId}: ${progress}%`);
-  }, [logger]);
+    debugLogger.logAckSent(transferId, progress);
+  }, [debugLogger]);
 
   let sendAckWithPeers = sendAck;
   
@@ -158,16 +168,12 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       throw new Error('sendFile can only be called on host');
     }
 
-    const transferId = `transfer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const transferId = generateTransferId();
     const startTime = Date.now();
+    let lastLoggedPercentage = 0;
     
-    logger.log('Starting stream-based file transfer:', {
-      fileName: file.name,
-      fileSize: file.size,
-      transferId
-    });
+    debugLogger.logTransferStart(file.name, file.size, transferId);
     
-    // Start transfer progress tracking
     progressManager.startTransfer(file.name, file.size);
     
     // Initialize ACK progress for host
@@ -182,13 +188,12 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     }
 
     try {
-      const startMessage = JSON.stringify({
-        type: MESSAGE_TYPES.FILE_START,
+      const startMessage = createTransferStartMessage({
         transferId,
         fileName: file.name,
-        fileSize: file.size
+        fileSize: file.size,
+        startTime
       });
-      
       hostPeer.send(startMessage);
 
       // Stream file data in chunks
@@ -196,22 +201,9 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
       
       while (bytesTransferred < file.size) {
         const start = bytesTransferred;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-          
-        const fileSlice = file.slice(start, end);
-        const chunkArrayBuffer = await fileSlice.arrayBuffer();
-        const chunkData = new Uint8Array(chunkArrayBuffer);
-        
-        const transferIdBytes = new TextEncoder().encode(transferId);
-        const buffer = new ArrayBuffer(12 + transferIdBytes.length + chunkData.length);
-        const view = new DataView(buffer);
-        
-        view.setUint32(0, MESSAGE_TYPES.FILE_DATA, true);
-        view.setUint32(4, transferIdBytes.length, true);
-        view.setUint32(8, start, true);
-        
-        new Uint8Array(buffer, 12).set(transferIdBytes);
-        new Uint8Array(buffer, 12 + transferIdBytes.length).set(chunkData);
+        const end = getChunkEnd(start, CHUNK_SIZE, file.size);
+        const chunkData = await readFileChunk(file, start, end);
+        const buffer = encodeFileChunk(transferId, chunkData, start);
 
         hostPeer.send(buffer);
 
@@ -221,72 +213,51 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
         bytesTransferred += chunkData.length;
         
         const currentPercentage = Math.round((bytesTransferred / file.size) * 100);
-        const lastLoggedPercentage = (file as any).lastLoggedPercentage || 0;
         
-        if (PROGRESS_MILESTONES.includes(currentPercentage as any) && currentPercentage > lastLoggedPercentage) {
-          logger.log(`Host progress milestone: ${currentPercentage}% (${bytesTransferred}/${file.size} bytes)`);
-          (file as any).lastLoggedPercentage = currentPercentage;
+        if (shouldLogProgress(currentPercentage, lastLoggedPercentage)) {
+          debugLogger.logProgressMilestone(currentPercentage, bytesTransferred, file.size);
+          lastLoggedPercentage = currentPercentage;
         }
 
         await waitForBackpressure('default');
         
-        if (bytesTransferred % (CHUNK_SIZE * YIELD_CHUNK_INTERVAL) === 0) {
-          await new Promise(resolve => setTimeout(resolve, 0));
+        if (shouldYield(bytesTransferred, CHUNK_SIZE)) {
+          await yieldToEventLoop();
         }
       }
 
       // Wait for buffer to fully drain before marking transfer complete
       try {
         const dataChannel = hostPeer.getDataChannel();
-
         if (dataChannel && dataChannel.readyState === 'open') {
-          logger.log('Waiting for buffer to drain before marking transfer complete...');
+          debugLogger.logBufferDrainStart();
           await waitForBufferDrain(dataChannel, 10000, config.debug);
-          logger.log('Buffer drained successfully, sending completion message');
+          debugLogger.logBufferDrainSuccess();
         } else {
-          logger.warn('No data channel available for buffer drain check, proceeding with completion');
+          debugLogger.logBufferDrainWarning('No data channel available for buffer drain check, proceeding with completion');
         }
       } catch (error) {
-        logger.warn('Buffer drain failed, proceeding with completion:', error);
+        debugLogger.logBufferDrainError(error);
       }
         
       const transferTime = Date.now() - startTime;
-      
-      // Send FILE_END instead of FILE_COMPLETE for proper handshake
-      const endMessage = JSON.stringify({
-        type: MESSAGE_TYPES.FILE_END,
-        transferId,
-        totalBytes: bytesTransferred,
-        transferTime,
-        checksum: undefined // Can be added later for integrity verification
-      });
+      const endMessage = createTransferEndMessage(transferId, bytesTransferred, transferTime);
       
       hostPeer.send(endMessage);
-      
-      logger.log('Sent FILE_END, waiting for FILE_END_ACK...');
-      
-      // Don't complete the transfer yet - wait for FILE_END_ACK
-      // The completion will happen in handleFileEndAck when client confirms receipt
+      debugLogger.logFileEndSent();
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Stream file transfer failed:', error);
+      debugLogger.logTransferError(error);
       
-      const errorMessage_str = JSON.stringify({
-        type: MESSAGE_TYPES.FILE_ERROR,
-        transferId,
-        error: errorMessage
-      });
-      
-      hostPeer.send(errorMessage_str);
-      
+      hostPeer.send(createTransferErrorMessage(transferId, errorMessage));
       progressManager.errorTransfer(errorMessage);
     }
-  }, [config.role, config.debug, logger, progressManager, hostPeer, waitForBackpressure, CHUNK_SIZE]);
+  }, [config.role, config.debug, debugLogger, progressManager, hostPeer, waitForBackpressure, CHUNK_SIZE]);
   
   // Cancel transfer
   const cancelTransfer = useCallback((transferId?: string) => {
-    logger.log('Cancelling transfer:', transferId || 'current');
+    debugLogger.logTransferCancel(transferId);
     
     if (config.role === 'host') {
       const cancelData = JSON.stringify({
@@ -299,11 +270,11 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     }
     
     progressManager.errorTransfer('Transfer cancelled');
-  }, [config.role, logger, hostPeer, progressManager]);
+  }, [config.role, debugLogger, hostPeer, progressManager]);
   
   // Clear transfer state
   const clearTransfer = useCallback(() => {
-    logger.log('Clearing stream transfer state');
+    debugLogger.logTransferClear();
     
     // Clear all timeouts
     transferTimeoutsRef.current.forEach((timeout) => {
@@ -318,7 +289,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     setAckProgress(null);
     clearMessageQueue();
     progressManager.clearTransfer();
-  }, [logger, progressManager, clearMessageQueue]);
+  }, [debugLogger, progressManager, clearMessageQueue]);
   
   // Return file transfer API
 

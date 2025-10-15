@@ -78,6 +78,15 @@ make wasm
 ├── frontend/              # Next.js frontend
 │   ├── app/              # Next.js 14 app directory
 │   │   ├── hooks/        # Custom React hooks
+│   │   ├── utils/        # Utility functions
+│   │   │   ├── webrtcDebug.ts         # WebRTC debug logging
+│   │   │   ├── webrtcStats.ts         # Connection statistics
+│   │   │   ├── webrtcBrowserConfig.ts # Browser configs
+│   │   │   ├── signalingDebug.ts      # Signaling debug utils
+│   │   │   ├── signalingConfig.ts     # Signaling browser configs
+│   │   │   └── signalingRequestManager.ts # Request/response pattern
+│   │   ├── types/        # TypeScript type definitions
+│   │   │   └── signalingTypes.ts      # Signaling interfaces
 │   │   ├── page.tsx      # Main page
 │   │   └── receive/      # File receiver page
 │   ├── wasm-module/      # Built WASM artifacts

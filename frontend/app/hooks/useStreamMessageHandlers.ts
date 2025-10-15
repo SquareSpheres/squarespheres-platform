@@ -8,7 +8,8 @@ import type {
 import type { Logger } from '../types/logger';
 import type { ProgressManager } from '../types/progressManager';
 import type { FileTransferConfig } from '../types/fileTransferConfig';
-import { createStreamHandlersCore, MessageQueue } from './useStreamHandlersCore';
+import { createStreamHandlersCore } from './useStreamHandlersCore';
+import { MessageQueue } from '../utils/MessageQueue';
 import { createAckHandler } from './useStreamAckHandler';
 
 export function useStreamMessageHandlers({

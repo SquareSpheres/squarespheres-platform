@@ -4,47 +4,9 @@ import type { ProgressManager } from '../types/progressManager';
 import type { FileTransferConfig } from '../types/fileTransferConfig';
 import { FILE_SIZE_THRESHOLDS, TRANSFER_TIMEOUTS, MIN_ACK_INTERVAL_MS } from '../utils/fileTransferConstants';
 import { MESSAGE_TYPES } from '../constants/messageTypes';
-
-/**
- * Message queue for non-blocking message processing
- */
-class MessageQueue {
-  private queue: (string | ArrayBuffer | Blob)[] = [];
-  private processing = false;
-  private handler: ((data: string | ArrayBuffer | Blob) => Promise<void>) | null = null;
-
-  setHandler(handler: (data: string | ArrayBuffer | Blob) => Promise<void>) {
-    this.handler = handler;
-  }
-
-  enqueue(data: string | ArrayBuffer | Blob) {
-    this.queue.push(data);
-    if (!this.processing) {
-      this.process();
-    }
-  }
-
-  private async process() {
-    if (this.processing || !this.handler) return;
-    
-    this.processing = true;
-    
-    while (this.queue.length > 0) {
-      const data = this.queue.shift()!;
-      try {
-        await this.handler(data);
-      } catch (error) {
-        console.error('Message processing error:', error);
-      }
-    }
-    
-    this.processing = false;
-  }
-
-  clear() {
-    this.queue = [];
-  }
-}
+import { MessageQueue } from '../utils/MessageQueue';
+import { calculateAdaptiveTimeout } from '../utils/transferTimeoutUtils';
+import { shouldSendAck as shouldSendAckUtil } from '../utils/ackStrategy';
 
 export function createStreamHandlersCore(params: {
   logger: Logger;
@@ -93,44 +55,6 @@ export function createStreamHandlersCore(params: {
     }
   };
 
-  const shouldSendAck = (
-    transferInfo: {
-      fileSize: number;
-      bytesReceived: number;
-      startTime: number;
-      lastLoggedPercentage?: number;
-      lastAckTime?: number;
-    }
-  ): { send: boolean; reason: string; currentPercentage: number } => {
-    const currentPercentage = Math.round((transferInfo.bytesReceived / transferInfo.fileSize) * 100);
-    let send = false;
-    let reason = '';
-
-    if (transferInfo.fileSize < FILE_SIZE_THRESHOLDS.SMALL) {
-      send = currentPercentage > (transferInfo.lastLoggedPercentage || 0);
-      reason = '1% interval (small file)';
-    } else if (transferInfo.fileSize < FILE_SIZE_THRESHOLDS.MEDIUM) {
-      send = currentPercentage > (transferInfo.lastLoggedPercentage || 0) &&
-             currentPercentage % 2 === 0;
-      reason = '2% interval (medium file)';
-    } else {
-      const lastAckTime = transferInfo.lastAckTime || transferInfo.startTime;
-      const timeSinceLastAck = Date.now() - lastAckTime;
-      const sendByTime = timeSinceLastAck >= 500;
-      const sendByPercentage = currentPercentage > (transferInfo.lastLoggedPercentage || 0) &&
-                               currentPercentage % 5 === 0;
-
-      send = sendByTime || sendByPercentage;
-      reason = sendByTime ? '500ms interval (large file)' : '5% interval (large file)';
-    }
-
-    if (currentPercentage >= 100 && (transferInfo.lastLoggedPercentage || 0) < 100) {
-      send = true;
-      reason = '100% completion';
-    }
-
-    return { send, reason, currentPercentage };
-  };
 
   const handleFileError = (transferId: string, error: string) => {
     logger.error(`Stream transfer error for ${transferId}: ${error}`);
@@ -206,7 +130,7 @@ export function createStreamHandlersCore(params: {
         progressManager.updateBytesTransferred(data.length);
       }
       
-      const { send, reason, currentPercentage } = shouldSendAck(transferInfo);
+      const { send, reason, currentPercentage } = shouldSendAckUtil(transferInfo);
 
       if (send && currentPercentage > (transferInfo.lastLoggedPercentage || 0)) {
         const now = Date.now();
@@ -362,29 +286,3 @@ export function createStreamHandlersCore(params: {
   };
 }
 
-/**
- * Calculate adaptive timeout based on transfer rate and remaining bytes
- */
-function calculateAdaptiveTimeout(
-  fileSize: number,
-  bytesReceived: number,
-  startTime: number,
-  baseTimeoutMs: number = 30000
-): number {
-  const elapsedTime = Date.now() - startTime;
-  const bytesRemaining = fileSize - bytesReceived;
-  
-  if (bytesReceived === 0 || elapsedTime === 0) {
-    return baseTimeoutMs;
-  }
-  
-  const bytesPerSecond = bytesReceived / (elapsedTime / 1000);
-  const estimatedRemainingSeconds = bytesRemaining / bytesPerSecond;
-  
-  // Add 3x buffer and ensure minimum timeout
-  const adaptiveTimeoutMs = Math.max(baseTimeoutMs, estimatedRemainingSeconds * 1000 * 3);
-  
-  return Math.min(adaptiveTimeoutMs, baseTimeoutMs * 5); // Cap at 5x base timeout
-}
-
-export { MessageQueue, calculateAdaptiveTimeout };
