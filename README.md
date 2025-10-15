@@ -7,6 +7,7 @@ A full-stack web application with WebAssembly support and WebRTC signaling for p
 - **Frontend**: Next.js 14 + TypeScript application with Tailwind CSS (`frontend/`)
 - **WASM App**: Rust-based WebAssembly module for file processing (`wasm-app/`)
 - **Signaling Server**: .NET 9 WebSocket signaling server (`signaling-server/`)
+- **TURN Server**: Coturn TURN/STUN server for NAT traversal (`turn-server/`)
 
 ## Quick Start
 
@@ -56,10 +57,12 @@ make wasm
 
 - Frontend: http://localhost:3000
 - Signaling Server: http://localhost:8080
+- TURN Server: See [turn-server/README.md](turn-server/README.md) for deployment
 
 ## Features
 
-- **WebRTC File Sharing**: Direct peer-to-peer file transfer
+- **WebRTC File Sharing**: Direct peer-to-peer file transfer with NAT traversal
+- **TURN/STUN Server**: Production-ready relay server for connections behind firewalls
 - **WebAssembly Processing**: Fast file processing in the browser
 - **QR Code Generation**: Easy connection sharing
 - **Real-time Signaling**: WebSocket-based connection management
@@ -93,6 +96,36 @@ make wasm
 │   ├── Dockerfile
 │   ├── SignalingServer.sln
 │   └── fly.toml
+├── turn-server/           # TURN/STUN server (coturn)
+│   ├── deploy-turn-server.sh  # Master deployment script
+│   ├── install-coturn.sh      # Coturn installation
+│   ├── setup-tls.sh           # TLS/Let's Encrypt setup
+│   ├── .env.example           # Environment template
+│   └── README.md              # Deployment guide
 └── scripts/               # Setup scripts
     └── setup-dev.sh
 ```
+
+## TURN Server Deployment
+
+For production WebRTC connections that need to work behind NATs and firewalls, deploy the TURN server:
+
+```bash
+cd turn-server
+# Copy and configure environment
+cp .env.example .env
+# Edit .env with your SSH key, domain, secret, and email
+
+# Transfer to Digital Ocean droplet and deploy
+scp -r turn-server root@your_droplet_ip:~/
+ssh root@your_droplet_ip
+cd turn-server
+source load-env.sh
+sudo -E bash deploy-turn-server.sh
+```
+
+See [turn-server/README.md](turn-server/README.md) for detailed deployment instructions.
+
+## Repository
+
+GitHub: [https://github.com/SquareSpheres/squarespheres-platform.git](https://github.com/SquareSpheres/squarespheres-platform.git)
