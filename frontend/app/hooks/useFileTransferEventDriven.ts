@@ -42,6 +42,8 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
   onProgress?: (progress: FileTransferProgress) => void;
   onComplete?: (file: Blob | null, fileName: string | null) => void;
   onError?: (error: string) => void;
+  onFileInfoReceived?: (fileName: string, fileSize: number) => void;
+  onFileSelected?: (fileName: string, fileSize: number) => void;
   onConnectionRejected?: (reason: string, connectedClientId?: string) => void;
   onClientJoined?: (clientId: string) => void;
   onClientDisconnected?: (clientId: string) => void;
@@ -92,6 +94,9 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
 
   // Cleanup function ref for unmount safety
   const cleanupFnRef = useRef<(() => void) | null>(null);
+
+  // Message handler ref for signaling messages
+  const messageHandlerRef = useRef<((data: string | ArrayBuffer | Blob) => void) | null>(null);
 
   const {
     transferProgress,
@@ -144,6 +149,8 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
     role: config.role,
     debug: config.debug,
     onComplete: config.onComplete,
+    onFileInfoReceived: config.onFileInfoReceived,
+    onFileSelected: config.onFileSelected,
   };
 
   // Message handlers for receiving files
@@ -164,6 +171,9 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
     sendAckWithPeers,
   });
 
+  // Set the message handler ref
+  messageHandlerRef.current = handleMessage;
+
   // Peer refs to access from callbacks
   const hostPeerRef = useRef<any>(null);
   const clientPeerRef = useRef<any>(null);
@@ -182,6 +192,10 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
     ...config,
     onConnectionRejected: config.onConnectionRejected,
     onChannelMessage: handleMessage, // Handle incoming messages
+    onMessage: (data: string) => {
+      // Forward signaling messages to the message handler
+      messageHandlerRef.current?.(data);
+    },
   });
   clientPeerRef.current = clientPeer;
 
@@ -519,9 +533,38 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
     };
   }, [resetTransferState]);
 
+  // Send file info when file is selected (before transfer starts)
+  const sendFileInfo = useCallback((fileName: string, fileSize: number) => {
+    if (config.role !== 'host') {
+      throw new Error('sendFileInfo can only be called on host');
+    }
+
+    const activePeer = hostPeer;
+    
+    if (!activePeer) {
+      logger.error('No active peer connection for sending file info');
+      return;
+    }
+
+    const fileInfoMessage = JSON.stringify({
+      type: MESSAGE_TYPES.FILE_INFO,
+      fileName,
+      fileSize
+    });
+
+    // Send through signaling server (works immediately when client joins)
+    if (activePeer.connectedClient && activePeer.sendMessageToClient) {
+      activePeer.sendMessageToClient(activePeer.connectedClient, fileInfoMessage);
+      logger.log(`Sent file info via signaling: ${fileName} (${fileSize} bytes) to client ${activePeer.connectedClient}`);
+    } else {
+      logger.warn('No connected client or sendMessageToClient not available');
+    }
+  }, [config.role, hostPeer, logger]);
+
   return {
     // Transfer operations
     sendFile,
+    sendFileInfo,
     cancelTransfer,
     clearTransfer,
 

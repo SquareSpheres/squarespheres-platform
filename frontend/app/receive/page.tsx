@@ -20,6 +20,7 @@ function ReceiveComponent() {
   const [autoDownload, setAutoDownload] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(false)
+  const [fileInfo, setFileInfo] = useState<{fileName: string, fileSize: number} | null>(null)
 
   useEffect(() => {
     setIsMounted(true)
@@ -92,6 +93,14 @@ function ReceiveComponent() {
         }
       }
     },
+    onFileInfoReceived: (fileName, fileSize) => {
+      uiLogger.log(`File info received: ${fileName} (${formatFileSize(fileSize)})`);
+      setFileInfo({ fileName, fileSize });
+    },
+        onFileSelected: (fileName, fileSize) => {
+          uiLogger.log(`File selected by sender: ${fileName} (${formatFileSize(fileSize)})`);
+          setFileInfo({ fileName, fileSize });
+        },
     onProgress: (progress) => {
       const milestones = [10, 30, 50, 70, 90, 100];
       if (milestones.includes(progress.percentage)) {
@@ -295,6 +304,26 @@ function ReceiveComponent() {
               }`}>{clientFileTransfer.connectionState}</span>
             </div>
           </div>
+
+          {fileInfo && (
+            <div className="card p-6 rounded-xl bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+              <h3 className="text-lg font-semibold mb-4 text-blue-700 dark:text-blue-300">File Ready to Receive</h3>
+              
+              <div className="bg-white dark:bg-blue-900/20 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <FileIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm break-all text-foreground">{fileInfo.fileName}</p>
+                    <p className="text-xs text-muted-foreground">{formatFileSize(fileInfo.fileSize)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 text-sm text-blue-600 dark:text-blue-400">
+                ✓ File information received - waiting for sender to start transfer
+              </div>
+            </div>
+          )}
 
           {clientFileTransfer.transferProgress && (
             <div className="card p-6 rounded-xl">

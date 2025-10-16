@@ -15,6 +15,7 @@ export default function SendPage() {
   const dragCounter = useRef(0)
   const [isDragging, setIsDragging] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const selectedFileRef = useRef<File | null>(null)
   const [isCreatingHost, setIsCreatingHost] = useState(false)
   const [logs, setLogs] = useState<string[]>([])
   const [showLogs, setShowLogs] = useState(false)
@@ -26,6 +27,12 @@ export default function SendPage() {
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    selectedFileRef.current = selectedFile
+  }, [selectedFile])
+
 
   const uiLogger: Logger = useMemo(() => ({
     log: (...args) => {
@@ -102,12 +109,11 @@ export default function SendPage() {
       }
     },
     onClientJoined: (clientId: string) => {
-      console.log('[CALLBACK FIRED] onClientJoined:', clientId);
       uiLogger.log(`🔗 Signaling: Client ${clientId} joined`);
       setSignalingConnected(true);
+      // File info will be sent automatically when connectedClient is set (handled in useEffect)
     },
     onClientDisconnected: (clientId: string) => {
-      console.log('[CALLBACK FIRED] onClientDisconnected:', clientId);
       uiLogger.log(`🔌 Signaling: Client ${clientId} disconnected from server`);
       setSignalingConnected(false);
     },
@@ -151,11 +157,22 @@ export default function SendPage() {
           await hostFileTransfer.createOrEnsureConnection();
           uiLogger.log('Host created successfully');
         } catch (error) {
-          console.error('Failed to create host:', error);
           uiLogger.error(`Error creating host: ${error}`);
         } finally {
           setIsCreatingHost(false);
         }
+      }
+
+      // If a client is already connected, send file info immediately
+      if (hostFileTransfer.connectedClient && hostFileTransfer.sendFileInfo) {
+        setTimeout(() => {
+          try {
+            hostFileTransfer.sendFileInfo(file.name, file.size);
+            uiLogger.log(`File info sent to already connected client: ${file.name} (${formatFileSize(file.size)})`);
+          } catch (error) {
+            uiLogger.warn(`Failed to send file info to connected client: ${error}`);
+          }
+        }, 100);
       }
     }
   };
@@ -202,6 +219,20 @@ export default function SendPage() {
       handleFileSelect(e.target.files)
     }
   }
+
+  // Send file info when a client connects and we have a file
+  useEffect(() => {
+    if (hostFileTransfer.connectedClient && selectedFileRef.current && hostFileTransfer.sendFileInfo) {
+      setTimeout(() => {
+        try {
+          hostFileTransfer.sendFileInfo(selectedFileRef.current!.name, selectedFileRef.current!.size);
+          uiLogger.log(`File info sent to connected client: ${selectedFileRef.current!.name} (${formatFileSize(selectedFileRef.current!.size)})`);
+        } catch (error) {
+          uiLogger.warn(`Failed to send file info to connected client: ${error}`);
+        }
+      }, 100);
+    }
+  }, [hostFileTransfer.connectedClient, hostFileTransfer.sendFileInfo])
   
   const sendFile = async () => {
     if (!selectedFile) return;

@@ -69,6 +69,11 @@ export function createStreamHandlersCore(params: {
       console.log('[FileTransfer] handleFileStart called with:', { fileName, fileSize, transferId });
       logger.log('Starting stream-based file transfer:', { fileName, fileSize, transferId });
       
+      // Notify UI about file info received
+      if (config.onFileInfoReceived) {
+        config.onFileInfoReceived(fileName, fileSize);
+      }
+      
       try {
         progressManager.startTransfer(fileName, fileSize);
       } catch (error) {

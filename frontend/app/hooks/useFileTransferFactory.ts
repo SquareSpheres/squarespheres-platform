@@ -18,6 +18,8 @@ export interface FileTransferFactoryConfig extends WebRTCPeerConfig {
   onProgress?: (progress: FileTransferProgress) => void;
   onComplete?: (file: Blob | null, fileName: string | null) => void;
   onError?: (error: string) => void;
+  onFileInfoReceived?: (fileName: string, fileSize: number) => void;
+  onFileSelected?: (fileName: string, fileSize: number) => void;
   onConnectionRejected?: (reason: string, connectedClientId?: string) => void;
   onClientJoined?: (clientId: string) => void;
   onClientDisconnected?: (clientId: string) => void;

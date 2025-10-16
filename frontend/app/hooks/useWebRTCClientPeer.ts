@@ -32,7 +32,7 @@ export interface WebRTCClientPeerApi {
   peerId?: string;
 }
 
-export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerApi {
+export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (data: string) => void }): WebRTCClientPeerApi {
   const debug = config.debug ?? false;
   const debugLogger = useMemo(() => createClientDebugLogger(debug), [debug]);
 
@@ -186,7 +186,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
   const handleSignalMessage = useCallback(async (message: SignalingMessage) => {
     if (!message.payload) return;
 
-    let parsed: WebRTCSignalPayload | undefined;
+    let parsed: any;
     try {
       parsed = JSON.parse(message.payload);
     } catch (error) {
@@ -194,7 +194,20 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
       return;
     }
 
-    if (!parsed || typeof parsed !== 'object' || !('kind' in parsed)) return;
+    if (!parsed || typeof parsed !== 'object') return;
+
+          // Handle non-WebRTC messages (like FILE_INFO)
+          if ('type' in parsed && !('kind' in parsed)) {
+            // This is a file transfer message, not a WebRTC signal
+            // Forward it to the message handler if available
+            if (config.onMessage) {
+              config.onMessage(message.payload);
+            }
+            return;
+          }
+
+    // Handle WebRTC signaling messages
+    if (!('kind' in parsed)) return;
 
     try {
       if (parsed.kind === 'webrtc-offer') {

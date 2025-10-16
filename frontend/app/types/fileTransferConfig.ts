@@ -15,4 +15,16 @@ export interface FileTransferConfig {
    * Provides the resulting file blob and filename.
    */
   onComplete?: (file: Blob | null, fileName: string | null) => void;
+
+  /**
+   * Optional callback invoked when file metadata is received (before transfer starts).
+   * Provides the filename and file size.
+   */
+  onFileInfoReceived?: (fileName: string, fileSize: number) => void;
+
+  /**
+   * Optional callback invoked when file is selected by sender (before transfer starts).
+   * Provides the filename and file size.
+   */
+  onFileSelected?: (fileName: string, fileSize: number) => void;
 }

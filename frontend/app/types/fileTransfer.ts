@@ -31,6 +31,7 @@ export interface WebRTCPeer {
 export interface WebRTCHostPeer extends WebRTCPeer {
   connectedClient?: string;
   getDataChannel: () => RTCDataChannel | null;
+  sendMessageToClient: (clientId: string, payload: string) => void;
 }
 
 /**
@@ -70,6 +71,7 @@ export interface FileTransferAckProgress {
 export interface FileTransferApi {
   // Host methods
   sendFile: (file: File) => Promise<void>;
+  sendFileInfo: (fileName: string, fileSize: number) => void;
   cancelTransfer: (transferId?: string) => void;
 
   // Client methods
@@ -86,6 +88,8 @@ export interface FileTransferApi {
   onProgress?: (progress: FileTransferProgress) => void;
   onComplete?: (file: Blob | null, fileName: string | null) => void;
   onError?: (error: string) => void;
+  onFileInfoReceived?: (fileName: string, fileSize: number) => void;
+  onFileSelected?: (fileName: string, fileSize: number) => void;
 
   // WebRTC connection methods
   connectionState: RTCPeerConnectionState;

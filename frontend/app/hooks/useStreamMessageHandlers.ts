@@ -87,6 +87,12 @@ export function useStreamMessageHandlers({
       try {
         const message = JSON.parse(data);
         switch (message.type) {
+    case MESSAGE_TYPES.FILE_INFO:
+      // Handle file info received (before transfer starts)
+      if (config.onFileSelected) {
+        config.onFileSelected(message.fileName, message.fileSize);
+      }
+      break;
           case MESSAGE_TYPES.FILE_START:
             await handleFileStart(message.transferId, message.fileName, message.fileSize);
             break;
