@@ -1,4 +1,3 @@
-// src/constants/messageTypes.ts
 
 /**
  * Defines the numeric message type codes for WebRTC file transfers.

@@ -4,12 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSignalClient, SignalingMessage } from './useSignalingClient';
 import { WebRTCPeerConfig, WebRTCSignalPayload, ParsedSignalingMessage, FileTransferMessagePayload } from './webrtcTypes';
 
-// Type guard to check if a parsed message is a file transfer message
 function isFileTransferMessage(parsed: ParsedSignalingMessage): parsed is FileTransferMessagePayload {
   return 'type' in parsed && !('kind' in parsed);
 }
 
-// Type guard to check if a parsed message is a WebRTC signal
 function isWebRTCSignal(parsed: ParsedSignalingMessage): parsed is WebRTCSignalPayload {
   return 'kind' in parsed;
 }
@@ -46,14 +44,12 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (da
   const debug = config.debug ?? false;
   const debugLogger = useMemo(() => createClientDebugLogger(debug), [debug]);
 
-  // SSR-safe browser detection
   const [browserInfo, setBrowserInfo] = useState(() => safeDetectBrowser());
 
   useEffect(() => {
     setBrowserInfo(safeDetectBrowser());
   }, []);
 
-  // Use dynamic TURN servers with fallback to default STUN servers
   const { iceServers, usingTurnServers, isLoadingTurnServers } = useWebRTCConfig({
     includeTurnServers: true,
     fallbackIceServers: config.iceServers ?? DEFAULT_ICE_SERVERS
@@ -143,7 +139,6 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (da
               setDataChannelState(undefined);
               iceCandidateManager.clear();
 
-              // Retry by calling ensurePeerConnection directly
               ensurePeerConnection().catch(error => {
                 debugLogger.logRetryFailed(error);
                 watchdog.endRetry();
@@ -173,7 +168,6 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (da
 
     attachEventHandlers(pc, eventHandlers, debug);
     
-    // Set up data channel handling for client
     pc.ondatachannel = (evt) => {
       const dc = evt.channel;
       dcRef.current = dc;
@@ -206,17 +200,13 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (da
 
     if (!parsed || typeof parsed !== 'object') return;
 
-          // Handle non-WebRTC messages (like FILE_INFO)
           if (isFileTransferMessage(parsed)) {
-            // This is a file transfer message, not a WebRTC signal
-            // Forward it to the message handler if available
             if (config.onMessage) {
               config.onMessage(message.payload);
             }
             return;
           }
 
-    // Handle WebRTC signaling messages
     if (!isWebRTCSignal(parsed)) return;
 
     try {
@@ -240,12 +230,10 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (da
         debugLogger.logReceivedAnswer();
         await pc.setRemoteDescription(parsed.sdp);
 
-        // Add any pending ICE candidates
         await iceCandidateManagerRef.current?.addPendingCandidates(pc);
 
         debugLogger.logIceDiagnostics(pc);
 
-        // Set a timeout to detect if ICE connection gets stuck
         if (pc.iceConnectionState === 'new' || pc.iceConnectionState === 'checking') {
           debugLogger.logIceConnectionTimeout();
           setTimeout(() => {
@@ -268,7 +256,6 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (da
         debugLogger.logConnectionRejected(parsed.reason);
         config.onConnectionRejected?.(parsed.reason, parsed.connectedClientId);
         
-        // Close the peer connection since we were rejected
         const pc = pcRef.current;
         if (pc) {
           pc.close();
@@ -310,7 +297,6 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (da
         const offer = await pc.createOffer({});
         await pc.setLocalDescription(offer);
         
-        // Wait for ICE gathering to complete before sending offer
         if (pc.iceGatheringState === 'gathering') {
           await new Promise<void>((resolve) => {
             const timeout = setTimeout(() => {
@@ -332,7 +318,6 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (da
           });
         }
         
-        // Small delay for Chrome compatibility
         await new Promise(resolve => setTimeout(resolve, 100));
         
         debugLogger.logSendingOffer();

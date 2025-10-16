@@ -55,12 +55,10 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
   const [receivedFileName, setReceivedFileName] = useState<string | null>(null);
   const [ackProgress, setAckProgress] = useState<FileTransferAckProgress | null>(null);
 
-  // Optimized chunk size for event-driven transfers
   const CHUNK_SIZE = isMobileDevice() 
     ? 32 * 1024  // 32KB for mobile (conservative)
     : 256 * 1024; // 256KB for desktop (aggressive, event-driven can handle it)
 
-  // Refs for message handling (receiver side)
   const transferBuffersRef = useRef<Map<string, Uint8Array>>(new Map());
   const transferInfoRef = useRef<Map<string, {
     fileName: string;
@@ -72,7 +70,6 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
   }>>(new Map());
   const transferTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
-  // Track active transfer state for event-driven flow
   const transferStateRef = useRef<{
     file: File | null;
     transferId: string | null;
@@ -89,13 +86,10 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
     isActive: false,
   });
 
-  // Prevent concurrent sendBatch execution
   const isSendingRef = useRef(false);
 
-  // Cleanup function ref for unmount safety
   const cleanupFnRef = useRef<(() => void) | null>(null);
 
-  // Message handler ref for signaling messages
   const messageHandlerRef = useRef<((data: string | ArrayBuffer | Blob) => void) | null>(null);
 
   const {
@@ -106,7 +100,6 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
     onProgress: config.onProgress,
     onComplete: config.onComplete ? (file?: Blob, fileName?: string) => {
       config.onComplete?.(file || null, fileName || null);
-      // Set received file state for client
       if (config.role === 'client' && file && fileName) {
         setReceivedFile(file);
         setReceivedFileName(fileName);
@@ -115,7 +108,6 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
     onError: config.onError,
   });
 
-  // Reset timeout helper for transfer timeout management
   const resetTimeout = useCallback((transferId: string, ms: number, callback: () => void) => {
     const existing = transferTimeoutsRef.current.get(transferId);
     if (existing) clearTimeout(existing);
@@ -123,7 +115,6 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
     transferTimeoutsRef.current.set(transferId, timeout);
   }, []);
 
-  // sendAck callback for receiver to send ACKs back to sender
   const sendAckWithPeersRef = useRef<((transferId: string, progress: number, messageType?: number) => void) | null>(null);
   
   const sendAckWithPeers = useCallback((transferId: string, progress: number, messageType: number = MESSAGE_TYPES.FILE_ACK) => {
@@ -133,7 +124,6 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
       ...(messageType === MESSAGE_TYPES.FILE_ACK && { progress })
     });
 
-    // Client sends ACK to host, host doesn't need to send ACKs
     if (config.role === 'client') {
       clientPeerRef.current?.send(ackMessage);
     }
@@ -144,7 +134,6 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
 
   sendAckWithPeersRef.current = sendAckWithPeers;
 
-  // Create config object for stream handlers
   const fileTransferConfig: FileTransferConfig = {
     role: config.role,
     debug: config.debug,
@@ -153,7 +142,6 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
     onFileSelected: config.onFileSelected,
   };
 
-  // Message handlers for receiving files
   const {
     handleMessage,
     clearMessageQueue,
@@ -171,14 +159,11 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
     sendAckWithPeers,
   });
 
-  // Set the message handler ref
   messageHandlerRef.current = handleMessage;
 
-  // Peer refs to access from callbacks
   const hostPeerRef = useRef<any>(null);
   const clientPeerRef = useRef<any>(null);
 
-  // Call both hooks to satisfy React rules (only one will be used)
   const hostPeer = useWebRTCHostPeer({
     ...config,
     onClientJoined: config.onClientJoined,
@@ -193,7 +178,6 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
     onConnectionRejected: config.onConnectionRejected,
     onChannelMessage: handleMessage, // Handle incoming messages
     onMessage: (data: string) => {
-      // Forward signaling messages to the message handler
       messageHandlerRef.current?.(data);
     },
   });
@@ -205,7 +189,6 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
    * Get adaptive threshold based on buffer size and connection characteristics
    */
   const getAdaptiveThreshold = useCallback((bufferSize: number) => {
-    // Start conservative (30% of buffer), cap at 64KB to avoid excessive triggering
     const baseThreshold = Math.min(bufferSize * 0.3, 65536);
     return baseThreshold;
   }, []);

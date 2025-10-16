@@ -1,4 +1,3 @@
-// src/types/fileTransferConfig.ts
 
 /**
  * Configuration options for WebRTC file transfer hooks.

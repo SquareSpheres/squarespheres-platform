@@ -127,7 +127,6 @@ export default function HealthTab() {
       // we'll need to create an API endpoint for health status
       // For now, we'll simulate the health check with static data
       
-      // TODO: Create /api/health endpoint that performs the same checks as status/page.tsx
       
       // Simulated health data for demonstration
       await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate API call

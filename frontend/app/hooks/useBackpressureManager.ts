@@ -1,4 +1,3 @@
-// src/hooks/useBackpressureManager.ts
 
 import { useCallback, useRef } from 'react';
 import { isMobileDevice } from './fileTransferUtils';

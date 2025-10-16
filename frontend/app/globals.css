@@ -4,32 +4,31 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Updated to a more colorful but relaxing palette with sage green, warm beige, and soft blues */
-  --background: oklch(0.98 0.005 120); /* Soft off-white with hint of green */
-  --foreground: oklch(0.25 0.02 200); /* Deep blue-gray text */
-  --card: oklch(0.96 0.01 80); /* Warm light beige card background */
-  --card-foreground: oklch(0.3 0.02 200); /* Deep blue-gray for card text */
-  --popover: oklch(0.98 0.005 120); /* Soft off-white popover */
-  --popover-foreground: oklch(0.3 0.02 200); /* Deep blue-gray popover text */
-  --primary: oklch(0.55 0.08 150); /* Sage green primary */
-  --primary-foreground: oklch(0.98 0.005 120); /* Light text on primary */
-  --secondary: oklch(0.75 0.04 60); /* Warm sand secondary */
-  --secondary-foreground: oklch(0.25 0.02 200); /* Dark text on secondary */
-  --muted: oklch(0.88 0.01 80); /* Soft beige for muted elements */
-  --muted-foreground: oklch(0.5 0.02 200); /* Medium blue-gray text */
-  --accent: oklch(0.7 0.06 220); /* Soft blue accent */
-  --accent-foreground: oklch(0.98 0.005 120); /* Light text on accent */
+  --background: oklch(0.98 0.005 120);
+  --foreground: oklch(0.25 0.02 200);
+  --card: oklch(0.96 0.01 80);
+  --card-foreground: oklch(0.3 0.02 200);
+  --popover: oklch(0.98 0.005 120);
+  --popover-foreground: oklch(0.3 0.02 200);
+  --primary: oklch(0.55 0.08 150);
+  --primary-foreground: oklch(0.98 0.005 120);
+  --secondary: oklch(0.75 0.04 60);
+  --secondary-foreground: oklch(0.25 0.02 200);
+  --muted: oklch(0.88 0.01 80);
+  --muted-foreground: oklch(0.5 0.02 200);
+  --accent: oklch(0.7 0.06 220);
+  --accent-foreground: oklch(0.98 0.005 120);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.85 0.01 80); /* Soft beige borders */
-  --input: oklch(0.98 0.005 120); /* Light input background */
-  --ring: oklch(0.55 0.08 150 / 0.3); /* Sage green focus ring */
+  --border: oklch(0.85 0.01 80);
+  --input: oklch(0.98 0.005 120);
+  --ring: oklch(0.55 0.08 150 / 0.3);
   --chart-1: oklch(0.55 0.08 150);
   --chart-2: oklch(0.7 0.06 220);
   --chart-3: oklch(0.75 0.04 60);
   --chart-4: oklch(0.88 0.01 80);
   --chart-5: oklch(0.96 0.01 80);
-  --radius: 1rem; /* More rounded for modern feel */
+  --radius: 1rem;
   --sidebar: oklch(0.96 0.01 80);
   --sidebar-foreground: oklch(0.3 0.02 200);
   --sidebar-primary: oklch(0.55 0.08 150);
@@ -41,35 +40,34 @@
 }
 
 .dark {
-  /* Dark mode with improved contrast and readability */
-  --background: oklch(0.16 0.01 200); /* slightly lighter deep blue-gray */
-  --foreground: oklch(0.95 0.01 120); /* brighter sage-tinted text */
+  --background: oklch(0.16 0.01 200);
+  --foreground: oklch(0.95 0.01 120);
 
-  --card: oklch(0.22 0.015 180); /* distinguishable from background */
-  --card-foreground: oklch(0.95 0.01 120); /* light text on cards */
+  --card: oklch(0.22 0.015 180);
+  --card-foreground: oklch(0.95 0.01 120);
 
-  --popover: oklch(0.16 0.01 200); /* popover same as background for depth */
+  --popover: oklch(0.16 0.01 200);
   --popover-foreground: oklch(0.95 0.01 120);
 
-  --primary: oklch(0.65 0.1 150); /* brighter sage green for buttons/links */
-  --primary-foreground: oklch(0.16 0.01 200); /* dark text on primary */
+  --primary: oklch(0.65 0.1 150);
+  --primary-foreground: oklch(0.16 0.01 200);
 
-  --secondary: oklch(0.3 0.03 60); /* slightly brighter warm secondary */
+  --secondary: oklch(0.3 0.03 60);
   --secondary-foreground: oklch(0.95 0.01 120);
 
-  --muted: oklch(0.28 0.015 180); /* more visible muted */
-  --muted-foreground: oklch(0.75 0.02 200); /* medium-light text */
+  --muted: oklch(0.28 0.015 180);
+  --muted-foreground: oklch(0.75 0.02 200);
 
-  --accent: oklch(0.72 0.08 220); /* brighter soft blue accent */
+  --accent: oklch(0.72 0.08 220);
   --accent-foreground: oklch(0.16 0.01 200);
 
   --destructive: oklch(0.396 0.141 25.723);
   --destructive-foreground: oklch(0.95 0 0);
 
-  --border: oklch(0.25 0.015 180); /* visible dividers */
-  --input: oklch(0.22 0.015 180); /* input background distinct from card */
+  --border: oklch(0.25 0.015 180);
+  --input: oklch(0.22 0.015 180);
 
-  --ring: oklch(0.65 0.1 150 / 0.5); /* slightly stronger focus ring */
+  --ring: oklch(0.65 0.1 150 / 0.5);
 
   --chart-1: oklch(0.65 0.1 150);
   --chart-2: oklch(0.72 0.08 220);
@@ -225,7 +223,6 @@
   }
 }
 
-/* Optimized upward-drift animation for better performance */
 @keyframes upward-drift {
   0% {
     transform: translate3d(0, 0, 0);

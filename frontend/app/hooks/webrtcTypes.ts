@@ -27,7 +27,6 @@ export interface WebRTCRejectionPayload {
 
 export type WebRTCSignalPayload = WebRTCOfferPayload | WebRTCAnswerPayload | WebRTCIcePayload | WebRTCRejectionPayload;
 
-// File transfer message payload (sent via signaling server)
 export interface FileTransferMessagePayload {
   type: number;
   fileName?: string;
@@ -38,22 +37,16 @@ export interface FileTransferMessagePayload {
   error?: string;
 }
 
-// Union type for all possible parsed message payloads
 export type ParsedSignalingMessage = WebRTCSignalPayload | FileTransferMessagePayload;
 
 export interface WebRTCPeerConfig {
   role: 'host' | 'client';
-  // For client role: hostId to join; for host: optional pre-registered id
   hostId?: string;
-  // STUN/TURN servers
   iceServers?: RTCIceServer[];
-  // Timeout configuration
   connectionTimeoutMs?: number; // Default: 30000ms (30 seconds)
   iceGatheringTimeoutMs?: number; // Default: 15000ms (15 seconds)
-  // Debug logging
   debug?: boolean; // Default: false
   logger?: Logger; // Optional custom logger
-  // Optional callbacks
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
   onIceConnectionStateChange?: (state: RTCIceConnectionState) => void;
   onIceCandidate?: (candidate: RTCIceCandidateInit | null, connectionType: string) => void;
@@ -64,7 +57,6 @@ export interface WebRTCPeerConfig {
   onConnectionFailed?: (error: Error) => void;
   onDataChannelReady?: (maxMessageSize: number) => void;
   onConnectionRejected?: (reason: string, connectedClientId?: string) => void;
-  // Signaling callbacks (host only)
   onClientJoined?: (clientId: string) => void;
   onClientDisconnected?: (clientId: string) => void;
 }

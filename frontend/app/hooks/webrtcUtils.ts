@@ -283,19 +283,13 @@ export function createEnhancedIceServers(
 ): RTCIceServer[] {
   const baseServers = customServers || DEFAULT_ICE_SERVERS;
 
-  // TODO: Add TURN servers for production use when needed
-  // TURN servers are required for connections in restrictive networks (corporate firewalls, etc.)
-  // Consider using commercial TURN services like Twilio, Xirsys, or self-hosted CoTURN
   if (!isLocalhost()) {
-    // Example: baseServers.push({ urls: 'turn:your-turn-server.com:3478', username: 'user', credential: 'pass' });
+    // TURN servers can be added here for production use
   }
 
   return baseServers;
 }
 
-// TODO: Add TURN server validation function when TURN servers are needed
-// This function would test TURN server connectivity and relay candidate generation
-// For now, we're using STUN-only configuration for simplicity
 
 export interface SignalingHandlers {
   onOffer: (

@@ -1,4 +1,3 @@
-// src/hooks/useStreamMessageHandlers.ts
 
 import { useCallback, useMemo } from 'react';
 import { MESSAGE_TYPES } from '../constants/messageTypes';

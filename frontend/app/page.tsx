@@ -28,7 +28,6 @@ export default function SendPage() {
     setIsMounted(true)
   }, [])
 
-  // Keep ref in sync with state
   useEffect(() => {
     selectedFileRef.current = selectedFile
   }, [selectedFile])
@@ -111,7 +110,6 @@ export default function SendPage() {
     onClientJoined: (clientId: string) => {
       uiLogger.log(`🔗 Signaling: Client ${clientId} joined`);
       setSignalingConnected(true);
-      // File info will be sent automatically when connectedClient is set (handled in useEffect)
     },
     onClientDisconnected: (clientId: string) => {
       uiLogger.log(`🔌 Signaling: Client ${clientId} disconnected from server`);
@@ -163,7 +161,6 @@ export default function SendPage() {
         }
       }
 
-      // If a client is already connected, send file info immediately
       if (hostFileTransfer.connectedClient && hostFileTransfer.sendFileInfo) {
         setTimeout(() => {
           try {
@@ -220,7 +217,6 @@ export default function SendPage() {
     }
   }
 
-  // Send file info when a client connects and we have a file
   useEffect(() => {
     if (hostFileTransfer.connectedClient && selectedFileRef.current && hostFileTransfer.sendFileInfo) {
       setTimeout(() => {

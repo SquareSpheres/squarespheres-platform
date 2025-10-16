@@ -1,6 +1,3 @@
-// src/types/fileTransfer.ts
-
-// WebRTC types are available globally in the browser environment
 
 /**
  * Represents an individual client connection managed by a host.

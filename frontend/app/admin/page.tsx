@@ -89,7 +89,6 @@ function checkAdminAccess(user: any): boolean {
   const isDevelopmentAdmin = process.env.NODE_ENV === 'development' && 
     user?.emailAddresses?.[0]?.emailAddress === 'admin@example.com'
   
-  // TODO: Remove development admin check in production
   // Currently allowing all authenticated users for skeleton implementation
   // Change this to: return isAdmin
   console.log('Admin access check:', { userRole, isAdmin, isDevelopmentAdmin })
@@ -169,7 +168,6 @@ export default function AdminPage() {
   }
 
   // Future admin access check - skeleton implementation
-  // Note: Basic authentication is handled by middleware
   if (!checkAdminAccess(user)) {
     return <AdminAccessSkeleton />
   }
