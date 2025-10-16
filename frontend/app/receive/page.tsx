@@ -247,25 +247,25 @@ function ReceiveComponent() {
         </div>
         
         {connectionError && (
-          <div className="card p-4 sm:p-6 rounded-xl bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
+          <div className="card p-4 sm:p-6 rounded-xl status-error">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0">
-                <svg className="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-6 w-6 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <div className="flex-1">
-                <h3 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-1">Connection Failed</h3>
-                <p className="text-sm text-red-700 dark:text-red-400">{connectionError}</p>
+                <h3 className="text-sm font-semibold text-destructive mb-1">Connection Failed</h3>
+                <p className="text-sm text-destructive">{connectionError}</p>
                 {connectionError.includes('capacity') && (
-                  <p className="text-xs text-red-600 dark:text-red-500 mt-2">
+                  <p className="text-xs text-destructive/80 mt-2">
                     The host is already connected to another client. Please wait for them to disconnect or try a different code.
                   </p>
                 )}
               </div>
               <button
                 onClick={() => setConnectionError(null)}
-                className="flex-shrink-0 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                className="flex-shrink-0 text-destructive hover:text-destructive/80"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -298,29 +298,30 @@ function ReceiveComponent() {
 
             <div className="text-sm text-muted-foreground">
               Connection State: <span className={`font-medium ${
-                clientFileTransfer.connectionState === 'connected' ? 'text-green-600' :
-                clientFileTransfer.connectionState === 'connecting' ? 'text-yellow-600' :
+                clientFileTransfer.connectionState === 'connected' ? 'text-primary' :
+                clientFileTransfer.connectionState === 'connecting' ? 'text-accent' :
                 'text-muted-foreground'
               }`}>{clientFileTransfer.connectionState}</span>
             </div>
           </div>
 
           {fileInfo && (
-            <div className="card p-6 rounded-xl bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
-              <h3 className="text-lg font-semibold mb-4 text-blue-700 dark:text-blue-300">File Ready to Receive</h3>
-              
-              <div className="bg-white dark:bg-blue-900/20 rounded-lg p-4">
-                <div className="flex items-center gap-3">
-                  <FileIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm break-all text-foreground">{fileInfo.fileName}</p>
-                    <p className="text-xs text-muted-foreground">{formatFileSize(fileInfo.fileSize)}</p>
+            <div className="card p-6 rounded-xl border-l-4 border-l-primary">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+                  <FileIcon className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-semibold text-foreground mb-2">File Ready to Receive</h3>
+                  <div className="bg-muted/50 rounded-lg p-3 mb-3">
+                    <p className="font-medium text-sm break-all text-foreground mb-1">{fileInfo.fileName}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{formatFileSize(fileInfo.fileSize)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                    <span>Waiting for sender to start transfer</span>
                   </div>
                 </div>
-              </div>
-
-              <div className="mt-4 text-sm text-blue-600 dark:text-blue-400">
-                ✓ File information received - waiting for sender to start transfer
               </div>
             </div>
           )}
@@ -370,9 +371,9 @@ function ReceiveComponent() {
                   <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
                     <div 
                       className={`h-3 rounded-full transition-[width] duration-300 ${
-                        clientFileTransfer.transferProgress.status === 'completed' ? 'bg-green-500' :
+                        clientFileTransfer.transferProgress.status === 'completed' ? 'bg-primary' :
                         clientFileTransfer.transferProgress.status === 'error' ? 'bg-destructive' :
-                        'bg-primary'
+                        'bg-accent'
                       }`}
                       style={{ width: `${Math.min(100, clientFileTransfer.transferProgress.percentage)}%` }}
                     />
@@ -380,9 +381,9 @@ function ReceiveComponent() {
                 </div>
 
                 <div className={`text-sm ${
-                  clientFileTransfer.transferProgress.status === 'completed' ? 'text-green-600' :
-                  clientFileTransfer.transferProgress.status === 'error' ? 'text-red-600' :
-                  'text-blue-600'
+                  clientFileTransfer.transferProgress.status === 'completed' ? 'text-primary' :
+                  clientFileTransfer.transferProgress.status === 'error' ? 'text-destructive' :
+                  'text-accent'
                 }`}>
                   Status: {clientFileTransfer.transferProgress.status}
                 </div>
@@ -391,12 +392,12 @@ function ReceiveComponent() {
           )}
 
           {clientFileTransfer.receivedFile && clientFileTransfer.receivedFileName && (
-            <div className="card p-6 rounded-xl bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
-              <h3 className="text-lg font-semibold mb-4 text-green-700 dark:text-green-300">File Received!</h3>
+            <div className="card p-6 rounded-xl status-success">
+              <h3 className="text-lg font-semibold mb-4 text-primary">File Received!</h3>
               
-              <div className="bg-white dark:bg-green-900/20 rounded-lg p-4 mb-4">
+              <div className="bg-card rounded-lg p-4 mb-4">
                 <div className="flex items-center gap-3">
-                  <FileIcon className="h-8 w-8 text-green-600 dark:text-green-400" />
+                  <FileIcon className="h-8 w-8 text-primary" />
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm break-all text-foreground">{clientFileTransfer.receivedFileName}</p>
                     <p className="text-xs text-muted-foreground">{formatFileSize(clientFileTransfer.receivedFile.size)}</p>
@@ -407,7 +408,7 @@ function ReceiveComponent() {
               {!autoDownload && (
                 <button
                   onClick={handleDownload}
-                  className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  className="w-full px-4 py-3 btn btn-primary rounded-lg flex items-center justify-center gap-2"
                 >
                   <Download className="h-5 w-5" />
                   Download File
@@ -415,7 +416,7 @@ function ReceiveComponent() {
               )}
 
               {autoDownload && (
-                <div className="text-sm text-green-600 dark:text-green-400 text-center">
+                <div className="text-sm text-primary text-center">
                   ✓ File downloaded automatically
                 </div>
               )}
@@ -428,9 +429,9 @@ function ReceiveComponent() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Connection Type:</span>
                   <span className={`font-medium ${
-                    connectionStats.connectionType === 'DIRECT' ? 'text-green-600' :
-                    connectionStats.connectionType === 'TURN' ? 'text-orange-600' :
-                    'text-blue-600'
+                    connectionStats.connectionType === 'DIRECT' ? 'text-primary' :
+                    connectionStats.connectionType === 'TURN' ? 'text-accent' :
+                    'text-secondary'
                   }`}>{connectionStats.connectionType}</span>
                 </div>
                 {connectionStats.rtt && (
@@ -441,7 +442,7 @@ function ReceiveComponent() {
                 )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">TURN Servers:</span>
-                  <span className={`font-medium ${usingTurnServers ? 'text-green-600' : 'text-yellow-600'}`}>
+                  <span className={`font-medium ${usingTurnServers ? 'text-primary' : 'text-accent'}`}>
                     {isLoadingTurnServers ? 'Loading...' : usingTurnServers ? 'Enabled' : 'STUN only'}
                   </span>
                 </div>

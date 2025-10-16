@@ -303,7 +303,7 @@ export default function SendPage() {
           <div className="card p-6 rounded-xl">
             <div className="mb-4">
               <div className="flex items-center gap-3 mb-3">
-                <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
+                <CheckCircle className="h-8 w-8 text-primary" />
                 <div>
                   <h2 className="text-xl font-bold text-card-foreground">File Selected</h2>
                   <p className="text-sm text-muted-foreground">
@@ -320,8 +320,8 @@ export default function SendPage() {
                   <span className="text-muted-foreground">Signaling:</span>
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
                     signalingConnected
-                      ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300'
-                      : 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300'
+                      ? 'bg-primary/10 text-primary'
+                      : 'bg-destructive/10 text-destructive'
                   }`}>
                     {signalingConnected ? 'Connected' : 'Disconnected'}
                   </span>
@@ -332,12 +332,12 @@ export default function SendPage() {
                   <span className="text-muted-foreground">WebRTC:</span>
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
                     hostFileTransfer.connectionState === 'connected'
-                      ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300'
+                      ? 'bg-primary/10 text-primary'
                       : hostFileTransfer.connectionState === 'connecting'
-                      ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300'
+                      ? 'bg-accent/10 text-accent'
                       : hostFileTransfer.connectionState === 'failed'
-                      ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300'
-                      : 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-300'
+                      ? 'bg-destructive/10 text-destructive'
+                      : 'bg-muted text-muted-foreground'
                   }`}>
                     {hostFileTransfer.connectionState}
                   </span>
@@ -379,7 +379,7 @@ export default function SendPage() {
                       title="Copy code"
                     >
                       {codeCopied ? (
-                        <Check className="h-5 w-5 text-green-600" />
+                        <Check className="h-5 w-5 text-primary" />
                       ) : (
                         <Copy className="h-5 w-5" />
                       )}
@@ -447,9 +447,9 @@ export default function SendPage() {
                   <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
                     <div 
                       className={`h-3 rounded-full transition-[width] duration-300 ${
-                        hostFileTransfer.transferProgress.status === 'completed' ? 'bg-green-500' :
+                        hostFileTransfer.transferProgress.status === 'completed' ? 'bg-primary' :
                         hostFileTransfer.transferProgress.status === 'error' ? 'bg-destructive' :
-                        'bg-primary'
+                        'bg-accent'
                       }`}
                       style={{ width: `${Math.min(100, hostFileTransfer.transferProgress.percentage)}%` }}
                     />
@@ -461,22 +461,22 @@ export default function SendPage() {
                   <div className="pt-4 border-t border-border">
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Receiver Confirmation</span>
-                        <span className="text-sm font-mono text-blue-600 dark:text-blue-400">
+                        <span className="text-sm font-medium text-accent">Receiver Confirmation</span>
+                        <span className="text-sm font-mono text-accent">
                           {hostFileTransfer.ackProgress.percentage}%
                         </span>
                       </div>
-                      <div className="w-full bg-blue-100 dark:bg-blue-900/30 rounded-full h-3 overflow-hidden">
+                      <div className="w-full bg-accent/10 rounded-full h-3 overflow-hidden">
                         <div 
                           className={`h-3 rounded-full transition-[width] duration-300 ${
-                            hostFileTransfer.ackProgress.status === 'completed' ? 'bg-green-500' :
-                            hostFileTransfer.ackProgress.status === 'waiting' ? 'bg-yellow-500' :
-                            'bg-blue-500'
+                            hostFileTransfer.ackProgress.status === 'completed' ? 'bg-primary' :
+                            hostFileTransfer.ackProgress.status === 'waiting' ? 'bg-accent' :
+                            'bg-secondary'
                           }`}
                           style={{ width: `${Math.min(100, hostFileTransfer.ackProgress.percentage)}%` }}
                         />
                       </div>
-                      <div className="text-xs text-blue-600 dark:text-blue-400">
+                      <div className="text-xs text-accent">
                         Confirmed: {formatFileSize(hostFileTransfer.ackProgress.bytesAcknowledged)} / {formatFileSize(hostFileTransfer.ackProgress.fileSize)}
                       </div>
                     </div>
@@ -485,9 +485,9 @@ export default function SendPage() {
 
                 {/* Status */}
                 <div className={`text-sm ${
-                  hostFileTransfer.transferProgress.status === 'completed' || hostFileTransfer.transferProgress.percentage >= 100 ? 'text-green-600' :
-                  hostFileTransfer.transferProgress.status === 'error' ? 'text-red-600' :
-                  'text-blue-600'
+                  hostFileTransfer.transferProgress.status === 'completed' || hostFileTransfer.transferProgress.percentage >= 100 ? 'text-primary' :
+                  hostFileTransfer.transferProgress.status === 'error' ? 'text-destructive' :
+                  'text-accent'
                 }`}>
                   Status: {hostFileTransfer.transferProgress.percentage >= 100 ? 'completed' : hostFileTransfer.transferProgress.status}
                 </div>
@@ -501,9 +501,9 @@ export default function SendPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Connection Type:</span>
                   <span className={`font-medium ${
-                    connectionStats.connectionType === 'DIRECT' ? 'text-green-600' :
-                    connectionStats.connectionType === 'TURN' ? 'text-orange-600' :
-                    'text-blue-600'
+                    connectionStats.connectionType === 'DIRECT' ? 'text-primary' :
+                    connectionStats.connectionType === 'TURN' ? 'text-accent' :
+                    'text-secondary'
                   }`}>{connectionStats.connectionType}</span>
                 </div>
                 {connectionStats.rtt && (
@@ -514,7 +514,7 @@ export default function SendPage() {
                 )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">TURN Servers:</span>
-                  <span className={`font-medium ${usingTurnServers ? 'text-green-600' : 'text-yellow-600'}`}>
+                  <span className={`font-medium ${usingTurnServers ? 'text-primary' : 'text-accent'}`}>
                     {isLoadingTurnServers ? 'Loading...' : usingTurnServers ? 'Enabled' : 'STUN only'}
                   </span>
                 </div>
