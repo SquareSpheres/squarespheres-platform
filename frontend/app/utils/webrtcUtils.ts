@@ -1,7 +1,7 @@
 "use client";
 
-import { WebRTCSignalPayload } from "./webrtcTypes";
-import { SignalingMessage } from "./useSignalingClient";
+import { WebRTCSignalPayload } from "../types/webrtcTypes";
+import { SignalingMessage } from "../hooks/useSignalingClient";
 import { detectBrowser } from "../utils/browserUtils";
 import { Logger, consoleLogger } from "../types/logger";
 import { WebRTCDebugLogger, createDebugLogger } from "../utils/webrtcDebug";

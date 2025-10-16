@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useTurnServers } from './useTurnServers'
-import { DEFAULT_ICE_SERVERS } from './webrtcUtils'
+import { DEFAULT_ICE_SERVERS } from '../utils/webrtcUtils'
 import { RTCIceServer } from '../types/turnServers'
 
 interface UseWebRTCConfigOptions {

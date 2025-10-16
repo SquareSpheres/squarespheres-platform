@@ -1,6 +1,6 @@
 'use client';
 
-import { Logger } from '../types/logger';
+import { Logger } from './logger';
 
 export type WebRTCSignalKind = 'webrtc-offer' | 'webrtc-answer' | 'webrtc-ice' | 'webrtc-rejection';
 

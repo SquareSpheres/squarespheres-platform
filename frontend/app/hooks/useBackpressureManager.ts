@@ -1,6 +1,6 @@
 
 import { useCallback, useRef } from 'react';
-import { isMobileDevice } from './fileTransferUtils';
+import { isMobileDevice } from '../utils/fileTransferUtils';
 import { BACKPRESSURE_THRESHOLDS, MAX_BUFFER_SIZES, TRANSFER_TIMEOUTS } from '../utils/fileTransferConstants';
 import type { WebRTCHostPeer } from '../types/fileTransfer';
 import type { Logger } from '../types/logger';

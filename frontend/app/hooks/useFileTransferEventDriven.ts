@@ -4,12 +4,12 @@ import { useWebRTCHostPeer } from './useWebRTCHostPeer';
 import { useWebRTCClientPeer } from './useWebRTCClientPeer';
 import { useTransferProgress } from './useTransferProgress';
 import { useStreamMessageHandlers } from './useStreamMessageHandlers';
-import { WebRTCPeerConfig } from './webrtcTypes';
+import { WebRTCPeerConfig } from '../types/webrtcTypes';
 import {
   getOptimalChunkSize,
   createLogger
-} from './fileTransferUtils';
-import { waitForBufferDrain } from './webrtcUtils';
+} from '../utils/fileTransferUtils';
+import { waitForBufferDrain } from '../utils/webrtcUtils';
 import { MESSAGE_TYPES } from '../constants/messageTypes';
 import {
   FileTransferProgress,
@@ -29,7 +29,7 @@ import {
 } from '../utils/fileTransferOrchestrator';
 import { createFileTransferLogger } from '../utils/fileTransferDebug';
 import { MAX_BUFFER_SIZES } from '../utils/fileTransferConstants';
-import { isMobileDevice } from './fileTransferUtils';
+import { isMobileDevice } from '../utils/fileTransferUtils';
 
 /**
  * Event-Driven File Transfer Hook

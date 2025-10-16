@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { ArrowRight, Download, FileIcon } from 'lucide-react'
 import { useFileTransferFactory } from '../hooks/useFileTransferFactory'
-import { getConnectionStats, ConnectionStats } from '../hooks/webrtcUtils'
+import { getConnectionStats, ConnectionStats } from '../utils/webrtcUtils'
 import { useWebRTCConfig } from '../hooks/useWebRTCConfig'
 import { Logger, createLogger } from '../types/logger'
 

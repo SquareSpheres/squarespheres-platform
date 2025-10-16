@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSignalClient, SignalingMessage } from './useSignalingClient';
-import { WebRTCPeerConfig, WebRTCSignalPayload, ParsedSignalingMessage, FileTransferMessagePayload } from './webrtcTypes';
+import { WebRTCPeerConfig, WebRTCSignalPayload, ParsedSignalingMessage, FileTransferMessagePayload } from '../types/webrtcTypes';
 
 function isFileTransferMessage(parsed: ParsedSignalingMessage): parsed is FileTransferMessagePayload {
   return 'type' in parsed && !('kind' in parsed);
@@ -22,7 +22,7 @@ import {
   createConnectionWatchdog,
   WatchdogConfig,
   DEFAULT_ICE_SERVERS,
-} from './webrtcUtils';
+} from '../utils/webrtcUtils';
 import { useWebRTCConfig } from './useWebRTCConfig';
 import { safeDetectBrowser } from '../utils/ssrUtils';
 import { createLogger, consoleLogger } from '../types/logger';

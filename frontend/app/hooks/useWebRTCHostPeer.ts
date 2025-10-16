@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSignalHost, SignalingMessage } from './useSignalingClient';
-import { WebRTCPeerConfig, WebRTCSignalPayload } from './webrtcTypes';
+import { WebRTCPeerConfig, WebRTCSignalPayload } from '../types/webrtcTypes';
 import {
   createPeerConnection,
   attachEventHandlers,
@@ -18,7 +18,7 @@ import {
   SignalingHandlers,
   DEFAULT_ICE_SERVERS,
   getDataChannelMaxMessageSize,
-} from './webrtcUtils';
+} from '../utils/webrtcUtils';
 import { useWebRTCConfig } from './useWebRTCConfig';
 import { safeDetectBrowser, SSR_BROWSER_INFO } from '../utils/ssrUtils';
 import { createLogger, consoleLogger } from '../types/logger';

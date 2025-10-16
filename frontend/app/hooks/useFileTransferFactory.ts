@@ -5,7 +5,7 @@
  * file transfer implementations.
  */
 
-import { WebRTCPeerConfig } from './webrtcTypes';
+import { WebRTCPeerConfig } from '../types/webrtcTypes';
 import { FileTransferApi, FileTransferProgress } from '../types/fileTransfer';
 import { useFileTransfer } from './useFileTransfer';
 import { useFileTransferEventDriven } from './useFileTransferEventDriven';

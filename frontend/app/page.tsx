@@ -4,7 +4,7 @@ import { useRef, useState, DragEvent, ChangeEvent, useEffect, useMemo } from 're
 import { File, CheckCircle, Copy, Check, Users } from 'lucide-react'
 import FileDropAnimation from './FileDropAnimation'
 import { useFileTransferFactory } from './hooks/useFileTransferFactory'
-import { getConnectionStats, ConnectionStats } from './hooks/webrtcUtils'
+import { getConnectionStats, ConnectionStats } from './utils/webrtcUtils'
 import { useWebRTCConfig } from './hooks/useWebRTCConfig'
 import { Logger, createLogger } from './types/logger'
 
