@@ -279,17 +279,22 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
         logger.log(`Transfer complete: ${state.file.name}`);
 
         // Wait for buffer to fully drain before marking complete
-        try {
-          if (config.debug) {
-            logger.log(`Waiting for buffer drain (current: ${Math.round(dataChannel.bufferedAmount / 1024)}KB)...`);
+        const currentBuffer = dataChannel.bufferedAmount;
+        if (currentBuffer > 0) {
+          try {
+            if (config.debug) {
+              logger.log(`Waiting for buffer drain (current: ${Math.round(currentBuffer / 1024)}KB)...`);
+            }
+            await waitForBufferDrain(dataChannel, 5000, config.debug);
+            if (config.debug) {
+              logger.log('Buffer fully drained');
+            }
+          } catch (drainError) {
+            logger.warn('Buffer drain timeout, sending end message anyway');
+            // Continue - receiver will validate
           }
-          await waitForBufferDrain(dataChannel, 5000, config.debug);
-          if (config.debug) {
-            logger.log('Buffer fully drained');
-          }
-        } catch (drainError) {
-          logger.warn('Buffer drain timeout, sending end message anyway');
-          // Continue - receiver will validate
+        } else if (config.debug) {
+          logger.log('Buffer already empty, no drain needed');
         }
 
         // Send end message (as JSON string)
