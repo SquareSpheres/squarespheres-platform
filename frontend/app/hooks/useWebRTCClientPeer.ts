@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSignalClient, SignalingMessage } from './useSignalingClient';
-import { WebRTCPeerConfig, WebRTCSignalPayload } from './webrtcTypes';
+import { WebRTCPeerConfig, WebRTCSignalPayload, ParsedSignalingMessage, FileTransferMessagePayload } from './webrtcTypes';
+
+// Type guard to check if a parsed message is a file transfer message
+function isFileTransferMessage(parsed: ParsedSignalingMessage): parsed is FileTransferMessagePayload {
+  return 'type' in parsed && !('kind' in parsed);
+}
+
+// Type guard to check if a parsed message is a WebRTC signal
+function isWebRTCSignal(parsed: ParsedSignalingMessage): parsed is WebRTCSignalPayload {
+  return 'kind' in parsed;
+}
 import {
   createPeerConnection,
   attachEventHandlers,
@@ -186,7 +196,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (da
   const handleSignalMessage = useCallback(async (message: SignalingMessage) => {
     if (!message.payload) return;
 
-    let parsed: any;
+    let parsed: ParsedSignalingMessage;
     try {
       parsed = JSON.parse(message.payload);
     } catch (error) {
@@ -197,7 +207,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (da
     if (!parsed || typeof parsed !== 'object') return;
 
           // Handle non-WebRTC messages (like FILE_INFO)
-          if ('type' in parsed && !('kind' in parsed)) {
+          if (isFileTransferMessage(parsed)) {
             // This is a file transfer message, not a WebRTC signal
             // Forward it to the message handler if available
             if (config.onMessage) {
@@ -207,7 +217,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (da
           }
 
     // Handle WebRTC signaling messages
-    if (!('kind' in parsed)) return;
+    if (!isWebRTCSignal(parsed)) return;
 
     try {
       if (parsed.kind === 'webrtc-offer') {

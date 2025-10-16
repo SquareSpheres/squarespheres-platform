@@ -27,6 +27,20 @@ export interface WebRTCRejectionPayload {
 
 export type WebRTCSignalPayload = WebRTCOfferPayload | WebRTCAnswerPayload | WebRTCIcePayload | WebRTCRejectionPayload;
 
+// File transfer message payload (sent via signaling server)
+export interface FileTransferMessagePayload {
+  type: number;
+  fileName?: string;
+  fileSize?: number;
+  transferId?: string;
+  data?: string;
+  percentage?: number;
+  error?: string;
+}
+
+// Union type for all possible parsed message payloads
+export type ParsedSignalingMessage = WebRTCSignalPayload | FileTransferMessagePayload;
+
 export interface WebRTCPeerConfig {
   role: 'host' | 'client';
   // For client role: hostId to join; for host: optional pre-registered id
