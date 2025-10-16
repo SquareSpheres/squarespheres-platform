@@ -21,33 +21,42 @@ export default function SendPage() {
   const [connectionStats, setConnectionStats] = useState<ConnectionStats | null>(null)
   const [codeCopied, setCodeCopied] = useState(false)
   const [signalingConnected, setSignalingConnected] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const uiLogger: Logger = useMemo(() => ({
     log: (...args) => {
+      if (!isMounted) return;
       const message = args.map(arg => 
         typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
       ).join(' ');
       setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
     },
     warn: (...args) => {
+      if (!isMounted) return;
       const message = args.map(arg => 
         typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
       ).join(' ');
       setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: WARN: ${message}`]);
     },
     error: (...args) => {
+      if (!isMounted) return;
       const message = args.map(arg => 
         typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
       ).join(' ');
       setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ERROR: ${message}`]);
     },
     info: (...args) => {
+      if (!isMounted) return;
       const message = args.map(arg => 
         typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
       ).join(' ');
       setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: INFO: ${message}`]);
     }
-  }), []);
+  }), [isMounted]);
 
   const { iceServers, usingTurnServers, isLoadingTurnServers } = useWebRTCConfig();
 
@@ -249,6 +258,7 @@ export default function SendPage() {
           onDragOver={handleDragOver}
           onDrop={handleDrop}
           className={`border-4 border-dashed rounded-xl p-8 sm:p-16 transition-colors duration-300 bg-card text-center ${isDragging ? 'border-primary bg-muted' : 'border-border hover:border-primary/50'}`}
+          suppressHydrationWarning
         >
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
           <FileDropAnimation isDragging={isDragging} />

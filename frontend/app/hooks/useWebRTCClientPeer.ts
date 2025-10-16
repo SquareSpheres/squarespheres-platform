@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSignalClient, SignalingMessage } from './useSignalingClient';
 import { WebRTCPeerConfig, WebRTCSignalPayload } from './webrtcTypes';
 import {
@@ -9,19 +9,16 @@ import {
   createDataChannel,
   createWebRTCEventHandlers,
   setupDataChannel,
-  DataChannelConfig,
   ICECandidateManager,
   ConnectionWatchdog,
   createConnectionWatchdog,
   WatchdogConfig,
-  createSignalingMessageHandler,
-  SignalingHandlers,
-  isChrome,
   DEFAULT_ICE_SERVERS,
 } from './webrtcUtils';
 import { useWebRTCConfig } from './useWebRTCConfig';
-import { detectBrowser } from '../utils/browserUtils';
+import { safeDetectBrowser } from '../utils/ssrUtils';
 import { createLogger, consoleLogger } from '../types/logger';
+import { createClientDebugLogger } from '../utils/webrtcClientDebug';
 
 export interface WebRTCClientPeerApi {
   connectionState: RTCPeerConnectionState;
@@ -37,12 +34,13 @@ export interface WebRTCClientPeerApi {
 
 export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerApi {
   const debug = config.debug ?? false;
+  const debugLogger = useMemo(() => createClientDebugLogger(debug), [debug]);
 
-  // Defer browser detection to avoid SSR issues
-  const [browserInfo, setBrowserInfo] = useState(detectBrowser());
+  // SSR-safe browser detection
+  const [browserInfo, setBrowserInfo] = useState(() => safeDetectBrowser());
 
   useEffect(() => {
-    setBrowserInfo(detectBrowser());
+    setBrowserInfo(safeDetectBrowser());
   }, []);
 
   // Use dynamic TURN servers with fallback to default STUN servers
@@ -80,18 +78,18 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
       iceGatheringTimeoutMs,
       browserInfo,
       onConnectionTimeout: () => {
-        if (debug) console.warn('[WebRTC Client] Connection timeout');
+        debugLogger.logConnectionTimeout();
         config.onConnectionTimeout?.();
       },
       onConnectionFailed: (error) => {
-        if (debug) console.error('[WebRTC Client] Connection failed:', error);
+        debugLogger.logConnectionFailed(error);
         config.onConnectionFailed?.(error);
       },
       debug,
     };
 
     return createConnectionWatchdog(watchdogConfig);
-  }, [connectionTimeoutMs, iceGatheringTimeoutMs, browserInfo, config, debug]);
+  }, [connectionTimeoutMs, iceGatheringTimeoutMs, browserInfo, config, debug, debugLogger]);
 
   const ensurePeerConnection = useCallback(async () => {
     if (pcRef.current) return;
@@ -119,17 +117,15 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
         setConnectionState(state);
         config.onConnectionStateChange?.(state);
 
-        if (debug && (state === 'connected' || state === 'failed')) {
-          console.log(`[WebRTC Client] Connection: ${state}`);
-        }
+        debugLogger.logConnectionState(state);
 
         if (state === 'failed' && watchdog.canRetry()) {
-          if (debug) console.log('[WebRTC Client] Attempting connection retry');
+          debugLogger.logConnectionRetryAttempt();
           watchdog.startRetry();
 
           setTimeout(() => {
             if (pcRef.current?.connectionState === 'failed') {
-              if (debug) console.log('[WebRTC Client] Retrying connection...');
+              debugLogger.logRetrying();
               pcRef.current?.close();
               pcRef.current = null;
               dcRef.current = null;
@@ -139,7 +135,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
 
               // Retry by calling ensurePeerConnection directly
               ensurePeerConnection().catch(error => {
-                if (debug) console.error('[WebRTC Client] Retry failed:', error);
+                debugLogger.logRetryFailed(error);
                 watchdog.endRetry();
               }).finally(() => {
                 watchdog.endRetry();
@@ -151,9 +147,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
         }
       },
       onIceConnectionStateChange: (state) => {
-        if (debug && (state === 'connected' || state === 'failed')) {
-          console.log(`[WebRTC Client] ICE: ${state}`);
-        }
+        debugLogger.logIceState(state);
         config.onIceConnectionStateChange?.(state);
       },
       onIceCandidate: (candidate, connectionType) => {
@@ -174,7 +168,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
       const dc = evt.channel;
       dcRef.current = dc;
 
-      if (debug) console.log(`[WebRTC Client] Data channel received: ${dc.readyState}`);
+      debugLogger.logDataChannelReceived(dc.readyState);
 
       setupDataChannel(dc, {
         onOpen: (readyState) => setDataChannelState(readyState),
@@ -187,7 +181,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
     };
     
     pcRef.current = pc;
-  }, [iceServers, browserInfo, debug, createWatchdog, config, sendSignal]);
+  }, [iceServers, browserInfo, debug, createWatchdog, config, sendSignal, debugLogger]);
 
   const handleSignalMessage = useCallback(async (message: SignalingMessage) => {
     if (!message.payload) return;
@@ -196,9 +190,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
     try {
       parsed = JSON.parse(message.payload);
     } catch (error) {
-      if (debug) {
-        console.warn('[WebRTC Client] Failed to parse signaling message:', error);
-      }
+      debugLogger.logParseFailed(error);
       return;
     }
 
@@ -209,41 +201,37 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
         const pc = pcRef.current;
         if (!pc) return;
 
-        if (debug) console.log('[WebRTC Client] Received offer from host');
+        debugLogger.logReceivedOffer();
         connectedClientIdRef.current = message.clientId || null;
         await pc.setRemoteDescription(parsed.sdp);
 
         const answer = await pc.createAnswer({});
         await pc.setLocalDescription(answer);
 
-        if (debug) console.log('[WebRTC Client] Sending answer to host');
+        debugLogger.logSendingAnswer();
         await sendSignal({ kind: 'webrtc-answer', sdp: answer });
       } else if (parsed.kind === 'webrtc-answer') {
         const pc = pcRef.current;
         if (!pc) return;
 
-        if (debug) console.log('[WebRTC Client] Received answer from host');
+        debugLogger.logReceivedAnswer();
         await pc.setRemoteDescription(parsed.sdp);
 
         // Add any pending ICE candidates
         await iceCandidateManagerRef.current?.addPendingCandidates(pc);
 
-        if (debug) {
-          console.log('[WebRTC Client] ICE connection state after adding pending candidates:', pc.iceConnectionState);
-          console.log('[WebRTC Client] ICE gathering state:', pc.iceGatheringState);
-          console.log('[WebRTC Client] Connection state:', pc.connectionState);
-        }
+        debugLogger.logIceDiagnostics(pc);
 
         // Set a timeout to detect if ICE connection gets stuck
         if (pc.iceConnectionState === 'new' || pc.iceConnectionState === 'checking') {
-          if (debug) console.log('[WebRTC Client] Setting ICE connection timeout');
+          debugLogger.logIceConnectionTimeout();
           setTimeout(() => {
             if (pc.iceConnectionState === 'new' || pc.iceConnectionState === 'checking') {
-              if (debug) console.warn(`[WebRTC Client] ICE connection stuck in ${pc.iceConnectionState} state, attempting restart`);
+              debugLogger.logIceConnectionStuck(pc.iceConnectionState);
               try {
                 pc.restartIce();
               } catch (error) {
-                if (debug) console.error('[WebRTC Client] ICE restart failed:', error);
+                debugLogger.logIceRestartFailed(error);
               }
             }
           }, 15000); // Increased timeout for cross-network connections
@@ -254,7 +242,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
 
         await iceCandidateManagerRef.current?.addCandidate(pc, parsed.candidate);
       } else if (parsed.kind === 'webrtc-rejection') {
-        if (debug) console.log(`[WebRTC Client] Connection rejected: ${parsed.reason}`);
+        debugLogger.logConnectionRejected(parsed.reason);
         config.onConnectionRejected?.(parsed.reason, parsed.connectedClientId);
         
         // Close the peer connection since we were rejected
@@ -265,11 +253,9 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
         }
       }
     } catch (error) {
-      if (debug) {
-        console.error(`[WebRTC Client] Error handling ${parsed.kind}:`, error);
-      }
+      debugLogger.logSignalingError(parsed.kind, error);
     }
-  }, [debug, sendSignal, config]);
+  }, [sendSignal, config, debugLogger]);
 
   const createOrEnsureConnection = useCallback(async () => {
     try {
@@ -305,7 +291,7 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
         if (pc.iceGatheringState === 'gathering') {
           await new Promise<void>((resolve) => {
             const timeout = setTimeout(() => {
-              if (debug) console.warn('[WebRTC Client] ICE gathering timeout, proceeding anyway');
+              debugLogger.logIceGatheringTimeout();
               resolve();
             }, iceGatheringTimeoutMs * 2); // Double timeout for cross-network
 
@@ -326,15 +312,15 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
         // Small delay for Chrome compatibility
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        if (debug) console.log('[WebRTC Client] Sending offer to host');
+        debugLogger.logSendingOffer();
         await sendSignal({ kind: 'webrtc-offer', sdp: offer });
       }
     } catch (error) {
-      if (debug) console.error('[WebRTC Client] Connection failed:', error);
+      debugLogger.logConnectionFailed(error);
       config.onConnectionFailed?.(error instanceof Error ? error : new Error('Connection failed'));
       throw error;
     }
-  }, [client, config, ensurePeerConnection, sendSignal, iceGatheringTimeoutMs, browserInfo, debug]);
+  }, [client, config, ensurePeerConnection, sendSignal, iceGatheringTimeoutMs, browserInfo, debug, debugLogger]);
 
   const send = useCallback((data: string | ArrayBuffer | Blob) => {
     const dc = dcRef.current;
@@ -363,8 +349,8 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig): WebRTCClientPeerA
   const disconnect = useCallback(() => {
     close();
     client.disconnect();
-    if (debug) console.log('[WebRTC Client] Fully disconnected - WebRTC and signaling');
-  }, [close, client, debug]);
+    debugLogger.logFullyDisconnected();
+  }, [close, client, debugLogger]);
 
   useEffect(() => () => close(), [close]);
 

@@ -19,33 +19,42 @@ function ReceiveComponent() {
   const [connectionStats, setConnectionStats] = useState<ConnectionStats | null>(null)
   const [autoDownload, setAutoDownload] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const uiLogger: Logger = useMemo(() => ({
     log: (...args) => {
+      if (!isMounted) return;
       const message = args.map(arg => 
         typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
       ).join(' ');
       setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
     },
     warn: (...args) => {
+      if (!isMounted) return;
       const message = args.map(arg => 
         typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
       ).join(' ');
       setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: WARN: ${message}`]);
     },
     error: (...args) => {
+      if (!isMounted) return;
       const message = args.map(arg => 
         typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
       ).join(' ');
       setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ERROR: ${message}`]);
     },
     info: (...args) => {
+      if (!isMounted) return;
       const message = args.map(arg => 
         typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
       ).join(' ');
       setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: INFO: ${message}`]);
     }
-  }), []);
+  }), [isMounted]);
 
   const { iceServers, usingTurnServers, isLoadingTurnServers } = useWebRTCConfig();
 
@@ -188,7 +197,7 @@ function ReceiveComponent() {
         <h2 className="text-xl sm:text-2xl font-bold mb-4 text-card-foreground">Receive a File</h2>
         <p className="text-muted-foreground mb-6 text-sm sm:text-base">Enter the 6-digit code from the sender to start the transfer.</p>
         
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-4" suppressHydrationWarning>
           <input
             type="text"
             value={code}
@@ -213,7 +222,7 @@ function ReceiveComponent() {
             </button>
           </div>
 
-          <div className="flex items-center justify-center gap-2 text-sm">
+          <div className="flex items-center justify-center gap-2 text-sm" suppressHydrationWarning>
             <input
               type="checkbox"
               id="autoDownload"
@@ -264,7 +273,7 @@ function ReceiveComponent() {
               <p className="text-sm text-muted-foreground">Waiting to receive file...</p>
             </div>
 
-            <div className="flex items-center gap-2 text-sm mb-4">
+            <div className="flex items-center gap-2 text-sm mb-4" suppressHydrationWarning>
               <input
                 type="checkbox"
                 id="autoDownload"

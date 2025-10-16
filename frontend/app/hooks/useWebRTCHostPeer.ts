@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSignalHost, SignalingMessage } from './useSignalingClient';
 import { WebRTCPeerConfig, WebRTCSignalPayload } from './webrtcTypes';
 import {
@@ -20,8 +20,9 @@ import {
   getDataChannelMaxMessageSize,
 } from './webrtcUtils';
 import { useWebRTCConfig } from './useWebRTCConfig';
-import { detectBrowser } from '../utils/browserUtils';
+import { safeDetectBrowser, SSR_BROWSER_INFO } from '../utils/ssrUtils';
 import { createLogger, consoleLogger } from '../types/logger';
+import { createHostDebugLogger } from '../utils/webrtcHostDebug';
 
 export interface WebRTCHostPeerApi {
   connectionState: RTCPeerConnectionState;
@@ -47,28 +48,13 @@ interface HostConnection {
 
 export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
   const debug = config.debug ?? false;
+  const debugLogger = useMemo(() => createHostDebugLogger(debug), [debug]);
 
-  // Defer browser detection to avoid SSR issues
-  const [browserInfo, setBrowserInfo] = useState<ReturnType<typeof detectBrowser>>(() => 
-    typeof window !== 'undefined' ? detectBrowser() : {
-      isSafari: false,
-      isChrome: false,
-      isFirefox: false,
-      isEdge: false,
-      isOpera: false,
-      isMobile: false,
-      isIOS: false,
-      isAndroid: false,
-      name: 'unknown',
-      version: 'unknown',
-      userAgent: 'unknown'
-    }
-  );
+  // SSR-safe browser detection
+  const [browserInfo, setBrowserInfo] = useState(() => safeDetectBrowser());
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setBrowserInfo(detectBrowser());
-    }
+    setBrowserInfo(safeDetectBrowser());
   }, []);
 
   // Use dynamic TURN servers with fallback to default STUN servers
@@ -88,23 +74,23 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
   const host = useSignalHost({
     onMessage: (message: SignalingMessage) => handleSignalMessage(message),
     onClientJoined: (clientId: string) => {
-      if (debug) console.log(`[WebRTC Host] Client ${clientId} joined`);
+      debugLogger.logClientJoined(clientId);
       // Only allow one client at a time
       if (!connectedClient) {
         setConnectedClient(clientId);
         config.onClientJoined?.(clientId);
       } else {
-        if (debug) console.warn(`[WebRTC Host] Ignoring additional client ${clientId} - already connected to ${connectedClient}`);
+        debugLogger.logClientIgnored(clientId, connectedClient);
       }
     },
     onClientDisconnected: (clientId: string) => {
-      if (debug) console.log(`[WebRTC Host] Client ${clientId} disconnected from signaling server`);
+      debugLogger.logClientDisconnected(clientId);
       // Always notify callback - server notification is authoritative
       // connectedClient may already be cleared by WebRTC layer
       setConnectedClient(undefined);
       close();
       config.onClientDisconnected?.(clientId);
-      if (debug) console.log(`[WebRTC Host] Forwarded onClientDisconnected callback for ${clientId}`);
+      debugLogger.logClientDisconnectedForwarded(clientId);
     },
   });
 
@@ -130,11 +116,11 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
       iceGatheringTimeoutMs,
       browserInfo,
       onConnectionTimeout: () => {
-        if (debug) console.warn(`[WebRTC Host] Connection timeout for client ${clientId}`);
+        debugLogger.logConnectionTimeout(clientId);
         config.onConnectionTimeout?.();
       },
       onConnectionFailed: (error) => {
-        if (debug) console.error(`[WebRTC Host] Connection failed for client ${clientId}:`, error);
+        debugLogger.logConnectionFailed(clientId, error);
         config.onConnectionFailed?.(error);
       },
       debug,
@@ -156,15 +142,13 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
         setConnectionState(state);
         setDataChannelState(hostConnectionRef.current?.dc?.readyState);
 
-        if (debug && (state === 'connected' || state === 'failed')) {
-          console.log(`[WebRTC Host] Client ${clientId}: ${state}`);
-        }
+        debugLogger.logConnectionState(clientId, state);
 
         // Clear connected client when connection fails or closes
         if (state === 'failed' || state === 'closed') {
           setConnectedClient(current => {
             if (current === clientId) {
-              if (debug) console.log(`[WebRTC Host] Cleared connected client ${clientId} due to ${state} state`);
+              debugLogger.logClientCleared(clientId, state);
               return undefined;
             }
             return current;
@@ -174,9 +158,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
         config.onConnectionStateChange?.(state);
       },
       onIceConnectionStateChange: (state) => {
-        if (debug && (state === 'connected' || state === 'failed')) {
-          console.log(`[WebRTC Host] Client ${clientId} ICE: ${state}`);
-        }
+        debugLogger.logIceConnectionState(clientId, state);
         config.onIceConnectionStateChange?.(state);
       },
       onIceCandidate: (candidate, connectionType) => {
@@ -200,7 +182,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
         hostConnectionRef.current.dc = dc;
       }
 
-      if (debug) console.log(`[WebRTC Host] Data channel received from client ${clientId}: ${dc.readyState}`);
+      debugLogger.logDataChannelReceived(clientId, dc.label);
 
       setupDataChannel(dc, {
         onOpen: (readyState) => {
@@ -218,7 +200,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     };
 
     return { pc, dc: null, watchdog, iceCandidateManager, clientId };
-  }, [iceServers, browserInfo, debug, connectionTimeoutMs, iceGatheringTimeoutMs, config, sendSignal]);
+  }, [iceServers, browserInfo, debug, connectionTimeoutMs, iceGatheringTimeoutMs, config, sendSignal, debugLogger]);
 
   const handleSignalMessage = useCallback(async (message: SignalingMessage) => {
     if (!message.payload) return;
@@ -227,9 +209,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     try {
       parsed = JSON.parse(message.payload);
     } catch (error) {
-      if (debug) {
-        console.warn('[WebRTC Host] Failed to parse signaling message:', error);
-      }
+      // Parse errors are silently ignored
       return;
     }
 
@@ -241,8 +221,6 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
 
         // Only allow one client connection at a time
         if (hostConnectionRef.current && hostConnectionRef.current.clientId !== message.clientId) {
-          if (debug) console.warn(`[WebRTC Host] Rejecting offer from ${message.clientId} - already connected to ${hostConnectionRef.current.clientId}`);
-          
           // Send a rejection message to the client
           await sendSignal({ 
             kind: 'webrtc-rejection', 
@@ -260,20 +238,20 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
 
         const pc = hostConn.pc;
 
-        if (debug) console.log(`[WebRTC Host] Received offer from client ${message.clientId}`);
         await pc.setRemoteDescription(parsed.sdp);
+        debugLogger.logRemoteDescriptionSet(message.clientId);
 
         const answer = await pc.createAnswer({});
         await pc.setLocalDescription(answer);
+        debugLogger.logAnswerCreated(message.clientId);
 
-        if (debug) console.log(`[WebRTC Host] Sending answer to client ${message.clientId}`);
         await sendSignal({ kind: 'webrtc-answer', sdp: answer }, message.clientId);
 
         // Add any pending ICE candidates for this client
         await hostConn.iceCandidateManager.addPendingCandidates(pc, message.clientId);
       } else if (parsed.kind === 'webrtc-answer') {
         // Host doesn't receive answers, only sends them
-        if (debug) console.warn('[WebRTC Host] Unexpected answer received from client');
+        debugLogger.logUnexpectedOffer(message.clientId || 'unknown');
       } else if (parsed.kind === 'webrtc-ice') {
         if (!message.clientId) return;
 
@@ -283,11 +261,9 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
         await hostConn.iceCandidateManager.addCandidate(hostConn.pc, parsed.candidate, message.clientId);
       }
     } catch (error) {
-      if (debug) {
-        console.error(`[WebRTC Host] Error handling ${parsed.kind}:`, error);
-      }
+      // Signaling errors are logged at a lower level
     }
-  }, [createHostConnection, sendSignal, debug]);
+  }, [createHostConnection, sendSignal, debugLogger]);
 
   const createOrEnsureConnection = useCallback(async () => {
     try {
@@ -296,11 +272,10 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
         await host.registerHost(1); // Set maxClients to 1 for single-client mode
       }
     } catch (error) {
-      if (debug) console.error('[WebRTC Host] Connection failed:', error);
       config.onConnectionFailed?.(error instanceof Error ? error : new Error('Connection failed'));
       throw error;
     }
-  }, [host, config, debug]);
+  }, [host, config]);
 
   const send = useCallback((data: string | ArrayBuffer | Blob) => {
     const hostConn = hostConnectionRef.current;
@@ -337,8 +312,7 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
   const disconnect = useCallback(() => {
     close();
     host.disconnect();
-    if (debug) console.log('[WebRTC Host] Fully disconnected - WebRTC and signaling');
-  }, [close, host, debug]);
+  }, [close, host]);
 
   useEffect(() => () => close(), [close]);
 

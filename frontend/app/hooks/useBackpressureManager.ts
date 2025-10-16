@@ -83,11 +83,9 @@ export function useBackpressureManager(config: FileTransferConfig, logger: Logge
         }
       }, TRANSFER_TIMEOUTS.DEFAULT);
     }).catch(() => {
-      if (config.debug) {
-        logger.warn(`Backpressure failed for client ${clientId}, continuing anyway`);
-      }
+      logger.warn(`Backpressure failed for client ${clientId}, continuing anyway`);
     });
-  }, [config.role, config.debug, hostPeer, logger, setupBackpressureHandling]);
+  }, [config.role, hostPeer, logger, setupBackpressureHandling]);
 
   return { waitForBackpressure, setupBackpressureHandling };
 }
