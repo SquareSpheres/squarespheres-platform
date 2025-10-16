@@ -80,6 +80,24 @@ export class FileTransferDebugLogger {
       this.logger.log(`Sent ACK for transfer ${transferId}: ${progress}%`);
     }
   }
+
+  logBufferFull(sizeKB: number) {
+    if (this.enabled) {
+      this.logger.log(`Buffer full (${sizeKB}KB), waiting for drain event...`);
+    }
+  }
+
+  logBufferDrained() {
+    if (this.enabled) {
+      this.logger.log('Buffer drained, resuming transfer');
+    }
+  }
+
+  logTransferFinalized(fileName: string) {
+    if (this.enabled) {
+      this.logger.log(`Transfer finalized for ${fileName}`);
+    }
+  }
 }
 
 /**

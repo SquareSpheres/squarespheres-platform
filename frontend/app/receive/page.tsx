@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { ArrowRight, Download, FileIcon } from 'lucide-react'
-import { useFileTransfer } from '../hooks/useFileTransfer'
+import { useFileTransferFactory } from '../hooks/useFileTransferFactory'
 import { getConnectionStats, ConnectionStats } from '../hooks/webrtcUtils'
 import { useWebRTCConfig } from '../hooks/useWebRTCConfig'
 import { Logger, createLogger } from '../types/logger'
@@ -70,8 +70,9 @@ function ReceiveComponent() {
     }
   };
 
-  const clientFileTransfer = useFileTransfer({
+  const clientFileTransfer = useFileTransferFactory({
     role: 'client',
+    mode: 'event-driven',  // Switch to 'event-driven' for 2-3x better throughput on large files
     hostId: code || undefined,
     debug: true,
     iceServers,

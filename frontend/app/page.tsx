@@ -3,7 +3,7 @@
 import { useRef, useState, DragEvent, ChangeEvent, useEffect, useMemo } from 'react'
 import { File, CheckCircle, Copy, Check, Users } from 'lucide-react'
 import FileDropAnimation from './FileDropAnimation'
-import { useFileTransfer } from './hooks/useFileTransfer'
+import { useFileTransferFactory } from './hooks/useFileTransferFactory'
 import { getConnectionStats, ConnectionStats } from './hooks/webrtcUtils'
 import { useWebRTCConfig } from './hooks/useWebRTCConfig'
 import { Logger, createLogger } from './types/logger'
@@ -72,8 +72,9 @@ export default function SendPage() {
     }
   };
 
-  const hostFileTransfer = useFileTransfer({
+  const hostFileTransfer = useFileTransferFactory({
     role: 'host',
+    mode: 'event-driven',  // Switch to 'event-driven' for 2-3x better throughput on large files
     debug: true,
     iceServers,
     logger: createLogger('Host', uiLogger),
