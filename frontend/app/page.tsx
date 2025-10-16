@@ -228,7 +228,7 @@ export default function SendPage() {
         }
       }, 100);
     }
-  }, [hostFileTransfer.connectedClient, hostFileTransfer.sendFileInfo])
+  }, [hostFileTransfer, uiLogger])
   
   const sendFile = async () => {
     if (!selectedFile) return;

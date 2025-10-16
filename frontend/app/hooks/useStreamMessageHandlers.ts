@@ -152,7 +152,7 @@ export function useStreamMessageHandlers({
         logger.warn('Unknown binary message type:', type);
       }
     }
-  }, []);
+  }, [config]);
 
 
 

@@ -459,7 +459,7 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
     // 1. Transfer completes (in sendBatch when bytesTransferred >= file.size)
     // 2. Component unmounts (via useEffect cleanup)
     // 3. Error occurs (in catch block above)
-  }, [config.role, hostPeer, progressManager, logger, sendBatch, debugLogger, getAdaptiveThreshold]);
+  }, [config.role, config.debug, hostPeer, progressManager, logger, sendBatch, debugLogger, getAdaptiveThreshold]);
 
   // Cancel transfer
   const cancelTransfer = useCallback((transferId?: string) => {
@@ -500,6 +500,7 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
 
   // Cleanup on unmount
   useEffect(() => {
+    const timeouts = transferTimeoutsRef.current;
     return () => {
       // Clean up event listener if component unmounts during transfer
       if (cleanupFnRef.current) {
@@ -508,8 +509,8 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
       }
 
       // Clear all timeouts
-      transferTimeoutsRef.current.forEach(timeout => clearTimeout(timeout));
-      transferTimeoutsRef.current.clear();
+      timeouts.forEach(timeout => clearTimeout(timeout));
+      timeouts.clear();
 
       // Reset transfer state
       resetTransferState();
