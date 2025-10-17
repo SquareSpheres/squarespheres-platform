@@ -10,6 +10,8 @@ import { Share2, ArrowUpCircle, ArrowDownCircle, TestTube } from 'lucide-react'
 import { ThemeProvider } from './Provider'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
 import { ClerkThemeProvider } from "./components/ClerkThemeProvider"
+import { AuthHeader } from './components/AuthHeader'
+import { AuthGuard } from './components/AuthGuard'
 
 const inter = Inter({ subsets: ['latin'] })
 const poppins = Poppins({
@@ -34,6 +36,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} ${poppins.variable} bg-background text-foreground relative`}>
+        {/* Required DOM element for Clerk CAPTCHA - must be globally available */}
+        <div id="clerk-captcha" style={{ display: 'none' }}></div>
         <ThemeProvider>
           <ClerkThemeProvider>
           <Analytics />
@@ -72,12 +76,15 @@ export default function RootLayout({
                   </Link>
                 </nav>
                 <div className="flex items-center space-x-2">
+                  <AuthHeader />
                   <ThemeSwitcher />
                 </div>
               </div>
             </header>
             <main className="flex-grow flex items-center justify-center mt-4 md:mt-8">
-              {children}
+              <AuthGuard>
+                {children}
+              </AuthGuard>
             </main>
           </div>
           </ClerkThemeProvider>
