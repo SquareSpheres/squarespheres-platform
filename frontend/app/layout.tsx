@@ -12,6 +12,7 @@ import { ThemeSwitcher } from './components/ThemeSwitcher'
 import { ClerkThemeProvider } from "./components/ClerkThemeProvider"
 import { AuthHeader } from './components/AuthHeader'
 import { AuthGuard } from './components/AuthGuard'
+import { AdminLink } from './components/AdminLink'
 
 const inter = Inter({ subsets: ['latin'] })
 const poppins = Poppins({
@@ -47,19 +48,22 @@ export default function RootLayout({
           </div>
           <div className="container mx-auto p-4 flex flex-col min-h-screen relative z-10">
             <header className="flex flex-col lg:flex-row justify-between items-center py-4 lg:space-x-4 space-y-4 lg:space-y-0 border-b border-border bg-card/50 backdrop-blur-sm rounded-lg px-4">
-              <h1 className="text-xl lg:text-2xl font-semibold font-poppins">
-                <Link href="/" className="flex items-center gap-3 group">
-                  <div className="relative h-8 w-8">
-                    <div className="absolute h-6 w-6 top-0 left-0 bg-muted-foreground rounded"></div>
-                    <div className="absolute h-6 w-6 bottom-0 right-0 bg-primary rounded-full"></div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span>Square</span>
-                    <Share2 className="h-6 w-6 text-muted-foreground" />
-                    <span>pheres</span>
-                  </div>
-                </Link>
-              </h1>
+                  <h1 className="text-xl lg:text-2xl font-semibold font-poppins">
+                    <Link href="/" className="flex items-center gap-3 group">
+                      <div 
+                        className="relative h-8 w-8 cursor-pointer"
+                        title="Double-click for admin access"
+                      >
+                        <div className="absolute h-6 w-6 top-0 left-0 bg-muted-foreground rounded"></div>
+                        <div className="absolute h-6 w-6 bottom-0 right-0 bg-primary rounded-full"></div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span>Square</span>
+                        <Share2 className="h-6 w-6 text-muted-foreground" />
+                        <span>pheres</span>
+                      </div>
+                    </Link>
+                  </h1>
               <div className="flex items-center space-x-2 lg:space-x-4">
                 <nav className="flex items-center space-x-1 lg:space-x-2">
                   <Link href="/" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Send">
@@ -74,6 +78,7 @@ export default function RootLayout({
                     <TestTube className="h-5 w-5" />
                     <span className="hidden lg:inline font-medium text-sm">TURN Test</span>
                   </Link>
+                  <AdminLink />
                 </nav>
                 <div className="flex items-center space-x-2">
                   <AuthHeader />
