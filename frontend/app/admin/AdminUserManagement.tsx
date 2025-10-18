@@ -6,7 +6,6 @@ import {
   Trash2, 
   Search, 
   Filter, 
-  Download, 
   AlertTriangle,
   Users,
   UserCheck,
@@ -15,6 +14,7 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react'
+import { UserAnalytics } from './components/UserAnalytics'
 
 interface User {
   id: string
@@ -69,7 +69,7 @@ export function AdminUserManagement() {
       setUsers(data.users || [])
       setFilteredUsers(data.users || [])
       
-      // Calculate stats
+  
       const userStats = {
         total: data.users?.length || 0,
         anonymous: data.users?.filter((u: User) => u.unsafeMetadata?.isAnonymous).length || 0,
@@ -84,11 +84,11 @@ export function AdminUserManagement() {
     }
   }
 
-  // Filter users based on search and filter
+
   useEffect(() => {
     let filtered = users
 
-    // Apply search filter
+ 
     if (searchTerm) {
       filtered = filtered.filter(user => 
         user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -99,7 +99,7 @@ export function AdminUserManagement() {
       )
     }
 
-    // Apply type filter
+
     switch (filterType) {
       case 'anonymous':
         filtered = filtered.filter(user => user.unsafeMetadata?.isAnonymous)
@@ -118,12 +118,12 @@ export function AdminUserManagement() {
     setFilteredUsers(filtered)
   }, [users, searchTerm, filterType])
 
-  // Load users on mount
+ 
   useEffect(() => {
     fetchUsers()
   }, [])
 
-  // Handle user selection
+
   const toggleUserSelection = (userId: string) => {
     const newSelected = new Set(selectedUsers)
     if (newSelected.has(userId)) {
@@ -142,7 +142,7 @@ export function AdminUserManagement() {
     }
   }
 
-  // Bulk delete users
+
   const deleteSelectedUsers = async () => {
     if (selectedUsers.size === 0) return
     
@@ -178,7 +178,6 @@ export function AdminUserManagement() {
     }
   }
 
-  // Delete all anonymous users
   const deleteAllAnonymous = async () => {
     const anonymousUsers = users.filter(u => u.unsafeMetadata?.isAnonymous)
     if (anonymousUsers.length === 0) return
@@ -217,29 +216,6 @@ export function AdminUserManagement() {
     }
   }
 
-  // Export users to CSV
-  const exportUsers = () => {
-    const csvContent = [
-      ['ID', 'Username', 'Name', 'Email', 'Type', 'Created', 'Last Sign In'].join(','),
-      ...filteredUsers.map(user => [
-        user.id,
-        user.username || '',
-        `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-        user.emailAddresses?.[0]?.emailAddress || '',
-        user.unsafeMetadata?.isAnonymous ? 'Anonymous' : 'Regular',
-        new Date(user.createdAt).toLocaleDateString(),
-        user.lastSignInAt ? new Date(user.lastSignInAt).toLocaleDateString() : 'Never'
-      ].map(field => `"${field}"`).join(','))
-    ].join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `users-export-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    window.URL.revokeObjectURL(url)
-  }
 
   if (loading) {
     return (
@@ -284,17 +260,20 @@ export function AdminUserManagement() {
         </div>
       </div>
 
+      {/* Analytics */}
+      <UserAnalytics users={users} />
+
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+      <div className="space-y-4">
         <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search users..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
             />
           </div>
           <select
@@ -309,22 +288,13 @@ export function AdminUserManagement() {
           </select>
         </div>
         
-        <div className="flex gap-2">
-          <button
-            onClick={exportUsers}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Download className="h-4 w-4" />
-            Export CSV
-          </button>
-          <button
-            onClick={fetchUsers}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-          >
-            <Filter className="h-4 w-4" />
-            Refresh
-          </button>
-        </div>
+        <button
+          onClick={fetchUsers}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+        >
+          <Filter className="h-4 w-4" />
+          Refresh
+        </button>
       </div>
 
       {/* Bulk Actions */}

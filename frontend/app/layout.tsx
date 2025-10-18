@@ -13,6 +13,7 @@ import { ClerkThemeProvider } from "./components/ClerkThemeProvider"
 import { AuthHeader } from './components/AuthHeader'
 import { AuthGuard } from './components/AuthGuard'
 import { AdminLink } from './components/AdminLink'
+import { HiddenAdminAccess } from './components/HiddenAdminAccess'
 
 const inter = Inter({ subsets: ['latin'] })
 const poppins = Poppins({
@@ -50,10 +51,8 @@ export default function RootLayout({
             <header className="flex flex-col lg:flex-row justify-between items-center py-4 lg:space-x-4 space-y-4 lg:space-y-0 border-b border-border bg-card/50 backdrop-blur-sm rounded-lg px-4">
                   <h1 className="text-xl lg:text-2xl font-semibold font-poppins">
                     <Link href="/" className="flex items-center gap-3 group">
-                      <div 
-                        className="relative h-8 w-8 cursor-pointer"
-                        title="Double-click for admin access"
-                      >
+                      <div className="relative h-8 w-8 cursor-pointer">
+                        <HiddenAdminAccess className="absolute inset-0" />
                         <div className="absolute h-6 w-6 top-0 left-0 bg-muted-foreground rounded"></div>
                         <div className="absolute h-6 w-6 bottom-0 right-0 bg-primary rounded-full"></div>
                       </div>
