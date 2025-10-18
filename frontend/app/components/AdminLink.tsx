@@ -8,7 +8,6 @@ export function AdminLink() {
   const { user } = useUser()
   const { sessionClaims } = useAuth()
   
-  // Check if user has admin role from session claims first, then fall back to user object
   const userRoleFromSession = (sessionClaims as any)?.user_role
   const userRoleFromUser = (user as any)?.user_role
   const userRole = userRoleFromSession || userRoleFromUser

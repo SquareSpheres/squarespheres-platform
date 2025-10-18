@@ -5,12 +5,12 @@ import { AdminUserManagement } from './AdminUserManagement'
 export default async function AdminPage() {
   const { userId } = await auth()
   
-  // Server-side admin check
+
   if (!userId) {
     redirect('/sign-up/')
   }
   
-  // Fetch user to get privateMetadata and check admin role
+
   const client = await clerkClient()
   const user = await client.users.getUser(userId)
   const userRole = (user.privateMetadata as any)?.user_role

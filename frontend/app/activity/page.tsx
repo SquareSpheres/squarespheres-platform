@@ -8,7 +8,6 @@ export default function ActivityPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Redirect to admin panel
     router.replace('/admin?tab=activity')
   }, [router])
 

@@ -48,7 +48,7 @@ export function AdminUserManagement() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // Fetch users from Clerk API
+
   const fetchUsers = async () => {
     try {
       setLoading(true)
@@ -170,7 +170,7 @@ export function AdminUserManagement() {
       
       setSuccess(`Successfully deleted ${selectedUsers.size} user(s)`)
       setSelectedUsers(new Set())
-      await fetchUsers() // Refresh the list
+      await fetchUsers()
     } catch (err: any) {
       setError(err.message || 'Failed to delete users')
     } finally {
@@ -208,7 +208,7 @@ export function AdminUserManagement() {
       }
       
       setSuccess(`Successfully deleted ${anonymousUsers.length} anonymous user(s)`)
-      await fetchUsers() // Refresh the list
+      await fetchUsers() 
     } catch (err: any) {
       setError(err.message || 'Failed to delete anonymous users')
     } finally {

@@ -15,7 +15,6 @@ export function AuthHeader() {
     setIsSigningOut(true)
     try {
       await signOut()
-      // Clear anonymous mode preference
       localStorage.removeItem('anonMode')
     } catch (error) {
       console.error('Error signing out:', error)

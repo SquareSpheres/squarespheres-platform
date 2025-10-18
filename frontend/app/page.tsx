@@ -167,7 +167,7 @@ export default function SendPage() {
         setTimeout(() => {
           try {
             hostFileTransfer.sendFileInfo(file.name, file.size);
-            setFileInfoSent(true); // Mark file info as sent
+            setFileInfoSent(true);
             uiLogger.log(`File info sent to already connected client: ${file.name} (${formatFileSize(file.size)})`);
           } catch (error) {
             uiLogger.warn(`Failed to send file info to connected client: ${error}`);
@@ -225,7 +225,7 @@ export default function SendPage() {
       setTimeout(() => {
         try {
           hostFileTransfer.sendFileInfo(selectedFileRef.current!.name, selectedFileRef.current!.size);
-          setFileInfoSent(true); // Mark file info as sent
+          setFileInfoSent(true); 
           uiLogger.log(`File info sent to connected client: ${selectedFileRef.current!.name} (${formatFileSize(selectedFileRef.current!.size)})`);
         } catch (error) {
           uiLogger.warn(`Failed to send file info to connected client: ${error}`);

@@ -68,7 +68,7 @@ export function UserAnalytics({ users }: UserAnalyticsProps) {
       const now = new Date()
       const last90Days = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
       
-      // Group users by creation date
+
       const groupedByDate = users.reduce((acc, user) => {
         const createdAt = new Date(user.createdAt)
         if (createdAt < last90Days) return acc
@@ -78,7 +78,7 @@ export function UserAnalytics({ users }: UserAnalyticsProps) {
         return acc
       }, {} as Record<string, number>)
 
-      // Create chart data for last 90 days
+
       const chartData: ChartData[] = []
       let cumulative = 0
       
