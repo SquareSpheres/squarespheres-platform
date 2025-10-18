@@ -1,6 +1,6 @@
 'use client'
 
-import { useSignUp, useAuth, useUser, SignInButton } from '@clerk/nextjs'
+import { useSignUp, useAuth, useUser, SignInButton,SignUp } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { User, ArrowRight, Loader2 } from 'lucide-react'
@@ -188,6 +188,7 @@ export default function SignUpPage() {
             )}
           </div>
         </div>
+        <div id="clerk-captcha" />
       </div>
     </div>
   )

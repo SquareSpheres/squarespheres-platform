@@ -38,8 +38,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} ${poppins.variable} bg-background text-foreground relative`}>
-        {/* Required DOM element for Clerk CAPTCHA - must be globally available */}
-        <div id="clerk-captcha" style={{ display: 'none' }}></div>
         <ThemeProvider>
           <ClerkThemeProvider>
           <Analytics />
