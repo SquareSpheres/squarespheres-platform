@@ -13,7 +13,7 @@ export function ClerkThemeProvider({ children }: ClerkThemeProviderProps) {
   const { resolvedTheme } = useTheme()
 
   return (
-    <ClerkProvider
+    <ClerkProvider dynamic
       appearance={{
         baseTheme: resolvedTheme === 'dark' ? dark : undefined,
         variables: {
