@@ -15,8 +15,6 @@ export function ClerkThemeProvider({ children }: ClerkThemeProviderProps) {
   return (
     <ClerkProvider
       dynamic
-      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      proxyUrl="https://share.squarespheres.com"
       appearance={{
         baseTheme: resolvedTheme === "dark" ? dark : undefined,
         variables: {
