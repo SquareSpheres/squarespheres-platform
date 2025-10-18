@@ -6,7 +6,6 @@ export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth()
     
-    // Check if user is authenticated
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -20,15 +19,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     
-    // Fetch all users from Clerk
-    const users = await client.users.getUserList({
-      limit: 100, // Adjust as needed
-      orderBy: '-created_at'
-    })
+    // Fetch all users from Clerk with pagination
+    let allUsers: any[] = []
+    let hasNextPage = true
+    let offset = 0
+    const limit = 500 // Clerk's max limit per request
+    
+    while (hasNextPage && allUsers.length < 10000) { // Reasonable limit
+      const response = await client.users.getUserList({
+        limit,
+        offset,
+        orderBy: '-created_at'
+      })
+      
+      allUsers = allUsers.concat(response.data)
+      
+      hasNextPage = response.data.length === limit && allUsers.length < response.totalCount
+      offset += limit
+    }
     
     return NextResponse.json({ 
-      users: users.data,
-      total: users.totalCount 
+      users: allUsers,
+      total: allUsers.length
     })
     
   } catch (error) {
@@ -45,7 +57,6 @@ export async function DELETE(request: NextRequest) {
   try {
     const { userId } = await auth()
     
-    // Check if user is authenticated
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
