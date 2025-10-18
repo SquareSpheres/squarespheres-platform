@@ -9,6 +9,7 @@ export interface TurnServersResponse {
   expiryInSeconds: number
   credentialSource?: 'existing' | 'new'
   credentialLabel?: string
+  userId?: string
 }
 
 export interface TurnCredentialResponse {

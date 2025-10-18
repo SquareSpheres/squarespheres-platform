@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import useSWR from 'swr'
+import { useAuth } from '@clerk/nextjs'
 import { TurnServersResponse, RTCIceServer } from '../types/turnServers'
 
 interface UseTurnServersOptions {
@@ -17,7 +18,8 @@ interface UseTurnServersReturn {
 }
 
 export function useTurnServers(options: UseTurnServersOptions = {}): UseTurnServersReturn {
-  // Build URL with optional expiry parameter
+  const { getToken } = useAuth()
+
   const buildUrl = useCallback(() => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
     const url = new URL('/api/turn-servers/', baseUrl)
@@ -27,20 +29,34 @@ export function useTurnServers(options: UseTurnServersOptions = {}): UseTurnServ
     return url.toString()
   }, [options.expiryInSeconds])
 
-  // Create a fetcher function for SWR
   const fetcher = useCallback(async (): Promise<TurnServersResponse | null> => {
     const url = buildUrl()
     console.log('Fetching TURN servers from:', url)
     
+    // Get the session token from Clerk
+    const token = await getToken()
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    }
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+    
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
     })
 
     if (!response.ok) {
       const errorData = await response.json()
+      
+      // Handle authentication error
+      if (response.status === 401) {
+        console.warn('Authentication required for TURN servers')
+        throw new Error('Authentication required to access TURN servers')
+      }
       
       // Handle quota exceeded error gracefully
       if (response.status === 429 && errorData.fallbackToStun) {
@@ -59,9 +75,8 @@ export function useTurnServers(options: UseTurnServersOptions = {}): UseTurnServ
     }
 
     return await response.json()
-  }, [buildUrl])
+  }, [buildUrl, getToken])
 
-  // Use SWR for data fetching with smart caching
   const { data, error, isLoading, mutate } = useSWR(
     'turn-servers', // Global cache key - all instances share the same data
     fetcher,
@@ -88,7 +103,6 @@ export function useTurnServers(options: UseTurnServersOptions = {}): UseTurnServ
     }
   )
 
-  // Convert data to the expected format
   const iceServers = data?.iceServers ? data.iceServers.map(server => ({
     urls: server.urls,
     username: server.username,
