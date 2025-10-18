@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import { TurnCredentialResponse, TurnServersResponse, IceServer } from '../../types/turnServers'
 
 export async function GET(request: NextRequest) {
   try {
-    // Note: TURN servers are made public to allow access before authentication
-    // This is necessary for WebRTC connections that may be established before user auth
-
-    // Get environment variables
+    const { userId } = await auth()
+    
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized - authentication required' }, { status: 401 })
+    }
     const meteredDomain = process.env.METERED_DOMAIN
     const meteredSecretKey = process.env.METERED_SECRET_KEY
 
@@ -32,11 +34,8 @@ export async function GET(request: NextRequest) {
       )
     }
     
-    const label = `anonymous-${Date.now()}`
+    const label = `user-${userId}-${Date.now()}`
 
-    // Step 1: Check for existing credentials first (all returned credentials are currently valid)
-    // Strategy: Use any available credential, if it expires during use, retry with the next one
-    // Only create new credentials when all existing ones are exhausted
     const listCredentialsUrl = `https://${meteredDomain}/api/v2/turn/credentials?secretKey=${meteredSecretKey}`
     console.log('Environment check - METERED_DOMAIN:', meteredDomain)
     console.log('Environment check - METERED_SECRET_KEY length:', meteredSecretKey?.length)
@@ -94,7 +93,6 @@ export async function GET(request: NextRequest) {
         label: existingCredential.label || 'existing-credential'
       }
     } else {
-      // Step 2: Create new TURN credential if no valid existing one found
       console.log('🆕 CREATING new credential - no valid existing ones found')
       const createCredentialUrl = `https://${meteredDomain}/api/v1/turn/credential?secretKey=${meteredSecretKey}`
       
@@ -113,7 +111,6 @@ export async function GET(request: NextRequest) {
         const errorText = await credentialResponse.text()
         console.error('Failed to create TURN credential:', errorText)
         
-        // Check if it's a quota/limit error
         try {
           const errorData = JSON.parse(errorText)
           if (errorData.message && errorData.message.includes('credential limit')) {
@@ -136,7 +133,6 @@ export async function GET(request: NextRequest) {
       credentialData = await credentialResponse.json()
     }
 
-    // Step 3: Get ICE servers array
     const iceServersUrl = `https://${meteredDomain}/api/v1/turn/credentials?apiKey=${credentialData.apiKey}`
     
     const iceServersResponse = await fetch(iceServersUrl)
@@ -159,7 +155,8 @@ export async function GET(request: NextRequest) {
       iceServers,
       expiryInSeconds: credentialData.expiryInSeconds,
       credentialSource: existingCredential ? 'existing' : 'new',
-      credentialLabel: credentialData.label
+      credentialLabel: credentialData.label,
+      userId
     }
 
     // Return with no-cache headers since credentials expire
