@@ -4,6 +4,7 @@ import { useSignUp, useAuth, useUser, SignInButton } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { User, ArrowRight, Loader2 } from 'lucide-react'
+import { getKeyboardShortcutText } from '../utils/browserUtils'
 
 export default function SignUpPage() {
   const { signUp, isLoaded, setActive } = useSignUp()
@@ -14,11 +15,14 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [showAdminAccess, setShowAdminAccess] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
-      // Redirect when authentication is successful
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
       useEffect(() => {
         if (isSignedIn && user) {
-          // Check if user is admin from session claims first, then fall back to user object
           const userRoleFromSession = (sessionClaims as any)?.user_role
           const userRoleFromUser = (user as any)?.user_role
           const userRole = userRoleFromSession || userRoleFromUser
@@ -177,6 +181,11 @@ export default function SignUpPage() {
               No personal data is collected or stored.
             </p>
             
+            {mounted && !showAdminAccess && (
+              <p className="text-xs text-muted-foreground/50 mt-3 opacity-0 hover:opacity-100 transition-opacity duration-300">
+                Admin access: {getKeyboardShortcutText()}
+              </p>
+            )}
           </div>
         </div>
       </div>

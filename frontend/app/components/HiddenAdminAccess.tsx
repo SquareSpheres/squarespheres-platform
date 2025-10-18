@@ -44,6 +44,8 @@ export function HiddenAdminAccess({ className = '', variant = 'easter-egg' }: Hi
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
         setShowAdminAccess(false)
       }
     }
@@ -61,9 +63,12 @@ export function HiddenAdminAccess({ className = '', variant = 'easter-egg' }: Hi
     if (!showAdminAccess || !mounted) return null
 
     const handleBackdropClick = (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
+      e.preventDefault()
+      e.stopPropagation()
+      // Add a small delay to prevent race conditions with auth state
+      requestAnimationFrame(() => {
         setShowAdminAccess(false)
-      }
+      })
     }
 
     const handleModalClick = (e: React.MouseEvent) => {
@@ -72,12 +77,12 @@ export function HiddenAdminAccess({ className = '', variant = 'easter-egg' }: Hi
     }
 
     const modalContent = (
-      <div 
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-        onClick={handleBackdropClick}
-      >
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
         {/* Backdrop */}
-        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+        <div 
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
+          onClick={handleBackdropClick}
+        />
         {/* Modal */}
         <div 
           className="relative bg-card border border-border rounded-lg shadow-xl p-6 max-w-sm w-full"
@@ -85,6 +90,7 @@ export function HiddenAdminAccess({ className = '', variant = 'easter-egg' }: Hi
         >
           <button
             onClick={(e) => {
+              e.preventDefault()
               e.stopPropagation()
               setShowAdminAccess(false)
             }}

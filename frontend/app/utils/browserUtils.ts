@@ -116,3 +116,38 @@ export const getWebSocketTimeout = (): number => {
   const browser = detectBrowser();
   return browser.isSafari ? 20000 : 10000; // Safari needs longer timeout
 };
+
+// OS detection utilities
+export function detectOS(): 'mac' | 'windows' | 'linux' | 'unknown' {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return 'unknown';
+  }
+
+  const userAgent = navigator.userAgent;
+  const platform = navigator.platform;
+
+  if (/Mac|iPhone|iPad|iPod/.test(userAgent) || platform === 'MacIntel') {
+    return 'mac';
+  } else if (/Win/.test(userAgent) || platform === 'Win32' || platform === 'Win64') {
+    return 'windows';
+  } else if (/Linux/.test(userAgent) || platform === 'Linux x86_64') {
+    return 'linux';
+  }
+
+  return 'unknown';
+}
+
+// Keyboard shortcut utilities
+export function getKeyboardShortcutText(): string {
+  const os = detectOS();
+  
+  switch (os) {
+    case 'mac':
+      return '⌘⌥9';
+    case 'windows':
+    case 'linux':
+      return 'Ctrl+Alt+9';
+    default:
+      return 'Cmd+Alt+9 / Ctrl+Alt+9';
+  }
+}
