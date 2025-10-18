@@ -11,28 +11,26 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const hasRedirected = useRef(false)
 
-  // Use centralized route configuration
   const isPublicRoute = isPublicRouteRegex(pathname)
 
-  // Handle authentication redirect with guard to prevent multiple redirects
   useEffect(() => {
     if (!isLoaded) return
     
-    console.log('[AuthGuard] Auth state:', { isLoaded, isSignedIn, isPublicRoute, pathname })
+    if (isPublicRoute || isSignedIn) {
+      hasRedirected.current = false
+      return
+    }
     
     if (!isSignedIn && !isPublicRoute && !hasRedirected.current) {
       hasRedirected.current = true
-      console.log('[AuthGuard] 🔄 Redirecting to sign-up...')
-      router.replace('/sign-up') // use replace to prevent history stack issues
+      router.replace('/sign-up')
     }
   }, [isLoaded, isSignedIn, isPublicRoute, router, pathname])
 
-  // For public routes, always render children (they handle their own loading states)
   if (isPublicRoute) {
     return <>{children}</>
   }
 
-  // Show loading while checking auth for protected routes
   if (!isLoaded) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -42,7 +40,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Show fallback UI instead of null for unauthenticated users
   if (!isSignedIn) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -52,6 +49,5 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Render children for authenticated users
   return <>{children}</>
 }

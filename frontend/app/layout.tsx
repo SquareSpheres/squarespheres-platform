@@ -6,14 +6,14 @@ import './globals.css'
 import Link from 'next/link'
 import React from 'react'
 import StaticBackground from './StaticBackground'
-import { Share2, ArrowUpCircle, ArrowDownCircle, TestTube } from 'lucide-react'
+import { Share2 } from 'lucide-react'
 import { ThemeProvider } from './Provider'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
 import { ClerkThemeProvider } from "./components/ClerkThemeProvider"
 import { AuthHeader } from './components/AuthHeader'
 import { AuthGuard } from './components/AuthGuard'
-import { AdminLink } from './components/AdminLink'
 import { HiddenAdminAccess } from './components/HiddenAdminAccess'
+import { HeaderNavigation } from './components/HeaderNavigation'
 
 const inter = Inter({ subsets: ['latin'] })
 const poppins = Poppins({
@@ -64,21 +64,7 @@ export default function RootLayout({
                     </Link>
                   </h1>
               <div className="flex items-center space-x-2 lg:space-x-4">
-                <nav className="flex items-center space-x-1 lg:space-x-2">
-                  <Link href="/" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Send">
-                    <ArrowUpCircle className="h-5 w-5" />
-                    <span className="hidden lg:inline font-medium text-sm">Send</span>
-                  </Link>
-                  <Link href="/receive" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Receive">
-                    <ArrowDownCircle className="h-5 w-5" />
-                    <span className="hidden lg:inline font-medium text-sm">Receive</span>
-                  </Link>
-                  <Link href="/turn-test" className="flex items-center gap-2 p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="TURN Servers Test">
-                    <TestTube className="h-5 w-5" />
-                    <span className="hidden lg:inline font-medium text-sm">TURN Test</span>
-                  </Link>
-                  <AdminLink />
-                </nav>
+                <HeaderNavigation />
                 <div className="flex items-center space-x-2">
                   <AuthHeader />
                   <ThemeSwitcher />
