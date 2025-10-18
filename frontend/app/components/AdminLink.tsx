@@ -1,16 +1,18 @@
 'use client'
 
-import { useUser } from '@clerk/nextjs'
+import { useAuth, useUser } from '@clerk/nextjs'
 import Link from 'next/link'
 import { Settings } from 'lucide-react'
 
 export function AdminLink() {
   const { user } = useUser()
+  const { sessionClaims } = useAuth()
   
-  // Check if user has admin role (both publicMetadata and custom session claims)
-  const publicMetadata = user?.publicMetadata as any
-  const customMetadata = (user as any)?.metadata // Custom session claims
-  const isAdmin = publicMetadata?.role === 'admin' || customMetadata?.role === 'admin'
+  // Check if user has admin role from session claims first, then fall back to user object
+  const userRoleFromSession = (sessionClaims as any)?.user_role
+  const userRoleFromUser = (user as any)?.user_role
+  const userRole = userRoleFromSession || userRoleFromUser
+  const isAdmin = userRole === 'admin'
   
   if (!isAdmin) {
     return null

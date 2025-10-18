@@ -1,22 +1,21 @@
-import { auth } from '@clerk/nextjs/server'
+import { auth, clerkClient } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { AdminUserManagement } from './AdminUserManagement'
 
 export default async function AdminPage() {
-  const { userId, sessionClaims } = await auth()
+  const { userId } = await auth()
   
   // Server-side admin check
   if (!userId) {
     redirect('/sign-up/')
   }
   
-  // Check both publicMetadata and metadata (custom session claims)
-  const publicMetadata = sessionClaims?.publicMetadata as any
-  const customMetadata = sessionClaims?.metadata as any
-  const userRole = publicMetadata?.role || customMetadata?.role
+  // Fetch user to get privateMetadata and check admin role
+  const client = await clerkClient()
+  const user = await client.users.getUser(userId)
+  const userRole = (user.privateMetadata as any)?.user_role
   
   if (userRole !== 'admin') {
-    console.log('[AdminPage] Non-admin user accessed admin page, redirecting to home')
     redirect('/')
   }
   

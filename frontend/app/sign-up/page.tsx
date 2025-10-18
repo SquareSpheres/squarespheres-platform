@@ -7,7 +7,7 @@ import { User, ArrowRight, Loader2 } from 'lucide-react'
 
 export default function SignUpPage() {
   const { signUp, isLoaded, setActive } = useSignUp()
-  const { isSignedIn } = useAuth()
+  const { isSignedIn, sessionClaims } = useAuth()
   const { user } = useUser()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -18,22 +18,20 @@ export default function SignUpPage() {
       // Redirect when authentication is successful
       useEffect(() => {
         if (isSignedIn && user) {
-          // Check if user is admin (both publicMetadata and custom session claims)
-          const publicMetadata = user.publicMetadata as any
-          const customMetadata = (user as any)?.metadata // Custom session claims
-          const isAdmin = publicMetadata?.role === 'admin' || customMetadata?.role === 'admin'
+          // Check if user is admin from session claims first, then fall back to user object
+          const userRoleFromSession = (sessionClaims as any)?.user_role
+          const userRoleFromUser = (user as any)?.user_role
+          const userRole = userRoleFromSession || userRoleFromUser
+          const isAdmin = userRole === 'admin'
           const isAnonymous = user.unsafeMetadata?.isAnonymous === true
       
           if (isAdmin) {
-            console.log('[SignUpPage] Admin user authenticated, redirecting to admin panel')
             router.replace('/admin')
           } else if (success || isAnonymous) {
-            // Anonymous user sign-up
-            console.log('[SignUpPage] Anonymous user authenticated, redirecting to home')
             router.replace('/')
           }
         }
-      }, [isSignedIn, user, success, router])
+      }, [isSignedIn, user, sessionClaims, success, router])
 
 
   const handleAnonymousSignup = async () => {
@@ -87,9 +85,10 @@ export default function SignUpPage() {
 
       // Show loading state if admin is signing in or if user is already signed in
       if (isSignedIn && user) {
-        const publicMetadata = user.publicMetadata as any
-        const customMetadata = (user as any)?.metadata // Custom session claims
-        const isAdmin = publicMetadata?.role === 'admin' || customMetadata?.role === 'admin'
+        const userRoleFromSession = (sessionClaims as any)?.user_role
+        const userRoleFromUser = (user as any)?.user_role
+        const userRole = userRoleFromSession || userRoleFromUser
+        const isAdmin = userRole === 'admin'
         const isAnonymous = user.unsafeMetadata?.isAnonymous === true
     
     if (isAdmin) {
@@ -178,15 +177,6 @@ export default function SignUpPage() {
               No personal data is collected or stored.
             </p>
             
-            {/* Hidden admin access - not obvious to regular users */}
-            <div className="mt-4 pt-4 border-t border-border/20">
-              {/* Ultra-subtle admin hint */}
-              <div className="text-center">
-                <span className="text-xs text-muted-foreground/30">
-                  Press Ctrl+Shift+A for admin access
-                </span>
-              </div>
-            </div>
           </div>
         </div>
       </div>

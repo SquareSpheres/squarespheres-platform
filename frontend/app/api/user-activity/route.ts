@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { auth, clerkClient } from '@clerk/nextjs/server'
 
 interface PublicMetadata {
   role?: string;
@@ -72,11 +72,14 @@ const getUserActivityData = (userId: string, userAgent: string): UserActivity =>
 export async function GET(request: NextRequest) {
   try {
     // Middleware already guarantees the request is authenticated
-    const { userId, sessionClaims } = await auth()
+    const { userId } = await auth()
 
-    // Optional: add authorization (roles/permissions)
-    const role = (sessionClaims?.metadata as PublicMetadata)?.role
-    if (role !== "admin") {
+    // Fetch user to get privateMetadata and check admin role
+    const client = await clerkClient()
+    const user = await client.users.getUser(userId!)
+    const userRole = (user.privateMetadata as any)?.user_role
+    
+    if (userRole !== "admin") {
       return NextResponse.json(
         { error: "Forbidden" },
         { status: 403 }

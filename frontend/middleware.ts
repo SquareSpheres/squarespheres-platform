@@ -23,17 +23,13 @@ export default clerkMiddleware(async (auth, req) => {
     const { userId, sessionClaims } = await auth()
     
     if (!userId) {
-      console.log('[AdminMiddleware] Unauthenticated access to admin route, redirecting to sign-up')
       return NextResponse.redirect(new URL('/sign-up/', req.url))
     }
     
-    // Check both publicMetadata and custom session claims
-    const publicMetadata = sessionClaims?.publicMetadata as any
-    const customMetadata = sessionClaims?.metadata as any
-    const userRole = publicMetadata?.role || customMetadata?.role
+    // Check role from direct claim only
+    const userRole = (sessionClaims as any)?.user_role
     
     if (userRole !== 'admin') {
-      console.log('[AdminMiddleware] Non-admin user attempted admin access, redirecting to home')
       return NextResponse.redirect(new URL('/', req.url))
     }
   }

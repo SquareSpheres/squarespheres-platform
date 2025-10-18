@@ -4,25 +4,23 @@ import { NextRequest, NextResponse } from 'next/server'
 // GET /api/admin/users - Fetch all users
 export async function GET(request: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth()
+    const { userId } = await auth()
     
     // Check if user is authenticated
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
-    // Check if user has admin role in public metadata or custom session claims
-    const publicMetadata = sessionClaims?.publicMetadata as any
-    const customMetadata = sessionClaims?.metadata as any
-    const userRole = publicMetadata?.role || customMetadata?.role
+    // Fetch user to get privateMetadata and check admin role
+    const client = await clerkClient()
+    const user = await client.users.getUser(userId)
+    const userRole = (user.privateMetadata as any)?.user_role
     
     if (userRole !== 'admin') {
-      console.log('[AdminAPI] Non-admin user attempted to access admin API')
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     
     // Fetch all users from Clerk
-    const client = await clerkClient()
     const users = await client.users.getUserList({
       limit: 100, // Adjust as needed
       orderBy: '-created_at'
@@ -45,17 +43,17 @@ export async function GET(request: NextRequest) {
 // DELETE /api/admin/users - Delete users
 export async function DELETE(request: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth()
+    const { userId } = await auth()
     
     // Check if user is authenticated
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
-    // Check if user has admin role in public metadata or custom session claims
-    const publicMetadata = sessionClaims?.publicMetadata as any
-    const customMetadata = sessionClaims?.metadata as any
-    const userRole = publicMetadata?.role || customMetadata?.role
+    // Fetch user to get privateMetadata and check admin role
+    const client = await clerkClient()
+    const user = await client.users.getUser(userId)
+    const userRole = (user.privateMetadata as any)?.user_role
     
     if (userRole !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -79,8 +77,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
     
-    // Delete users
-    const client = await clerkClient()
+    // Delete users (reuse existing client)
     const deletePromises = userIds.map(async (id: string) => {
       try {
         await client.users.deleteUser(id)
