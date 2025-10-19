@@ -339,8 +339,8 @@ export default function SendPage() {
               </div>
               
               <div className="card p-4 rounded-xl text-center">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-secondary/10 flex items-center justify-center">
-                  <CheckCircle className="h-6 w-6 text-secondary" />
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center">
+                  <CheckCircle className="h-6 w-6 text-primary" />
                 </div>
                 <h4 className="font-medium text-sm">Secure Transfer</h4>
                 <p className="text-xs text-muted-foreground mt-1">Direct peer connection</p>
