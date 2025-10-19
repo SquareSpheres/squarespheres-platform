@@ -11,7 +11,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-card-foreground mb-4">1. Nature of the Service</h2>
             <p className="text-muted-foreground mb-4">
-              This web application ("the Service") is a personal, non-commercial project created by an individual developer for learning, experimentation, and demonstration purposes only. It is not a commercial product and is not intended for production or critical use.
+              This web application (&quot;the Service&quot;) is a personal, non-commercial project created by an individual developer for learning, experimentation, and demonstration purposes only. It is not a commercial product and is not intended for production or critical use.
             </p>
             <p className="text-muted-foreground">
               The Service may contain bugs, security flaws, or interruptions, and may be modified or discontinued at any time without notice.
@@ -21,7 +21,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-card-foreground mb-4">2. Acceptance of Terms</h2>
             <p className="text-muted-foreground">
-              By accessing or using the Service, you acknowledge that you understand its experimental nature and agree to be bound by these Terms of Service ("Terms"). If you do not agree, do not use the Service.
+              By accessing or using the Service, you acknowledge that you understand its experimental nature and agree to be bound by these Terms of Service (&quot;Terms&quot;). If you do not agree, do not use the Service.
             </p>
           </section>
 
@@ -35,7 +35,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-card-foreground mb-4">4. No Warranty</h2>
             <p className="text-muted-foreground">
-              The Service is provided "as is" and "as available", without any warranties of any kind, express or implied. The developer makes no representations or guarantees about functionality, security, or availability.
+              The Service is provided &quot;as is&quot; and &quot;as available&quot;, without any warranties of any kind, express or implied. The developer makes no representations or guarantees about functionality, security, or availability.
             </p>
           </section>
 
@@ -73,7 +73,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-card-foreground mb-4">9. Governing Law</h2>
             <p className="text-muted-foreground">
-              These Terms are governed by the laws applicable in the developer's jurisdiction, without regard to conflict of law principles.
+              These Terms are governed by the laws applicable in the developer&apos;s jurisdiction, without regard to conflict of law principles.
             </p>
           </section>
         </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, DragEvent, ChangeEvent, useEffect, useMemo } from 'react'
-import { File, CheckCircle, Copy, Check, Users } from 'lucide-react'
+import { File, CheckCircle, Copy, Check, Users, UploadCloud } from 'lucide-react'
 import FileDropAnimation from './FileDropAnimation'
 import { useFileTransferFactory } from './hooks/useFileTransferFactory'
 import { getConnectionStats, ConnectionStats } from './utils/webrtcUtils'
@@ -232,7 +232,7 @@ export default function SendPage() {
         }
       }, 100);
     }
-  }, [hostFileTransfer.connectedClient, fileInfoSent, uiLogger])
+  }, [hostFileTransfer.connectedClient, hostFileTransfer.sendFileInfo, fileInfoSent, uiLogger])
   
   const sendFile = async () => {
     if (!selectedFile) return;
@@ -284,20 +284,72 @@ export default function SendPage() {
   return (
     <div className="w-full max-w-2xl mx-auto">
       {!selectedFile ? (
-        <div 
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          className={`border-4 border-dashed rounded-xl p-8 sm:p-16 transition-colors duration-300 bg-card text-center ${isDragging ? 'border-primary bg-muted' : 'border-border hover:border-primary/50'}`}
-          suppressHydrationWarning
-        >
+        <>
+          {/* Desktop: Drop Zone */}
+          <div 
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            className={`hidden sm:block border-4 border-dashed rounded-xl p-8 sm:p-16 transition-colors duration-300 bg-card text-center ${isDragging ? 'border-primary bg-muted' : 'border-border hover:border-primary/50'}`}
+            suppressHydrationWarning
+          >
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+            <FileDropAnimation isDragging={isDragging} />
+            <h2 className="text-xl sm:text-2xl font-bold mb-2 text-foreground">Drop your file here</h2>
+            <p className="text-muted-foreground mb-6">or</p>
+            <button onClick={handleBrowseClick} className="btn btn-primary px-6 py-2 text-base sm:text-lg">Browse Files</button>
+          </div>
+
+          {/* Mobile: Card-based Design */}
+          <div className="sm:hidden space-y-6">
+            <div className="text-center mb-8">
+              <h1 className="text-2xl font-bold text-foreground mb-2">Send Files</h1>
+              <p className="text-muted-foreground">Share files instantly with anyone</p>
+            </div>
+
+            <div className="card p-6 rounded-2xl border border-border bg-gradient-to-br from-card to-muted/50">
+              <div className="text-center space-y-6">
+                <div className="mx-auto w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+                  <UploadCloud className="h-10 w-10 text-primary" />
+                </div>
+                
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-foreground">Choose a file</h3>
+                  <p className="text-sm text-muted-foreground">Select any file from your device to get started</p>
+                </div>
+
+                <button 
+                  onClick={handleBrowseClick} 
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-4 px-6 rounded-xl transition-colors flex items-center justify-center gap-3"
+                >
+                  <File className="h-5 w-5" />
+                  Choose File
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="card p-4 rounded-xl text-center">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-accent/10 flex items-center justify-center">
+                  <Users className="h-6 w-6 text-accent" />
+                </div>
+                <h4 className="font-medium text-sm">Instant Sharing</h4>
+                <p className="text-xs text-muted-foreground mt-1">No accounts needed</p>
+              </div>
+              
+              <div className="card p-4 rounded-xl text-center">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-secondary/10 flex items-center justify-center">
+                  <CheckCircle className="h-6 w-6 text-secondary" />
+                </div>
+                <h4 className="font-medium text-sm">Secure Transfer</h4>
+                <p className="text-xs text-muted-foreground mt-1">Direct peer connection</p>
+              </div>
+            </div>
+          </div>
+
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-          <FileDropAnimation isDragging={isDragging} />
-          <h2 className="text-xl sm:text-2xl font-bold mb-2 text-foreground">Drop your file here</h2>
-          <p className="text-muted-foreground mb-6">or</p>
-          <button onClick={handleBrowseClick} className="btn btn-primary px-6 py-2 text-base sm:text-lg">Browse Files</button>
-        </div>
+        </>
       ) : (
         <div className="space-y-4">
           <div className="card p-6 rounded-xl">

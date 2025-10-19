@@ -155,7 +155,7 @@ export default function SignUpPage() {
 
           <div className="text-center">
             <p className="text-xs text-muted-foreground">
-              By clicking "Continue Anonymously" or using the Service, you acknowledge that this is a non-commercial, experimental project and agree to the{' '}
+              By clicking &quot;Continue Anonymously&quot; or using the Service, you acknowledge that this is a non-commercial, experimental project and agree to the{' '}
               <Link href="/terms" className="text-primary hover:underline">
                 Terms of Service
               </Link>.
