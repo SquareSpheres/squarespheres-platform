@@ -12,6 +12,21 @@ const isProtectedRoute = createRouteMatcher([
 // Admin routes that require admin role
 const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 
+// Build connect-src directives based on environment
+const getConnectSrcDirectives = () => {
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const isVercel = process.env.VERCEL === '1';
+  
+  const directives = ["wss://*.squarespheres.com"];
+  
+  // Only add localhost URLs in development
+  if (isDevelopment && !isVercel) {
+    directives.unshift("ws://localhost:5052", "wss://localhost:5052");
+  }
+  
+  return directives;
+};
+
 export default clerkMiddleware(
   async (auth, req) => {
     if (isProtectedRoute(req)) {
@@ -35,7 +50,11 @@ export default clerkMiddleware(
     }
   },
   {
-    contentSecurityPolicy: {},
+    contentSecurityPolicy: {
+      directives: {
+        'connect-src': getConnectSrcDirectives()
+      }
+    },
   }
 );
 
