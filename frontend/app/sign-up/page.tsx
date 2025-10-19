@@ -142,7 +142,7 @@ export default function SignUpPage() {
             {loading ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
-                {success ? 'Redirecting to app...' : 'Creating anonymous account...'}
+                {success ? 'Redirecting to app...' : 'Setting up temporary session...'}
               </>
             ) : (
               <>
@@ -185,7 +185,7 @@ export default function SignUpPage() {
           )}
 
           {mounted && !showAdminAccess && (
-            <div className="text-center pt-4">
+            <div className="text-center pt-1">
               <p className="text-xs text-muted-foreground/50 opacity-0 hover:opacity-100 transition-opacity duration-300">
                 Admin access: {getKeyboardShortcutText()}
               </p>
