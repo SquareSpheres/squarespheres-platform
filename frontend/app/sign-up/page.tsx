@@ -3,7 +3,7 @@
 import { useSignUp, useAuth, useUser, SignInButton,SignUp } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { User, ArrowRight, Loader2 } from 'lucide-react'
+import { User, ArrowRight, Loader2, EyeOff } from 'lucide-react'
 import { getKeyboardShortcutText } from '../utils/browserUtils'
 
 export default function SignUpPage() {
@@ -145,7 +145,7 @@ export default function SignUpPage() {
               </>
             ) : (
               <>
-                <User className="h-5 w-5" />
+                <EyeOff className="h-5 w-5" />
                 Continue Anonymously
                 <ArrowRight className="h-4 w-4" />
               </>

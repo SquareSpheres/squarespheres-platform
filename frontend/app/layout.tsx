@@ -14,6 +14,7 @@ import { AuthHeader } from './components/AuthHeader'
 import { AuthGuard } from './components/AuthGuard'
 import { HiddenAdminAccess } from './components/HiddenAdminAccess'
 import { HeaderNavigation } from './components/HeaderNavigation'
+import StaticBackground2 from './StaticBackground2'
 
 const inter = Inter({ subsets: ['latin'] })
 const poppins = Poppins({
@@ -43,7 +44,7 @@ export default function RootLayout({
           <Analytics />
           <SpeedInsights />
           <div className="fixed inset-0 z-0 bg-gradient-to-b from-background via-muted to-background">
-            <StaticBackground />
+            <StaticBackground2 />
           </div>
           <div className="container mx-auto p-4 flex flex-col min-h-screen relative z-10">
             <header className="flex flex-col lg:flex-row justify-between items-center py-4 lg:space-x-4 space-y-4 lg:space-y-0 border-b border-border bg-card/50 backdrop-blur-sm rounded-lg px-4">
