@@ -10,6 +10,7 @@
 // Public routes that don't require authentication
 export const PUBLIC_ROUTES = [
   '/sign-up',
+  '/terms',
   // Add more public routes here as the app grows
   // '/about',
   // '/pricing',
@@ -31,8 +32,8 @@ export function isPublicRoute(pathname: string): boolean {
 
 // Alternative regex-based approach (more flexible and performant)
 export function isPublicRouteRegex(pathname: string): boolean {
-  // Matches /sign-up and its sub-routes
-  return /^\/sign-up(\/.*)?$/.test(pathname)
+  // Matches /sign-up, /terms and their sub-routes
+  return /^\/sign-up(\/.*)?$/.test(pathname) || /^\/terms(\/.*)?$/.test(pathname)
 }
 
 // Helper function to check if a route is admin-only

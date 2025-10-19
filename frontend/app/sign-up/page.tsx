@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { User, ArrowRight, Loader2, EyeOff } from 'lucide-react'
 import { getKeyboardShortcutText } from '../utils/browserUtils'
+import Link from 'next/link'
 
 export default function SignUpPage() {
   const { signUp, isLoaded, setActive } = useSignUp()
@@ -152,6 +153,15 @@ export default function SignUpPage() {
             )}
           </button>
 
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">
+              By clicking "Continue Anonymously" or using the Service, you acknowledge that this is a non-commercial, experimental project and agree to the{' '}
+              <Link href="/terms" className="text-primary hover:underline">
+                Terms of Service
+              </Link>.
+            </p>
+          </div>
+
           {/* Admin Access - Hidden by default */}
           {showAdminAccess && (
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -174,19 +184,13 @@ export default function SignUpPage() {
             </div>
           )}
 
-          <div className="text-center pt-4">
-            <p className="text-xs text-muted-foreground">
-              By continuing, you agree to use this service responsibly.
-              <br />
-              No personal data is collected or stored.
-            </p>
-            
-            {mounted && !showAdminAccess && (
-              <p className="text-xs text-muted-foreground/50 mt-3 opacity-0 hover:opacity-100 transition-opacity duration-300">
+          {mounted && !showAdminAccess && (
+            <div className="text-center pt-4">
+              <p className="text-xs text-muted-foreground/50 opacity-0 hover:opacity-100 transition-opacity duration-300">
                 Admin access: {getKeyboardShortcutText()}
               </p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
         <div id="clerk-captcha" />
       </div>
