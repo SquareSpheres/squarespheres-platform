@@ -8,7 +8,27 @@ interface ServiceStatus {
   errorCount: number
   lastError?: string
   isApiUnreachable?: boolean
-  severity?: 'degraded' | 'critical'
+  severity?: 'healthy' | 'degraded' | 'critical'
+  vercelData?: {
+    healthy: boolean
+    indicator: string
+    description: string
+    name: string
+    apiReachable: boolean
+    incidents?: {
+      active: number
+      items: Array<{
+        id: string
+        name: string
+        impact: string
+        status: string
+      }>
+    }
+    components?: {
+      summary: Record<string, number>
+      total: number
+    }
+  }
 }
 
 export function ServiceStatusBanner() {
@@ -32,20 +52,20 @@ export function ServiceStatusBanner() {
         clearTimeout(timeoutId)
         const health = await response.json()
         
-        if (!response.ok || health.status !== 'healthy') {
-          setStatus({
-            isHealthy: false,
-            errorCount: 1,
-            lastError: health.message || 'Vercel services are experiencing issues',
-            isApiUnreachable: false,
-            severity: health.status === 'critical' ? 'critical' : 'degraded'
-          })
-          setIsVisible(true)
-        } else {
-          // Service is healthy, hide banner
-          setStatus({ isHealthy: true, errorCount: 0, isApiUnreachable: false })
-          setIsVisible(false)
-        }
+        const isHealthy = response.ok && health.status === 'healthy'
+        
+        setStatus({
+          isHealthy,
+          errorCount: isHealthy ? 0 : 1,
+          lastError: isHealthy ? undefined : health.message,
+          isApiUnreachable: false,
+          severity: health.status || 'degraded',
+          vercelData: health.vercel
+        })
+
+        console.log(health)
+        
+        setIsVisible(!isHealthy)
       } catch (error) {
         console.warn('Health check failed:', error)
         
@@ -72,8 +92,8 @@ export function ServiceStatusBanner() {
     // Initial check
     checkHealth()
 
-    // Check every 2 minutes
-    const healthCheckInterval = setInterval(checkHealth, 120000)
+    // Check every 10 minutes - more reasonable for status monitoring
+    const healthCheckInterval = setInterval(checkHealth, 600000)
 
     return () => {
       clearInterval(healthCheckInterval)
@@ -128,17 +148,19 @@ export function ServiceStatusBanner() {
               <p className={`text-sm font-medium ${textColor}`}>
                 {status.isApiUnreachable 
                   ? 'Critical service connectivity issues' 
-                  : isCritical 
-                  ? 'Critical Vercel infrastructure issues'
-                  : 'Vercel services experiencing issues'
+                  : status.vercelData?.description || (isCritical 
+                    ? 'Critical Vercel infrastructure issues'
+                    : 'Vercel services experiencing issues')
                 }
               </p>
               <p className={`text-xs mt-1 ${subTextColor}`}>
                 {status.isApiUnreachable 
                   ? 'Unable to reach our service health endpoint - likely CDN or hosting issues.'
-                  : isCritical
-                  ? 'Vercel status API unreachable - severe infrastructure issues affecting all services.'
-                  : 'Our hosting provider is experiencing CDN issues. Some features may not work properly.'
+                  : status.vercelData?.incidents?.active 
+                    ? `${status.vercelData.incidents.active} active incident${status.vercelData.incidents.active > 1 ? 's' : ''} affecting services${status.vercelData.incidents.items.length > 0 ? ` - ${status.vercelData.incidents.items[0].name}` : ''}.`
+                    : isCritical
+                    ? 'Vercel status API unreachable - severe infrastructure issues affecting all services.'
+                    : status.vercelData?.description || 'Our hosting provider is experiencing issues. Some features may not work properly.'
                 }
               </p>
             </div>
