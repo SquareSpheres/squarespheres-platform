@@ -14,6 +14,7 @@ import { AuthHeader } from './components/AuthHeader'
 import { AuthGuard } from './components/AuthGuard'
 import { HiddenAdminAccess } from './components/HiddenAdminAccess'
 import { HeaderNavigation } from './components/HeaderNavigation'
+import { ServiceStatusBanner } from './components/ServiceStatusBanner'
 import StaticBackground2 from './StaticBackground2'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -39,6 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} ${poppins.variable} bg-background text-foreground relative`}>
+        <ServiceStatusBanner />
         <ThemeProvider>
           <ClerkThemeProvider>
           <Analytics />
