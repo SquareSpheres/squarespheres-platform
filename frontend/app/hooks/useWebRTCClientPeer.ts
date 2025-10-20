@@ -38,6 +38,7 @@ export interface WebRTCClientPeerApi {
   getPeerConnection: () => RTCPeerConnection | null;
   role: 'client';
   peerId?: string;
+  signalingConnected: boolean;
 }
 
 export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (data: string) => void }): WebRTCClientPeerApi {
@@ -372,5 +373,6 @@ export function useWebRTCClientPeer(config: WebRTCPeerConfig & { onMessage?: (da
     getPeerConnection,
     role: 'client' as const,
     peerId: client.clientId,
+    signalingConnected: client.isConnected,
   };
 }

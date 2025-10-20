@@ -21,7 +21,6 @@ export default function SendPage() {
   const [showLogs, setShowLogs] = useState(false)
   const [connectionStats, setConnectionStats] = useState<ConnectionStats | null>(null)
   const [codeCopied, setCodeCopied] = useState(false)
-  const [signalingConnected, setSignalingConnected] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const [fileInfoSent, setFileInfoSent] = useState(false)
 
@@ -111,11 +110,9 @@ export default function SendPage() {
     },
     onClientJoined: (clientId: string) => {
       uiLogger.log(`🔗 Signaling: Client ${clientId} joined`);
-      setSignalingConnected(true);
     },
     onClientDisconnected: (clientId: string) => {
       uiLogger.log(`🔌 Signaling: Client ${clientId} disconnected from server`);
-      setSignalingConnected(false);
     },
     onProgress: (progress) => {
       const milestones = [10, 30, 50, 70, 90, 100];
@@ -366,16 +363,28 @@ export default function SendPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                {/* Signaling Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                {/* Signaling Server Status */}
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">Signaling:</span>
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    signalingConnected
+                    hostFileTransfer.signalingConnected
                       ? 'bg-primary/10 text-primary'
                       : 'bg-destructive/10 text-destructive'
                   }`}>
-                    {signalingConnected ? 'Connected' : 'Disconnected'}
+                    {hostFileTransfer.signalingConnected ? 'Connected' : 'Disconnected'}
+                  </span>
+                </div>
+
+                {/* Client Connection Status */}
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Client:</span>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    hostFileTransfer.connectedClient
+                      ? 'bg-primary/10 text-primary'
+                      : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {hostFileTransfer.connectedClient ? 'Connected' : 'Waiting'}
                   </span>
                 </div>
 

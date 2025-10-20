@@ -98,6 +98,7 @@ export interface FileTransferApi {
   role: 'host' | 'client';
   peerId?: string;
   connectedClient?: string;
+  signalingConnected?: boolean;
 
   // Fixed chunk size
   getCurrentChunkSize: () => number;

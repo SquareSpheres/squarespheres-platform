@@ -576,5 +576,6 @@ export function useFileTransferEventDriven(config: WebRTCPeerConfig & {
     role: peer.role,
     peerId: peer.peerId,
     connectedClient: hostPeer?.connectedClient,
+    signalingConnected: config.role === 'host' ? hostPeer?.signalingConnected : clientPeer?.signalingConnected,
   };
 }

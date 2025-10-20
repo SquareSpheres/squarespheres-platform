@@ -364,6 +364,7 @@ export function useFileTransfer(config: WebRTCPeerConfig & {
     role: activePeer.role,
     peerId: activePeer.peerId,
     connectedClient: 'connectedClient' in activePeer ? activePeer.connectedClient : undefined,
+    signalingConnected: 'signalingConnected' in activePeer ? activePeer.signalingConnected : undefined,
     
     // Callbacks
     onProgress: config.onProgress,

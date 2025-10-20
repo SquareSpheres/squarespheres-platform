@@ -37,6 +37,7 @@ export interface WebRTCHostPeerApi {
   peerId?: string;
   connectedClient?: string;
   sendMessageToClient: (clientId: string, payload: string) => void;
+  signalingConnected: boolean;
 }
 
 interface HostConnection {
@@ -330,5 +331,6 @@ export function useWebRTCHostPeer(config: WebRTCPeerConfig): WebRTCHostPeerApi {
     peerId: host.hostId,
     connectedClient,
     sendMessageToClient: host.sendMessageToClient,
+    signalingConnected: host.isConnected,
   };
 }
