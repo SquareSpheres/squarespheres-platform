@@ -135,6 +135,10 @@ export default function SendPage() {
     }
   });
 
+  // Memoize the specific properties we need to avoid unnecessary re-renders
+  const connectedClient = useMemo(() => hostFileTransfer.connectedClient, [hostFileTransfer.connectedClient]);
+  const sendFileInfo = useMemo(() => hostFileTransfer.sendFileInfo, [hostFileTransfer.sendFileInfo]);
+
   useEffect(() => {
     if (hostFileTransfer.connectedClient) {
       uiLogger.log(`✅ Client ID tracked: ${hostFileTransfer.connectedClient}`);
@@ -165,10 +169,10 @@ export default function SendPage() {
         }
       }
 
-      if (hostFileTransfer.connectedClient && hostFileTransfer.sendFileInfo && !fileInfoSent) {
+      if (connectedClient && sendFileInfo && !fileInfoSent) {
         setTimeout(() => {
           try {
-            hostFileTransfer.sendFileInfo(file.name, file.size);
+            sendFileInfo(file.name, file.size);
             setFileInfoSent(true);
             uiLogger.log(`File info sent to already connected client: ${file.name} (${formatFileSize(file.size)})`);
           } catch (error) {
@@ -223,10 +227,10 @@ export default function SendPage() {
   }
 
   useEffect(() => {
-    if (hostFileTransfer.connectedClient && selectedFileRef.current && hostFileTransfer.sendFileInfo && !fileInfoSent) {
+    if (connectedClient && selectedFileRef.current && sendFileInfo && !fileInfoSent) {
       setTimeout(() => {
         try {
-          hostFileTransfer.sendFileInfo(selectedFileRef.current!.name, selectedFileRef.current!.size);
+          sendFileInfo(selectedFileRef.current!.name, selectedFileRef.current!.size);
           setFileInfoSent(true); 
           uiLogger.log(`File info sent to connected client: ${selectedFileRef.current!.name} (${formatFileSize(selectedFileRef.current!.size)})`);
         } catch (error) {
@@ -234,7 +238,7 @@ export default function SendPage() {
         }
       }, 100);
     }
-  }, [hostFileTransfer.connectedClient, hostFileTransfer.sendFileInfo, fileInfoSent, uiLogger])
+  }, [connectedClient, sendFileInfo, fileInfoSent, uiLogger])
   
   const sendFile = async () => {
     if (!selectedFile) return;
