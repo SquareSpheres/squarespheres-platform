@@ -35,8 +35,11 @@ export function ServiceStatusBanner() {
   const [status, setStatus] = useState<ServiceStatus>({ isHealthy: true, errorCount: 0 })
   const [isVisible, setIsVisible] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
+  const [healthCheckFailed, setHealthCheckFailed] = useState(false)
 
   useEffect(() => {
+    let healthCheckInterval: NodeJS.Timeout
+    
     // Check service health on mount and periodically
     const checkHealth = async () => {
       try {
@@ -54,20 +57,24 @@ export function ServiceStatusBanner() {
         
         const isHealthy = response.ok && health.status === 'healthy'
         
-        setStatus({
+        setStatus(prevStatus => ({
           isHealthy,
-          errorCount: isHealthy ? 0 : 1,
+          errorCount: isHealthy ? 0 : prevStatus.errorCount + 1,
           lastError: isHealthy ? undefined : health.message,
           isApiUnreachable: false,
           severity: health.status || 'degraded',
           vercelData: health.vercel
-        })
+        }))
 
         console.log(health)
         
         setIsVisible(!isHealthy)
+        setHealthCheckFailed(false)
       } catch (error) {
         console.warn('Health check failed:', error)
+        
+        // Track consecutive failures to prevent infinite retries
+        setHealthCheckFailed(true)
         
         // If it's an abort error or network error, the API itself is likely unreachable
         const isApiUnreachable = error instanceof Error && (
@@ -76,15 +83,15 @@ export function ServiceStatusBanner() {
           error.message.includes('NetworkError')
         )
         
-        setStatus({
+        setStatus(prevStatus => ({
           isHealthy: false,
-          errorCount: 1,
+          errorCount: prevStatus.errorCount + 1,
           lastError: isApiUnreachable 
             ? 'Service connectivity issues - API unreachable'
             : 'Unable to check service status',
           isApiUnreachable,
           severity: isApiUnreachable ? 'critical' : 'degraded'
-        })
+        }))
         setIsVisible(true)
       }
     }
@@ -93,10 +100,13 @@ export function ServiceStatusBanner() {
     checkHealth()
 
     // Check every 10 minutes - more reasonable for status monitoring
-    const healthCheckInterval = setInterval(checkHealth, 600000)
+    const intervalTime = 600000 // 10 minutes
+    healthCheckInterval = setInterval(checkHealth, intervalTime)
 
     return () => {
-      clearInterval(healthCheckInterval)
+      if (healthCheckInterval) {
+        clearInterval(healthCheckInterval)
+      }
     }
   }, [])
 

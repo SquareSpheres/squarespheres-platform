@@ -2,7 +2,7 @@
 
 import { useSignUp, useAuth, useUser, SignInButton,SignUp } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { User, ArrowRight, Loader2, EyeOff } from 'lucide-react'
 import { getKeyboardShortcutText } from '../utils/browserUtils'
 import Link from 'next/link'
@@ -22,21 +22,26 @@ export default function SignUpPage() {
     setMounted(true)
   }, [])
 
-      useEffect(() => {
-        if (isSignedIn && user) {
-          const userRoleFromSession = (sessionClaims as any)?.user_role
-          const userRoleFromUser = (user as any)?.user_role
-          const userRole = userRoleFromSession || userRoleFromUser
-          const isAdmin = userRole === 'admin'
-          const isAnonymous = user.unsafeMetadata?.isAnonymous === true
-      
-          if (isAdmin) {
-            router.replace('/admin')
-          } else if (success || isAnonymous) {
-            router.replace('/')
-          }
-        }
-      }, [isSignedIn, user, sessionClaims, success, router])
+  // Add ref to prevent multiple redirects
+  const hasRedirected = useRef(false)
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user || hasRedirected.current) return
+    
+    const userRoleFromSession = (sessionClaims as any)?.user_role
+    const userRoleFromUser = (user as any)?.user_role
+    const userRole = userRoleFromSession || userRoleFromUser
+    const isAdmin = userRole === 'admin'
+    const isAnonymous = user.unsafeMetadata?.isAnonymous === true
+
+    hasRedirected.current = true
+    
+    if (isAdmin) {
+      router.replace('/admin')
+    } else if (success || isAnonymous) {
+      router.replace('/')
+    }
+  }, [isLoaded, isSignedIn, user, sessionClaims, success, router])
 
 
   const handleAnonymousSignup = async () => {
@@ -55,8 +60,14 @@ export default function SignUpPage() {
           if (result.createdSessionId) {
             await setActive({ session: result.createdSessionId })
             
-            // Store preference for future visits
-            localStorage.setItem('anonMode', 'true')
+            // Store preference for future visits only if successful
+            try {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('anonMode', 'true')
+              }
+            } catch (error) {
+              console.warn('Failed to store anonMode preference:', error)
+            }
             
             // Set success flag to trigger redirect via useEffect
             setSuccess(true)
