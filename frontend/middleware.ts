@@ -52,7 +52,8 @@ export default clerkMiddleware(
   {
     contentSecurityPolicy: {
       directives: {
-        'connect-src': getConnectSrcDirectives()
+        'connect-src': getConnectSrcDirectives(),
+        'img-src': ["data:"]
       }
     },
   }

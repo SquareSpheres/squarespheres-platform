@@ -1,7 +1,8 @@
 'use client'
 
 import { useRef, useState, DragEvent, ChangeEvent, useEffect, useMemo } from 'react'
-import { File, CheckCircle, Copy, Check, Users, UploadCloud } from 'lucide-react'
+import QRCode from 'qrcode'
+import { File, CheckCircle, Copy, Check, Users, UploadCloud, Share2, QrCode, Link, ChevronDown } from 'lucide-react'
 import FileDropAnimation from './FileDropAnimation'
 import { useFileTransferFactory } from './hooks/useFileTransferFactory'
 import { getConnectionStats, ConnectionStats } from './utils/webrtcUtils'
@@ -23,6 +24,9 @@ export default function SendPage() {
   const [codeCopied, setCodeCopied] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const [fileInfoSent, setFileInfoSent] = useState(false)
+  const [showShareMenu, setShowShareMenu] = useState(false)
+  const [showQRCode, setShowQRCode] = useState(false)
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('')
 
   useEffect(() => {
     setIsMounted(true)
@@ -252,6 +256,72 @@ export default function SendPage() {
     }
   };
 
+  const getShareLink = () => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${baseUrl}/receive/?code=${hostFileTransfer.peerId}`;
+  };
+
+  const copyShareLink = async () => {
+    const shareLink = getShareLink();
+    await navigator.clipboard.writeText(shareLink);
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
+    setShowShareMenu(false);
+  };
+
+  const shareViaWebAPI = async () => {
+    const shareLink = getShareLink();
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'File Transfer',
+          text: 'Receive a file from me',
+          url: shareLink,
+        });
+        setShowShareMenu(false);
+      } catch (error) {
+        // User cancelled sharing or error occurred, fallback to copy
+        copyShareLink();
+      }
+    } else {
+      copyShareLink();
+    }
+  };
+
+  const generateQRCode = async () => {
+    if (hostFileTransfer.peerId) {
+      try {
+        const shareLink = getShareLink();
+        const dataUrl = await QRCode.toDataURL(shareLink, {
+          width: 256,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+        setQrCodeDataUrl(dataUrl);
+      } catch (error) {
+        console.error('Failed to generate QR code:', error);
+      }
+    }
+  };
+
+  const toggleQRCode = async () => {
+    if (!showQRCode && hostFileTransfer.peerId) {
+      await generateQRCode();
+    }
+    setShowQRCode(!showQRCode);
+    setShowShareMenu(false);
+  };
+
+  // Generate QR code when peerId changes
+  useEffect(() => {
+    if (hostFileTransfer.peerId && showQRCode) {
+      generateQRCode();
+    }
+  }, [hostFileTransfer.peerId, showQRCode]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -363,7 +433,8 @@ export default function SendPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+              {/* Desktop: Grid layout */}
+              <div className="hidden sm:grid grid-cols-3 gap-3 text-sm">
                 {/* Signaling Server Status */}
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">Signaling:</span>
@@ -390,6 +461,46 @@ export default function SendPage() {
 
                 {/* WebRTC Status */}
                 <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">WebRTC:</span>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    hostFileTransfer.connectionState === 'connected'
+                      ? 'bg-primary/10 text-primary'
+                      : hostFileTransfer.connectionState === 'connecting'
+                      ? 'bg-accent/10 text-accent'
+                      : hostFileTransfer.connectionState === 'failed'
+                      ? 'bg-destructive/10 text-destructive'
+                      : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {hostFileTransfer.connectionState}
+                  </span>
+                </div>
+              </div>
+
+              {/* Mobile: Aligned table-style layout */}
+              <div className="sm:hidden space-y-2 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Signaling:</span>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    hostFileTransfer.signalingConnected
+                      ? 'bg-primary/10 text-primary'
+                      : 'bg-destructive/10 text-destructive'
+                  }`}>
+                    {hostFileTransfer.signalingConnected ? 'Connected' : 'Disconnected'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Client:</span>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    hostFileTransfer.connectedClient
+                      ? 'bg-primary/10 text-primary'
+                      : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {hostFileTransfer.connectedClient ? 'Connected' : 'Waiting'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">WebRTC:</span>
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
                     hostFileTransfer.connectionState === 'connected'
@@ -434,19 +545,109 @@ export default function SendPage() {
                     <div className="flex-1 bg-background rounded-lg px-4 py-3 font-mono text-2xl tracking-widest text-center border border-border">
                       {hostFileTransfer.peerId}
                     </div>
-                    <button
-                      onClick={copyCode}
-                      className="p-3 bg-background hover:bg-muted rounded-lg border border-border transition-colors"
-                      title="Copy code"
-                    >
-                      {codeCopied ? (
-                        <Check className="h-5 w-5 text-primary" />
-                      ) : (
-                        <Copy className="h-5 w-5" />
-                      )}
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={copyCode}
+                        className="p-3 bg-background hover:bg-muted rounded-lg border border-border transition-colors"
+                        title="Copy code"
+                      >
+                        {codeCopied ? (
+                          <Check className="h-5 w-5 text-primary" />
+                        ) : (
+                          <Copy className="h-5 w-5" />
+                        )}
+                      </button>
+                      
+                      {/* Share Button with Dropdown */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowShareMenu(!showShareMenu)}
+                          className="p-3 bg-background hover:bg-muted rounded-lg border border-border transition-colors"
+                          title="Share"
+                        >
+                          <Share2 className="h-5 w-5" />
+                        </button>
+                        
+                        {showShareMenu && (
+                          <>
+                            {/* Backdrop */}
+                            <div 
+                              className="fixed inset-0 z-10" 
+                              onClick={() => setShowShareMenu(false)}
+                            />
+                            
+                            {/* Dropdown Menu */}
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-background border border-border rounded-lg shadow-lg z-20">
+                              <div className="p-2">
+                                <button
+                                  onClick={shareViaWebAPI}
+                                  className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted rounded-md transition-colors"
+                                >
+                                  <Share2 className="h-4 w-4" />
+                                  Share Link
+                                </button>
+                                <button
+                                  onClick={copyShareLink}
+                                  className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted rounded-md transition-colors"
+                                >
+                                  <Link className="h-4 w-4" />
+                                  Copy Link
+                                </button>
+                                <button
+                                  onClick={toggleQRCode}
+                                  className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted rounded-md transition-colors"
+                                >
+                                  <QrCode className="h-4 w-4" />
+                                  Show QR Code
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                {/* QR Code Modal */}
+                {showQRCode && hostFileTransfer.peerId && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-background rounded-lg p-6 max-w-sm w-full">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold">QR Code</h3>
+                        <button
+                          onClick={() => setShowQRCode(false)}
+                          className="p-1 hover:bg-muted rounded-md transition-colors"
+                        >
+                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="flex justify-center mb-4">
+                        <div className="bg-white p-4 rounded-lg">
+                          {qrCodeDataUrl ? (
+                            <img 
+                              src={qrCodeDataUrl} 
+                              alt="QR Code for file transfer" 
+                              className="w-48 h-48"
+                            />
+                          ) : (
+                            <div className="w-48 h-48 flex items-center justify-center bg-gray-100 rounded">
+                              <div className="text-center">
+                                <QrCode className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                                <div className="text-xs text-gray-500">Generating QR code...</div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground text-center">
+                        Scan this QR code to receive the file
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <button
                   onClick={sendFile}
