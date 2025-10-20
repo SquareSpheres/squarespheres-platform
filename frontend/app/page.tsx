@@ -1,7 +1,8 @@
 'use client'
 
-import { useRef, useState, DragEvent, ChangeEvent, useEffect, useMemo } from 'react'
+import { useRef, useState, DragEvent, ChangeEvent, useEffect, useMemo, useCallback } from 'react'
 import QRCode from 'qrcode'
+import Image from 'next/image'
 import { File, CheckCircle, Copy, Check, Users, UploadCloud, Share2, QrCode, Link, ChevronDown } from 'lucide-react'
 import FileDropAnimation from './FileDropAnimation'
 import { useFileTransferFactory } from './hooks/useFileTransferFactory'
@@ -256,20 +257,20 @@ export default function SendPage() {
     }
   };
 
-  const getShareLink = () => {
+  const getShareLink = useCallback(() => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
     return `${baseUrl}/receive/?code=${hostFileTransfer.peerId}`;
-  };
+  }, [hostFileTransfer.peerId]);
 
-  const copyShareLink = async () => {
+  const copyShareLink = useCallback(async () => {
     const shareLink = getShareLink();
     await navigator.clipboard.writeText(shareLink);
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2000);
     setShowShareMenu(false);
-  };
+  }, [getShareLink]);
 
-  const shareViaWebAPI = async () => {
+  const shareViaWebAPI = useCallback(async () => {
     const shareLink = getShareLink();
     if (navigator.share) {
       try {
@@ -286,9 +287,9 @@ export default function SendPage() {
     } else {
       copyShareLink();
     }
-  };
+  }, [getShareLink, copyShareLink]);
 
-  const generateQRCode = async () => {
+  const generateQRCode = useCallback(async () => {
     if (hostFileTransfer.peerId) {
       try {
         const shareLink = getShareLink();
@@ -305,7 +306,7 @@ export default function SendPage() {
         console.error('Failed to generate QR code:', error);
       }
     }
-  };
+  }, [hostFileTransfer.peerId, getShareLink]);
 
   const toggleQRCode = async () => {
     if (!showQRCode && hostFileTransfer.peerId) {
@@ -320,7 +321,7 @@ export default function SendPage() {
     if (hostFileTransfer.peerId && showQRCode) {
       generateQRCode();
     }
-  }, [hostFileTransfer.peerId, showQRCode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hostFileTransfer.peerId, showQRCode, generateQRCode]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -627,10 +628,13 @@ export default function SendPage() {
                       <div className="flex justify-center mb-4">
                         <div className="bg-white p-4 rounded-lg">
                           {qrCodeDataUrl ? (
-                            <img 
+                            <Image 
                               src={qrCodeDataUrl} 
                               alt="QR Code for file transfer" 
+                              width={192}
+                              height={192}
                               className="w-48 h-48"
+                              unoptimized
                             />
                           ) : (
                             <div className="w-48 h-48 flex items-center justify-center bg-gray-100 rounded">

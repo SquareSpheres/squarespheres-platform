@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   trailingSlash: true,
+  images: {
+    remotePatterns: [],
+    domains: [],
+    unoptimized: true, // Allow data URLs and other unoptimized images
+  },
   webpack: (config) => {
     config.experiments = {
       ...config.experiments,
