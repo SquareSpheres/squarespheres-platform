@@ -21,7 +21,7 @@ builder.Services.Configure<WebSocketOptions>(options =>
 builder.Services.AddSingleton<IConnectionHandler, ConnectionHandler>();
 builder.Services.AddSingleton<IMessageHandler, MessageHandler>();
 builder.Services.AddSingleton<ISignalRegistry, SignalRegistry>();
-builder.Services.AddSingleton<CorsOriginValidator>();
+builder.Services.AddSingleton<OriginValidator>();
 
 builder.Services.AddCors();
 
@@ -29,7 +29,7 @@ var app = builder.Build();
 
 app.UseCors(policyBuilder =>
 {
-    var validator = app.Services.GetRequiredService<CorsOriginValidator>();
+    var validator = app.Services.GetRequiredService<OriginValidator>();
     policyBuilder
         .SetIsOriginAllowed(validator.IsOriginAllowed)
         .AllowAnyHeader()

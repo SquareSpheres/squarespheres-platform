@@ -4,11 +4,11 @@ using System.Linq;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 
-public class CorsOriginValidator(IWebHostEnvironment environment)
+public class OriginValidator(IWebHostEnvironment environment)
 {
     /// <summary>
     /// Checks if the given origin string is allowed.
-    /// This is used by SetIsOriginAllowed.
+    /// Used for both WebSocket origin validation and CORS policy.
     /// </summary>
     public bool IsOriginAllowed(string? origin)
     {

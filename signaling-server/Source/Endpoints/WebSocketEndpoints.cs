@@ -16,10 +16,10 @@ public static class WebSocketEndpoints
             {
                 if (context.WebSockets.IsWebSocketRequest)
                 {
-                    var corsValidator =
-                        context.RequestServices.GetRequiredService<CorsOriginValidator>();
+                    var originValidator =
+                        context.RequestServices.GetRequiredService<OriginValidator>();
 
-                    if (!corsValidator.IsOriginAllowed(context))
+                    if (!originValidator.IsOriginAllowed(context))
                     {
                         context.Response.StatusCode = 403;
                         await context.Response.WriteAsync("Origin not allowed");
