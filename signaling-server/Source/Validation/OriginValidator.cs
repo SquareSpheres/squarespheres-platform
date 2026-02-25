@@ -15,15 +15,24 @@ public class OriginValidator(IWebHostEnvironment environment)
         if (string.IsNullOrEmpty(origin))
             return false;
 
-        if (origin == "https://squarespheres.com")
-            return true;
+        switch (origin)
+        {
+            case "https://squarespheres.com":
+            case "squareloq-app":
+                return true;
+        }
 
         if (origin.EndsWith(".squarespheres.com"))
             return true;
 
         if (
             environment.IsDevelopment()
-            && (origin.StartsWith("http://localhost:") || origin.StartsWith("http://127.0.0.1:"))
+            && (
+                origin.StartsWith("http://localhost:")
+                || origin.StartsWith("http://127.0.0.1:")
+                || origin.StartsWith("ws://localhost:")
+                || origin.StartsWith("ws://127.0.0.1:")
+            )
         )
             return true;
 
