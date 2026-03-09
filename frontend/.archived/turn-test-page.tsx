@@ -3,13 +3,13 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { useTurnServers } from '../hooks/useTurnServers'
-import { 
-  Server, 
-  Clock, 
-  RefreshCw, 
-  Settings, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Server,
+  Clock,
+  RefreshCw,
+  Settings,
+  CheckCircle,
+  XCircle,
   AlertCircle,
   Copy,
   Eye,
@@ -56,7 +56,7 @@ export default function TurnTestPage() {
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
     const secs = seconds % 60
-    
+
     if (hours > 0) {
       return `${hours}h ${minutes}m ${secs}s`
     } else if (minutes > 0) {
@@ -104,7 +104,7 @@ export default function TurnTestPage() {
           </div>
           <p className="text-muted-foreground text-lg">Loading authentication...</p>
         </div>
-        
+
         <div className="card animate-pulse">
           <div className="h-6 bg-muted rounded w-1/3 mb-4"></div>
           <div className="space-y-3">
@@ -131,7 +131,7 @@ export default function TurnTestPage() {
           </div>
           <p className="text-muted-foreground text-lg">Please sign in to access TURN server testing</p>
         </div>
-        
+
         <div className="card text-center">
           <div className="p-8">
             <Shield className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
@@ -158,7 +158,7 @@ export default function TurnTestPage() {
           </div>
           <p className="text-muted-foreground text-lg">Testing WebRTC connectivity and TURN server configuration</p>
         </div>
-        
+
         <div className="card animate-pulse">
           <div className="h-6 bg-muted rounded w-1/3 mb-4"></div>
           <div className="space-y-3">
@@ -204,7 +204,7 @@ export default function TurnTestPage() {
             {getStatusText()}
           </div>
         </div>
-        
+
         <div className="card text-center">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Clock className="h-5 w-5 text-blue-500" />
@@ -214,7 +214,7 @@ export default function TurnTestPage() {
             {formatExpiry(expiryInSeconds)}
           </div>
         </div>
-        
+
         <div className="card text-center">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Globe className="h-5 w-5 text-green-500" />
@@ -234,7 +234,7 @@ export default function TurnTestPage() {
           </div>
           <h2 className="text-xl font-semibold text-card-foreground">Test Configuration</h2>
         </div>
-        
+
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-end gap-4">
             <div className="flex-1">
@@ -308,7 +308,7 @@ export default function TurnTestPage() {
             </div>
             <h2 className="text-xl font-semibold text-card-foreground">Credential Information</h2>
           </div>
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-muted/50 p-4 rounded-lg">
               <div className="text-sm font-medium text-muted-foreground mb-2">Credential Source</div>
@@ -326,13 +326,13 @@ export default function TurnTestPage() {
                 )}
               </div>
               <div className="text-xs text-muted-foreground mt-2">
-                {credentialSource === 'existing' 
-                  ? 'Reusing existing non-expired credential to save quota' 
+                {credentialSource === 'existing'
+                  ? 'Reusing existing non-expired credential to save quota'
                   : 'Created new credential for this session'
                 }
               </div>
             </div>
-            
+
             <div className="bg-muted/50 p-4 rounded-lg">
               <div className="text-sm font-medium text-muted-foreground mb-2">Credential Label</div>
               <div className="text-sm font-mono text-card-foreground break-all bg-card p-2 rounded border">
@@ -378,7 +378,7 @@ export default function TurnTestPage() {
               TURN/STUN Servers ({iceServers.length} servers)
             </h2>
           </div>
-          
+
           <div className="space-y-4">
             {iceServers.map((server, index) => (
               <div key={index} className="bg-muted/30 p-6 rounded-lg border border-border hover:bg-muted/50 transition-colors">
@@ -418,7 +418,7 @@ export default function TurnTestPage() {
                       )}
                     </div>
                   </div>
-                  
+
                   {server.username && (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2">
@@ -439,7 +439,7 @@ export default function TurnTestPage() {
                       </div>
                     </div>
                   )}
-                  
+
                   {server.credential && (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2">
